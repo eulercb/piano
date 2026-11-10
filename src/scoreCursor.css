@@ -1,0 +1,11 @@
+.score-follow-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin: .5rem 0 1rem; }
+.score-follow-controls .score-position { margin: 0; font-weight: 600; }
+.score-follow-controls label { display: inline-flex; align-items: center; gap: .5rem; min-height: 44px; cursor: pointer; }
+.score-follow-controls input { width: 20px; height: 20px; accent-color: #3578c8; }
+.score-follow-controls .score-follow-hint { flex-basis: 100%; margin: 0; font-size: .9rem; }
+.score-sheet.score-follow-viewport { max-height: min(65vh, 720px); overflow: auto; overscroll-behavior: contain; scroll-behavior: auto; position: relative; }
+.score-sheet.score-follow-viewport:focus-visible { outline: 2px solid #3578c8; outline-offset: 3px; }
+@media (max-width: 600px) {
+  .score-follow-controls { align-items: flex-start; flex-direction: column; }
+  .score-sheet.score-follow-viewport { max-height: 60vh; }
+}

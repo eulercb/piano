@@ -1,5 +1,15 @@
 # Validation
 
+## Combined practice, import and reading tools
+
+- All 351 automated tests pass, including folder rejection reporting; TypeScript/Vite/PWA build passes. Production dependency audit: zero vulnerabilities. CI runs the full test suite and build for PRs.
+
+- Parallel lanes were independently reviewed, including fixes for stale-tab history writes, invalid completion metadata, malformed DEFLATE streams, and OSMD cursor replacement during resize.
+- Synthetic tests cover strict compressed MusicXML import, app/folder import wiring, completed-pass history and persistence, and the real installed OSMD iterator. These do not replace rendered browser validation.
+- No private scores are bundled or uploaded. Browser upload approval remains pending. Actual Android/Casio USB MIDI, mobile engraving and new UI visual checks remain unverified.
+- A desktop live-site update from the earlier cached app to merged #13 showed the explicit update prompt and preserved library entries and a saved fingering. This verifies that deployed update cycle, not the new branch UI.
+
+
 ## MIDI input selection slice
 
 - All 160 automated tests pass (120 existing plus 40 synthetic MIDI regressions); TypeScript and Vite/PWA production build pass. Dependencies and package files are unchanged.
@@ -35,4 +45,4 @@
 
 ## Remaining scope
 
-Recital scoring, saved practice history, latency calibration and freehand note insertion/duration editing remain backlog work. Rhythm feedback assesses pitch/onset only, with fixed real-time beginner windows; it does not grade holds, releases, pedal or expression. Grace notes use a disclosed timing approximation. Expression/pedal/articulations are not reproduced from MusicXML. Written trailing rests are preserved for passage-loop timing. Trimming into a grace-note opening can be rejected explicitly rather than changing the rhythm silently. Older MIDI projects with attached scores retain reference-only engraving. Keep exported project backups because browser storage can be cleared.
+Recital scoring, latency calibration and freehand note insertion/duration editing remain backlog work. Rhythm feedback assesses pitch/onset only, with fixed real-time beginner windows; it does not grade holds, releases, pedal or expression. Grace notes use a disclosed timing approximation. Expression/pedal/articulations are not reproduced from MusicXML. Written trailing rests are preserved for passage-loop timing. Trimming into a grace-note opening can be rejected explicitly rather than changing the rhythm silently. Older MIDI projects with attached scores retain reference-only engraving. Keep exported project backups because browser storage can be cleared.

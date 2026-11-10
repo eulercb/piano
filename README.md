@@ -15,16 +15,16 @@ The app supports MIDI preparation, a local song library, listening, wait-for-not
 - Melody waits for the next note/chord. Listen mode plays the selected hand(s). Rhythm mode keeps moving and grades the selected hand(s) by pitch and onset timing, with the other hand as accompaniment.
 - Optional count-in gives four quarter-note beats at the piece’s starting tempo and selected speed before each pass. It is a plain beat count, not a claimed measure; meter and tempo changes are not inferred for the count-in.
 - Rhythm feedback is deliberately beginner-focused: correct pitches within 100 ms are on time, up to 300 ms early/late receive timing feedback, and unanswered targets become missed. These are real-time windows at every speed. Chords and doubled unisons are supported. Note length, pedal, expression, and device/audio latency are not graded or calibrated.
-- Pause/resume retains the attempt and any partial count-in. Restart, seeking, changing hand/mode, or changing the count-in setting starts fresh; seeking excludes earlier notes from the attempt. Repeat shows the previous pass summary and resets the new pass. Results are session-only; recital mode and saved history remain backlog work.
+- Pause/resume retains the attempt and any partial count-in. Restart, seeking, changing hand/mode, or changing the count-in setting starts fresh; seeking excludes earlier notes from the attempt. Repeat shows the previous pass summary and resets the new pass. Completed passes are saved in local practice history; recital grading remains backlog work.
 - Backgrounding the app or an animation scheduling gap over 250 ms pauses practice rather than catching up with a burst of missed notes or accompaniment. Press Play to resume.
-- Direct MusicXML imports support source-linked score edits and measure trimming. Older MIDI projects with an attached MusicXML retain an explicitly labelled reference score; edits to those projects do not change the reference. No playback cursor/highlighting is implemented yet.
+- Direct MusicXML imports support source-linked score edits and measure trimming. Older MIDI projects with an attached MusicXML retain an explicitly labelled reference score; edits to those projects do not change the reference. Matching MusicXML-origin scores show a playback cursor and measure position, with optional pane-only follow scrolling. Reference-only scores stay unsynchronized.
 - Original demo "Morning Light" is supplied. User-owned Valsa do Adeus project assets must be imported privately; no photographed score or third-party arrangement is published in this repository.
 - Synthesized triangle tones are a lightweight preview, not a sampled grand piano. Physical MIDI and mobile installation require real-device verification.
 - Local browser storage may be cleared by the browser. Export a project backup.
 
 ## GitHub Pages
 
-The workflow tests and builds PRs, then deploys successful main pushes through GitHub Pages. Set repository Settings → Pages → Source to **GitHub Actions**, custom domain `piano.zen.dev.br`, and enable HTTPS when GitHub provisions its certificate. The custom domain is included in `public/CNAME`. DNS must point to this repository's GitHub Pages host. Workflow configuration alone is not proof of a live deployment. When a new version is waiting, the app offers **Reload update** with a save/export warning. It never reloads automatically to apply an update; existing local library data is not cleared. The update lifecycle still needs browser verification.
+The workflow tests and builds PRs, then deploys successful main pushes through GitHub Pages. Set repository Settings → Pages → Source to **GitHub Actions**, custom domain `piano.zen.dev.br`, and enable HTTPS when GitHub provisions its certificate. The custom domain is included in `public/CNAME`. DNS must point to this repository's GitHub Pages host. Workflow configuration alone is not proof of a live deployment. When a new version is waiting, the app offers **Reload update** with a save/export warning. It never reloads automatically to apply an update; existing local library data is not cleared. A deployed desktop browser update cycle preserved saved songs and fingerings; Android installed-PWA behavior remains unverified.
 
 ## Android and a USB-C piano
 
@@ -32,12 +32,20 @@ Target: current Chrome on Android, with a class-compliant USB MIDI Casio and sui
 
 The input list updates as devices are plugged in or removed. If the selected piano disconnects, the app keeps its selection and reconnects only that same input ID; it never silently switches to another device. If the browser assigns a different ID, select the piano again. **Disconnect** stops MIDI input, and **Reconnect piano** retries the connection. Denied permission, missing browser support, missing inputs and input-open failures have separate guidance. Touch and typing keys remain available. Device choices and activity are session-only, not saved in browser storage.
 
-Library → **Open song folder** progressively uses `showDirectoryPicker` when available; otherwise select multiple files via **Import song**. The first slice copies files into local app storage and requires explicit re-opening to refresh, rather than promising permanent background folder access. Uncompressed MusicXML imports as a new playable score. Save/export a Piano project to retain score and fingerings.
+Library → **Open song folder** progressively uses `showDirectoryPicker` when available; otherwise select multiple files via **Import song**. The first slice copies files into local app storage and requires explicit re-opening to refresh, rather than promising permanent background folder access. MusicXML and compressed .mxl import as new playable scores. Save/export a Piano project to retain score and fingerings.
 
 ## Score-linked Studio
 
-Import uncompressed `.musicxml` or `.xml` directly to create playable notes and readable notation together. Supported partwise piano scores preserve staff-to-hand assignment, printed fingers, chords, tuplets expressed via duration, and ties. Structural playback features that are not supported must fail clearly rather than silently play the wrong sequence. Grace-note approximation is disclosed on import.
+Import `.musicxml`, `.xml` or compressed `.mxl` directly to create playable notes and readable notation together. Supported partwise piano scores preserve staff-to-hand assignment, printed fingers, chords, tuplets expressed via duration, and ties. Structural playback features that are not supported must fail clearly rather than silently play the wrong sequence. Grace-note approximation is disclosed on import.
 
 For these imported scores, Studio pitch/finger edits and transposition rewrite the MusicXML and re-derive playback. Trim by whole measures (including a pickup) to keep notation and sound aligned; inherited attributes and crossing ties are repaired. Export MusicXML or a Piano project. Editing MIDI-only songs retains the simpler seconds-based editor.
 
 This remains incremental: no freehand note insertion/duration editor or full notation-authoring application yet.
+
+## Practice history and score following
+
+Completed listen, melody and rhythm passes are stored locally with hand, speed range and passage context. Open History for gentle next-step suggestions, JSON backups and explicit delete/clear controls. Storage is bounded; export backups before clearing browser data. Modern Web Locks serialize changes across tabs; without that API, use one app tab to avoid simultaneous-write conflicts.
+
+The score cursor requires unchanged correspondence between MusicXML and playable notes. Written grace positions share the principal note; performed grace timing remains approximate. Follow scrolling is opt-in and stays inside the score pane.
+
+Compressed scores are read locally with strict size, path, integrity and decompression limits. External images and resource links are rejected; no archive resources are fetched. Original imported files are not overwritten.
