@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { demoSong, exportMidi, formatTime, parseMidi, transposeSong, trimSong, type Song } from './music'
+import { demoSong, exportMidi, formatTime, songDuration, parseMidi, transposeSong, trimSong, type Song } from './music'
 
 const makeMidi = (tracks: number[][], division = 480) => {
   const data = [77,84,104,100,0,0,0,6,0,tracks.length > 1 ? 1 : 0,0,tracks.length,division >> 8,division & 255]
@@ -12,6 +12,12 @@ const song: Song = { id: 'test', title: 'Test étude', tempo: 120, notes: [
 ] }
 
 describe('MIDI', () => {
+  it('preserves trailing silence through MIDI export and import', () => {
+    const padded = { ...song, duration: 3 }
+    const restored = parseMidi(exportMidi(padded).buffer as ArrayBuffer)
+    expect(songDuration(restored)).toBeCloseTo(3)
+    expect(restored.notes[1].start + restored.notes[1].duration).toBeCloseTo(1.5)
+  })
   it('round-trips seconds, Unicode title, velocity and explicit hand', () => {
     const output = exportMidi(song)
     const parsed = parseMidi(output.buffer as ArrayBuffer)
@@ -71,6 +77,12 @@ describe('MIDI', () => {
 })
 
 describe('editing', () => {
+  it('keeps a trimmed passage full length including its trailing silence', () => {
+    const trimmed = trimSong({ ...song, duration: 3 }, 0, 2.5)
+    expect(songDuration(trimmed)).toBe(2.5)
+    expect(songDuration(transposeSong(trimmed, 1))).toBe(2.5)
+    expect(songDuration(song)).toBe(1.5)
+  })
   it('clips crossing notes and rebases without mutating the source', () => {
     const result = trimSong(song, 0.25, 1.25)
     expect(result.notes.map(note => [note.start, note.duration])).toEqual([[0,0.75],[0.25,0.75]])
