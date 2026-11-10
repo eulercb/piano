@@ -1,9 +1,11 @@
 import { DOMParser, type Element } from '@xmldom/xmldom'
 import type { Note, Song } from './music'
+import type { ScoreTimeline, ScoreTimingEntry } from './scoreCursor'
 
 type BeatNote = Omit<Note, 'start' | 'duration'> & { start: number; duration: number; part: number; voice: string; staff: number; tieStart: boolean; tieStop: boolean; grace: boolean }
 type Tempo = { beat: number; bpm: number }
-type Measure = { notes: BeatNote[]; tempos: Tempo[]; length: number }
+type WrittenNote = { sourceNoteId: string; measureIndex: number; beat: number; duration: number; rest: boolean; cue: boolean; grace: boolean }
+type Measure = { notes: BeatNote[]; tempos: Tempo[]; length: number; writtenNotes: WrittenNote[] }
 function fail(message: string): never { throw new Error(`MusicXML: ${message}`) }
 const children = (element: Element, name?: string): Element[] => {
   const result: Element[] = []
@@ -25,7 +27,7 @@ const EPS = 1e-7
  * counting rests/cues/graces. Tied notes retain every constituent source ID.
  * Original XML is preserved. Unwritten expressive performance is not inferred.
  */
-export function parseMusicXml(xml: string): { song: Song; warnings: string[]; measureStartTempos: number[] } {
+export function parseMusicXml(xml: string): { song: Song; warnings: string[]; measureStartTempos: number[]; scoreTimeline: ScoreTimeline } {
   if (typeof xml !== 'string' || new TextEncoder().encode(xml).byteLength > 5 * 1024 * 1024) fail('choose a score smaller than 5 MiB.')
   if (/<!ENTITY\b|<!DOCTYPE[^>]*\[/i.test(xml)) fail('custom XML entities and internal DTDs are not supported.')
   if ((xml.match(/</g)?.length ?? 0) > 350000) fail('score has too many XML elements.')
@@ -64,7 +66,7 @@ export function parseMusicXml(xml: string): { song: Song; warnings: string[]; me
     measures.forEach((measure, measureIndex) => {
       let cursor = 0, extent = 0, noteIndex = 0
       let previous: { onset: number; voice: string; staff: number; grace: boolean } | undefined
-      const notes: BeatNote[] = [], tempos: Tempo[] = []
+      const notes: BeatNote[] = [], tempos: Tempo[] = [], writtenNotes: WrittenNote[] = []
       for (const item of children(measure)) {
         const tag = item.localName
         if (tag === 'attributes') {
@@ -129,6 +131,7 @@ export function parseMusicXml(xml: string): { song: Song; warnings: string[]; me
           if (!chord && !grace) cursor += duration
           extent = Math.max(extent, onset + duration, cursor)
           if (!chord) previous = { onset, voice, staff, grace }
+          writtenNotes.push({ sourceNoteId: sourceId, measureIndex, beat: onset, duration, rest: !!one(item, 'rest'), cue: !!one(item, 'cue'), grace })
           if (one(item, 'rest')) { if (grace || chord) fail('grace/chord rests are not supported.'); continue }
           if (one(item, 'cue')) { warningSet.add('Cue notes are displayed but omitted from playback.'); continue }
           const pitchElement = one(item, 'pitch')
@@ -156,7 +159,7 @@ export function parseMusicXml(xml: string): { song: Song; warnings: string[]; me
       const pickup = measure.getAttribute('implicit') === 'yes' || (measureIndex === 0 && extent < nominalLength - EPS)
       const length = pickup || measureIndex === measures.length - 1 ? extent : Math.max(extent, nominalLength)
       if (length <= 0) fail('empty measures need an explicit whole-measure rest.')
-      parsed.push({ notes, tempos, length })
+      parsed.push({ notes, tempos, length, writtenNotes })
     })
     perPart.push(parsed)
   })
@@ -189,6 +192,9 @@ export function parseMusicXml(xml: string): { song: Song; warnings: string[]; me
   }
   if (graceGroups.size) warningSet.add('Grace notes play 1/8 of a quarter note each immediately before the principal beat; expressive grace timing is approximate.')
   beatNotes.sort((a,b) => a.start - b.start || a.pitch - b.pitch)
+  // Save realized grace timing before ties merge the playback notes. Written
+  // positions remain separate, including rests, cues and tie continuations.
+  const graceTimings = new Map(beatNotes.filter(note => note.grace).map(note => [note.sourceNoteIds![0], { start: note.start, duration: note.duration }]))
   const tied = new Map<string, BeatNote>(), combined: BeatNote[] = []
   for (const note of beatNotes) {
     const key = `${note.part}:${note.staff}:${note.voice}:${note.pitch}`
@@ -225,6 +231,18 @@ export function parseMusicXml(xml: string): { song: Song; warnings: string[]; me
   const secondsAt = (beat: number) => { const segment = segmentAt(beat); return segment.seconds + (beat - segment.beat) * 60 / segment.bpm }
   if (secondsAt(measureStart) > 86400) fail('score duration exceeds 24 hours.')
   const notes: Note[] = combined.map(note => ({ id: note.id, pitch: note.pitch, start: secondsAt(note.start), duration: secondsAt(note.start + note.duration) - secondsAt(note.start), velocity: note.velocity, hand: note.hand, ...(note.finger ? { finger: note.finger } : {}), sourceNoteIds: note.sourceNoteIds }))
+  const entries: ScoreTimingEntry[] = perPart.flatMap(measures => measures.flatMap(measure => measure.writtenNotes.map(note => {
+    const writtenBeat = measureStarts[note.measureIndex] + note.beat
+    const realized = graceTimings.get(note.sourceNoteId)
+    const startBeat = realized?.start ?? writtenBeat
+    const durationBeat = realized?.duration ?? note.duration
+    return { ...note, start: secondsAt(startBeat), writtenStart: secondsAt(writtenBeat), duration: secondsAt(startBeat + durationBeat) - secondsAt(startBeat) }
+  })))
+  const scoreTimeline: ScoreTimeline = {
+    entries,
+    measures: measureStarts.map((beat, index) => ({ start: secondsAt(beat), duration: secondsAt(measureStarts[index + 1] ?? measureStart) - secondsAt(beat) })),
+    duration: secondsAt(measureStart),
+  }
   const title = descendants(root, 'work-title')[0]?.textContent?.trim() || text(root, 'movement-title') || 'Imported score'
-  return { song: { id: crypto.randomUUID(), title: title.slice(0, 500), tempo: segments[0].bpm, notes, scoreXml: xml, scoreOrigin: 'musicxml', duration: secondsAt(measureStart) }, warnings: [...warningSet], measureStartTempos: measureStarts.map(beat => segmentAt(beat).bpm) }
+  return { song: { id: crypto.randomUUID(), title: title.slice(0, 500), tempo: segments[0].bpm, notes, scoreXml: xml, scoreOrigin: 'musicxml', duration: secondsAt(measureStart) }, warnings: [...warningSet], measureStartTempos: measureStarts.map(beat => segmentAt(beat).bpm), scoreTimeline }
 }

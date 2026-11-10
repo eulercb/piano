@@ -1,5 +1,5 @@
 import { PracticeSession, frameTime, type PracticeHand, type PracticeMode, type RhythmSummary } from "./session";
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import {
@@ -7,6 +7,7 @@ import {
   Library,
   SlidersHorizontal,
   Headphones,
+  History,
   Upload,
   Play,
   Pause,
@@ -33,8 +34,10 @@ import {
 import "./style.css";
 import { Score } from "./Score";
 import { MidiConnection } from "./MidiConnection";
+import { PracticeHistory } from "./PracticeHistory";
+import { PracticeHistoryStore, PracticePassRecorder } from "./practiceHistory";
 import { normalizeSong, parseProject } from "./project";
-import { parseMusicXml } from "./musicxml";
+import { importScoreFile } from "./scoreImport";
 import {
   scoreMeasures,
   editScoreNote,
@@ -106,7 +109,10 @@ function TimingSummary({ summary }: { summary: RhythmSummary }) {
     </dl>
   );
 }
-function App() {
+export function App() {
+  const [history] = useState(() => new PracticeHistoryStore());
+  const historySnapshot = useSyncExternalStore(history.subscribe, history.getSnapshot);
+  useEffect(() => history.listen(), [history]);
   const [songs, setSongs] = useState<Song[]>(load),
     [song, setSong] = useState<Song>(demoSong),
     [page, setPage] = useState("practice"),
@@ -145,6 +151,7 @@ function App() {
     notes: song.notes, duration: duration(song), tempo: song.tempo,
     hand, mode, countIn,
   }), [song, hand, mode, countIn]);
+  const recorder = useMemo(() => new PracticePassRecorder(session, song), [session, song]);
   const notes = session.notes, total = duration(song),
     time = Math.min(total, session.position);
   function redraw() {
@@ -153,6 +160,7 @@ function App() {
   function reset(t = 0) {
     silence();
     session.restart(t);
+    recorder.reset();
     setPlaying(false);
     setNotice("");
     redraw();
@@ -160,7 +168,9 @@ function App() {
   function step(now: number) {
     const wasRunning = session.running;
     const timing = frameTime(last.current, now);
-    const result = session.advanceFrame(timing.seconds, speed, repeatPassage);
+    const result = recorder.advanceFrame(timing.seconds, speed, repeatPassage);
+    if (result.completedPass) history.append(result.completedPass);
+    if (result.historyError) history.report(result.historyError);
     last.current = timing.timestamp;
     if (result.interrupted) {
       silence();
@@ -277,7 +287,7 @@ function App() {
       cancelAnimationFrame(id);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [playing, speed, session, muted, repeatPassage]);
+  }, [playing, speed, session, recorder, muted, repeatPassage]);
   function save(s: Song) {
     setSongs((previous) => {
       const next = [s, ...previous.filter((x) => x.id !== s.id)];
@@ -305,19 +315,25 @@ function App() {
       }
       const dir = await picker({ mode: "read" });
       let count = 0;
+      let attempted = 0;
+      const failures: string[] = [];
       for await (const entry of dir.values()) {
         if (
           entry.kind === "file" &&
-          /\.(mid|midi|json|xml|musicxml)$/i.test(entry.name)
+          /\.(mid|midi|json|xml|musicxml|mxl)$/i.test(entry.name)
         ) {
-          await importFile(await entry.getFile());
-          count++;
-          if (count >= 50) break;
+          attempted++;
+          try {
+            const result = await importFile(await entry.getFile());
+            if (result.ok) count++;
+            else failures.push(entry.name + ": " + result.error);
+          } catch { failures.push(entry.name + ": Could not read this file."); }
+          if (attempted >= 50) break;
         }
       }
       setNotice(
-        count
-          ? `Imported ${count} files from your chosen folder (up to 50). Re-open the folder to refresh; background scanning is not enabled.`
+        attempted
+          ? `Imported ${count} of ${attempted} files from your chosen folder (up to 50). ${failures.length ? `${failures.length} rejected. ${failures.slice(0, 3).join(" ")} ` : ""}Re-open the folder to refresh; background scanning is not enabled.`
           : "No MIDI, MusicXML or Piano project files found in this folder.",
       );
     } catch (e) {
@@ -325,13 +341,13 @@ function App() {
         setNotice("Could not open that folder. Try Import song instead.");
     }
   }
-  async function importFile(f?: File) {
-    if (!f) return;
+  async function importFile(f?: File): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (!f) return { ok: false, error: "No file selected." };
     try {
       if (f.size > 10 * 1024 * 1024)
         throw Error("Please choose a song file smaller than 10 MB.");
-      if (/\.(musicxml|xml)$/i.test(f.name)) {
-        const result = parseMusicXml(await f.text());
+      if (/\.(musicxml|xml|mxl)$/i.test(f.name)) {
+        const result = await importScoreFile(f);
         const imported = { ...result.song, id: crypto.randomUUID() };
         select(imported);
         save(imported);
@@ -342,10 +358,10 @@ function App() {
             : "Score imported with playable notes, hands and printed fingerings.",
         );
         if(file.current)file.current.value="";
-        return;
+        return { ok: true };
       }
       let s: Song;
-      if (f.name.endsWith(".json")) {
+      if (/\.json$/i.test(f.name)) {
         s = { ...parseProject(await f.text()), id: crypto.randomUUID() };
       } else {
         s = parseMidi(await f.arrayBuffer());
@@ -355,16 +371,18 @@ function App() {
       save(s);
       setPage("prepare");
       setNotice(
-        f.name.endsWith(".json")
+        /\.json$/i.test(f.name)
           ? "Practice project imported with its saved hands and fingerings."
           : "MIDI imported. Hands are estimated by pitch; check the split before practising.",
       );
     } catch (e) {
-      setNotice(
-        e instanceof Error ? e.message : "Could not read this song file.",
-      );
+      const error = e instanceof Error ? e.message : "Could not read this song file.";
+      setNotice(error);
+      if (file.current) file.current.value = "";
+      return { ok: false, error };
     }
     if (file.current) file.current.value = "";
+    return { ok: true };
   }
   function download() {
     const blob = new Blob([new Uint8Array(exportMidi(song))], {
@@ -423,6 +441,7 @@ function App() {
             ["library", "My library", Library],
             ["prepare", "Prepare a song", SlidersHorizontal],
             ["practice", "Practice room", Headphones],
+            ["history", "Practice history", History],
           ].map(([id, label, Icon]: any) => (
             <button
               key={id}
@@ -460,7 +479,7 @@ function App() {
                 ? "Practice room"
                 : page === "prepare"
                   ? "Prepare a song"
-                  : "My library"}
+                  : page === "history" ? "Practice history" : "My library"}
             </span>
           </div>
           <MidiConnection onNote={(pitch) => inputRef.current(pitch)} />
@@ -470,12 +489,12 @@ function App() {
           hidden
           multiple
           type="file"
-          accept=".mid,.midi,.json,.xml,.musicxml"
+          accept=".mid,.midi,.json,.xml,.musicxml,.mxl"
           onChange={async (e) => {
             const files = Array.from(e.target.files || []).sort(
               (a, b) =>
-                Number(/\.(xml|musicxml)$/i.test(a.name)) -
-                Number(/\.(xml|musicxml)$/i.test(b.name)),
+                Number(/\.(xml|musicxml|mxl)$/i.test(a.name)) -
+                Number(/\.(xml|musicxml|mxl)$/i.test(b.name)),
             );
             for (const f of files) await importFile(f);
           }}
@@ -489,14 +508,14 @@ function App() {
                   ? "One note closer."
                   : page === "prepare"
                     ? "Make it your own."
-                    : "Your next favorite piece."}
+                    : page === "history" ? "Every pass has a place." : "Your next favorite piece."}
               </h1>
               <p>
                 {page === "practice"
                   ? "Slow it down. Find your rhythm. Enjoy the practice."
                   : page === "prepare"
                     ? "Turn a whole piece into a passage you can master."
-                    : "A small collection. Endless possibilities."}
+                    : page === "history" ? "A private record of the music you spent time with." : "A small collection. Endless possibilities."}
               </p>
             </div>
             <button
@@ -533,7 +552,10 @@ function App() {
               </button>
             </div>
           )}
-          {page === "library" ? (
+          {page !== "history" && historySnapshot.message && (
+            <div className="notice" role="status">{historySnapshot.message}</div>
+          )}
+          {page === "history" ? <PracticeHistory store={history} /> : page === "library" ? (
             <>
               <div className="section-title">
                 <h2>On your music stand</h2>
@@ -797,6 +819,9 @@ function App() {
                 <Score
                   xml={song.scoreXml}
                   editable={song.scoreOrigin === "musicxml"}
+                  sourceSong={song}
+                  playbackTime={time}
+                  playing={playing && !session.countingIn}
                 />
               )}
               {page === "prepare" && (
@@ -1138,7 +1163,7 @@ function App() {
                     comfortably before speeding up.
                   </p>
                   <p className="coming">
-                    Coming next: recital mode and saved practice history.
+                    Completed passes appear in Practice history. Coming next: recital mode.
                   </p>
                 </section>
               </div>
@@ -1220,4 +1245,5 @@ function App() {
     </div>
   );
 }
-createRoot(document.getElementById("root")!).render(<App />);
+const root = document.getElementById("root");
+if (root) createRoot(root).render(<App />);
