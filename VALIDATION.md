@@ -1,5 +1,23 @@
 # Validation
 
+## Focused mounted-phone practice
+
+- All 407 automated tests pass; TypeScript and Vite/PWA production build pass. The existing lazy notation chunk remains large (about 398 KiB gzip). Dependencies are unchanged.
+- Practice now owns one dynamic viewport with safe-area padding, persistent transport, compact setup summary, proportional falling notes, a replacement score view, finger-hint toggle and on-demand Setup/Results/Piano panels. Studio, Library and History remain separate.
+- Synthetic DOM tests cover repeated panel open/close and cancellation, focus-return wiring, pause/resume without losing position, score mounting/unmounting, missing-score explanation, finger toggles, wait-for-note melody, retained mode/hand/speed and a single persistent MIDI component across navigation. Native modal focus trapping and Android Back behavior are not simulated by those tests.
+- A real parser/import/edit/session integration test imports synthetic compressed MusicXML, edits pitch and finger, enters the focused room, shows its compact score, checks wrong/correct melody input and returns to Studio with the edits intact. Engraving drawing/audio/clock are test doubles; private user files are not used.
+- Authored CSS tests check dynamic viewport sizing, safe-area insets, contained score/dialog scrolling, 44px transport targets and a source-derived 568×320 landscape height budget with bounded notices. These are not browser layout measurements.
+- Independent review identified and addressed an unnamed landscape score toggle, modal demo-key shortcuts and narrow-landscape guide starvation. Actual rendered portrait/landscape, browser text zoom, screen-reader/native-modal behavior, Android Chrome installed-PWA and Casio USB MIDI remain unverified. No publication or deployment is included in this worktree.
+
+
+## End-to-end usability gate
+
+- Six permanent synthetic app tests cover real MusicXML and compressed .mxl import, finger edits, measure trimming with the original preserved, save/reload, project export/reimport, count-in, selected-hand melody/rhythm and rejected-import data preservation. Engraving/audio/animation/download dispatch are simulated; this is not browser or Casio verification.
+- Keyboard/assistive clicks activate piano keys without duplicate pointer notes. Browser modifier shortcuts and editable fields are preserved; current page/hand/mode/speed states are exposed to assistive technology.
+- Contrast, focus, general touch targets and narrow-screen CSS have regression checks. Actual mobile rendering remains unverified. Piano keys retain their narrow musical geometry; reduced motion does not suppress pedagogical falling notes.
+- Live merged #14 demo playback recorded a correctly labeled listening pass and retained it after reload. Actual browser file import/score editing/cursor remains blocked on pending upload approval; physical Android/Casio testing remains outstanding.
+
+
 ## Combined practice, import and reading tools
 
 - All 351 automated tests pass, including folder rejection reporting; TypeScript/Vite/PWA build passes. Production dependency audit: zero vulnerabilities. CI runs the full test suite and build for PRs.

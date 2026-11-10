@@ -428,6 +428,17 @@ describe("synchronized reading score", () => {
     expect(instances[0].render).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps compact practice engraving and cursor controls without Studio explanations", async () => {
+    const { song } = parseMusicXml(linkedXml);
+    const view = render(<Score xml={linkedXml} sourceSong={song} compact />);
+    await screen.findByRole("checkbox", { name: "Follow score while playing" });
+    expect(view.container.querySelector(".compact-score")).toBeTruthy();
+    expect(instances[0].options).toMatchObject({ drawTitle: false, autoResize: false });
+    expect(screen.queryByRole("heading", { name: "Your reading score" })).toBeNull();
+    expect(screen.queryByText(/The blue cursor follows written positions/)).toBeNull();
+    expect(screen.getByRole("region", { name: "Reading score" })).toBeTruthy();
+  });
+
   it("keeps engraving available if cursor indexing fails", async () => {
     const { song } = parseMusicXml(linkedXml);
     const next = vi.spyOn(FakeCursor.prototype, "Iterator", "get").mockImplementation(() => { throw new Error("bad iterator"); });

@@ -26,9 +26,19 @@ The app supports MIDI preparation, a local song library, listening, wait-for-not
 
 The workflow tests and builds PRs, then deploys successful main pushes through GitHub Pages. Set repository Settings → Pages → Source to **GitHub Actions**, custom domain `piano.zen.dev.br`, and enable HTTPS when GitHub provisions its certificate. The custom domain is included in `public/CNAME`. DNS must point to this repository's GitHub Pages host. Workflow configuration alone is not proof of a live deployment. When a new version is waiting, the app offers **Reload update** with a save/export warning. It never reloads automatically to apply an update; existing local library data is not cleared. A deployed desktop browser update cycle preserved saved songs and fingerings; Android installed-PWA behavior remains unverified.
 
+## Focused practice room
+
+The Practice room is a viewport-contained piano guide, with a compact piece/hand/speed/mode header and permanent play, pause, restart, position and mute controls. Falling notes scale to the available height in portrait and landscape. Library, Studio preparation and history keep their own pages.
+
+- Open **Setup** for hands, tempo, count-in, repeat and **Melody practice · wait for notes**. Opening Setup, Results or Piano pauses at the current position. Closing a panel does not resume automatically: press Play when ready.
+- **Reading score** replaces the falling-note surface rather than stacking a long score above it. Matching MusicXML has the existing cursor and opt-in **Follow score while playing**. A project without notation explains how to add a score. Return with **Falling notes**; the transport stays in place.
+- **Fingers** toggles saved/printed finger hints on falling notes. These are suggestions, not fingers detected or graded by MIDI. Printed notation fingerings remain visible in score view.
+- **Piano** opens connection and input selection. The connection stays mounted and listening when the panel closes or when moving between pages. Setup links to **Prepare a song** and **Practice history**. Rhythm feedback stays compact during the pass; **Results** opens the detailed summary.
+- The room uses dynamic viewport height, safe-area insets and internally scrolling dialogs/score panes. Synthetic DOM and stylesheet tests cover these contracts; actual Android/Casio and rendered mobile layout still need device verification.
+
 ## Android and a USB-C piano
 
-Target: current Chrome on Android, with a class-compliant USB MIDI Casio and suitable USB-C/OTG adapter. This hardware path is not yet physically tested. Tap **Connect piano** after opening the HTTPS app, then allow MIDI access. A sole connected input is selected automatically; if several are present, choose your Casio under **Piano input**. Only that input affects practice. Play a key and check the last-note/activity indicator before starting a passage. No microphone recognition or sysex is requested.
+Target: current Chrome on Android, with a class-compliant USB MIDI Casio and suitable USB-C/OTG adapter. This hardware path is not yet physically tested. Open **Piano**, then tap **Connect piano** after opening the HTTPS app, then allow MIDI access. A sole connected input is selected automatically; if several are present, choose your Casio under **Piano input**. Only that input affects practice. Play a key and check the last-note/activity indicator before starting a passage. No microphone recognition or sysex is requested.
 
 The input list updates as devices are plugged in or removed. If the selected piano disconnects, the app keeps its selection and reconnects only that same input ID; it never silently switches to another device. If the browser assigns a different ID, select the piano again. **Disconnect** stops MIDI input, and **Reconnect piano** retries the connection. Denied permission, missing browser support, missing inputs and input-open failures have separate guidance. Touch and typing keys remain available. Device choices and activity are session-only, not saved in browser storage.
 

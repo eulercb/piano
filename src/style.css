@@ -13,7 +13,9 @@ body {
   margin: 0;
 }
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 button,
@@ -29,8 +31,10 @@ button {
 }
 button:focus-visible,
 a:focus-visible,
-input:focus-visible {
-  outline: 3px solid #cf9347;
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #80520c;
   outline-offset: 4px;
 }
 button {
@@ -82,7 +86,7 @@ aside {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1.5px;
-  color: #8a968a;
+  color: #57684f;
   margin: 55px 12px 18px;
 }
 .nav {
@@ -93,7 +97,7 @@ aside {
   padding: 15px 12px;
   border-radius: 9px;
   gap: 12px;
-  color: #6a786d;
+  color: #57684f;
   margin: 5px 0;
   text-align: left;
   font-weight: 500;
@@ -125,7 +129,7 @@ aside {
 .sidebar-bottom p {
   font-size: 12px;
   line-height: 1.8;
-  color: #8b9385;
+  color: #57684f;
 }
 .local {
   border-top: 1px solid #dbe0d3;
@@ -135,7 +139,7 @@ aside {
   align-items: center;
   gap: 8px;
   font-size: 10px;
-  color: #879281;
+  color: #57684f;
 }
 main {
   flex: 1;
@@ -153,7 +157,7 @@ header {
   display: flex;
   align-items: center;
   gap: 13px;
-  color: #94a094;
+  color: #57684f;
   font-size: 12px;
 }
 .breadcrumb span {
@@ -192,7 +196,7 @@ header {
 .eyebrow {
   letter-spacing: 2.2px;
   font-size: 9px;
-  color: #7e8b74;
+  color: #57684f;
   font-weight: 700;
 }
 h1 {
@@ -204,7 +208,7 @@ h1 {
   margin: 11px 0 12px;
 }
 p {
-  color: #8a9487;
+  color: #57684f;
   line-height: 1.6;
   margin: 0;
 }
@@ -247,7 +251,7 @@ p {
   font-size: 8px;
   font-weight: 700;
   letter-spacing: 1.4px;
-  color: #99a087;
+  color: #57684f;
 }
 h2 {
   font-family: Manrope, sans-serif;
@@ -333,7 +337,7 @@ h2 {
   left: 18px;
   letter-spacing: 1.5px;
   font-size: 7px;
-  color: #7e9689;
+  color: #b5c5b8;
   z-index: 2;
 }
 .lane {
@@ -356,13 +360,13 @@ h2 {
   justify-content: center;
   padding-bottom: 5px;
   font-size: 8px;
-  color: #345347;
+  color: #243d32;
   border: 1px solid #ffffff25;
   box-shadow: 0 1px 8px #0002;
   min-width: 4px;
 }
 .fall-note.left {
-  color: #665131;
+  color: #49371f;
 }
 .strike-line {
   position: absolute;
@@ -405,7 +409,7 @@ h2 {
   bottom: 6px;
   left: 0;
   right: 0;
-  color: #819181;
+  color: #57684f;
 }
 .keyboard .pressed {
   background: #accea6;
@@ -445,8 +449,10 @@ h2 {
   min-width: 20px;
   height: 3px;
 }
-.muted {
-  opacity: 0.4;
+.icon-button.muted {
+  color: #ffe1a1;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px currentColor;
 }
 input[type="range"] {
   accent-color: #91ae84;
@@ -469,7 +475,7 @@ input[type="range"] {
   align-items: center;
   gap: 8px;
   font-size: 9px;
-  color: #a6af9b;
+  color: #57684f;
   margin: 21px 0 12px;
 }
 .control-label span {
@@ -481,7 +487,7 @@ input[type="range"] {
   background: #e8eddf;
   padding: 3px 6px;
   border-radius: 4px;
-  color: #657b58;
+  color: #57684f;
   font-size: 10px;
 }
 .hand-options {
@@ -496,7 +502,7 @@ input[type="range"] {
   background: none;
   font-size: 10px;
   padding: 8px 0;
-  color: #8a9680;
+  color: #57684f;
   border-radius: 5px;
 }
 .hand-options button.selected {
@@ -512,7 +518,7 @@ input[type="range"] {
   display: flex;
   justify-content: space-between;
   font-size: 8px;
-  color: #9aa58e;
+  color: #57684f;
   margin: 7px 0 22px;
 }
 .mode {
@@ -539,7 +545,7 @@ input[type="range"] {
   flex-shrink: 0;
 }
 .mode.selected .radio {
-  border: 4px solid #789469;
+  border: 4px solid #57684f;
   background: #fff;
 }
 .mode b {
@@ -550,7 +556,7 @@ input[type="range"] {
 .mode small {
   display: block;
   font-size: 8px;
-  color: #8c9981;
+  color: #57684f;
   margin-top: 5px;
   line-height: 1.4;
 }
@@ -564,7 +570,7 @@ input[type="range"] {
   align-items: center;
   margin: 18px 0 35px;
   font-size: 9px;
-  color: #9aa28f;
+  color: #57684f;
 }
 .below-stage > div {
   display: flex;
@@ -576,7 +582,7 @@ input[type="range"] {
 }
 .below-stage b {
   font-weight: 500;
-  color: #6d8063;
+  color: #57684f;
 }
 .tip-icon {
   font-size: 22px;
@@ -603,7 +609,7 @@ footer {
   display: flex;
   justify-content: space-between;
   padding-top: 35px;
-  color: #a4ad98;
+  color: #57684f;
   font-size: 8px;
 }
 .footer-dot {
@@ -662,7 +668,7 @@ footer {
 }
 .section-title span {
   font-size: 12px;
-  color: #8b9781;
+  color: #57684f;
 }
 .song-grid {
   display: grid;
@@ -680,7 +686,7 @@ footer {
   height: 180px;
   border-radius: 7px;
   background: #dce5d2;
-  color: #57765b;
+  color: #3e5d42;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -693,11 +699,11 @@ footer {
 }
 .cover-1 {
   background: #e9dec9;
-  color: #8f7857;
+  color: #6b5436;
 }
 .cover-2 {
   background: #d8e3df;
-  color: #64857b;
+  color: #456359;
 }
 .song-card h3 {
   font-weight: 500;
@@ -724,7 +730,7 @@ footer {
   background: none;
   border: 1px dashed #ccd5bf;
   border-radius: 12px;
-  color: #879c78;
+  color: #57684f;
 }
 .import-card h3 {
   font-size: 15px;
@@ -1046,7 +1052,7 @@ footer {
   border-radius: 4px;
   background: #eef0e7;
   font-size: 9px;
-  color: #75866b;
+  color: #57684f;
 }
 .speed-presets .chosen {
   background: #d9e5ce;
@@ -1136,10 +1142,170 @@ header { height: auto; min-height: 84px; padding-top: 16px; padding-bottom: 16px
 .midi-status { color: #52644e; font-size: 12px; line-height: 1.5; margin-top: 8px; overflow-wrap: anywhere; }
 .midi-input-label { display: block; margin: 10px 0 5px; font-size: 12px; font-weight: 600; }
 .midi-device select { width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 1px solid #c5d0bb; border-radius: 6px; background: #fffef9; color: inherit; font: inherit; }
-.midi-device select:focus-visible { outline: 3px solid #cf9347; outline-offset: 4px; }
+.midi-device select:focus-visible { outline: 3px solid #80520c; outline-offset: 4px; }
 .midi-activity { display: flex; align-items: center; gap: 7px; color: #42643e; font-size: 12px; margin-top: 8px; }
 .midi-pulse { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: #b0bea8; }
 .midi-pulse.received { animation: midi-note 600ms ease-out; }
 @keyframes midi-note { from { background: #3b7631; box-shadow: 0 0 0 4px #8eb77e66; } to { background: #b0bea8; box-shadow: 0 0 0 0 transparent; } }
 @media (prefers-reduced-motion: reduce) { .midi-pulse.received { animation: none; } }
 @media (max-width: 580px) { header { align-items: stretch; flex-direction: column; gap: 12px; } .midi-device { width: 100%; } }
+
+/* Shared controls retain a full touch target, including a native range's thumb. */
+.button,
+.text-button,
+.icon-button,
+.play-button,
+.nav,
+.notice button,
+.hand-options button,
+.speed-presets button,
+.mode,
+.device {
+  min-width: 44px;
+  min-height: 44px;
+}
+.icon-button,
+.notice button {
+  flex-shrink: 0;
+}
+.transport input[type="range"],
+.settings input[type="range"] {
+  height: 44px;
+  margin: 0;
+}
+.repeat-control {
+  min-height: 44px;
+  cursor: pointer;
+}
+.repeat-control input {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.editor input,
+.editor select,
+.note-editor input,
+.note-editor select {
+  min-height: 44px;
+  max-width: 100%;
+  border-color: #798b71;
+}
+.editor label,
+.note-editor label {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Dark transport and overlapping piano keys need their own visible focus ring. */
+.transport :focus-visible {
+  outline-color: #ffe1a1;
+}
+.keyboard button:focus-visible {
+  z-index: 2;
+  outline-color: #80520c;
+  outline-offset: -4px;
+}
+.keyboard .black:focus-visible {
+  outline-color: #ffe1a1;
+}
+
+/* Let long piece names and action rows reflow instead of widening the page. */
+.heading,
+.song-heading,
+.section-title,
+.next-strip {
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.heading > div:first-child,
+.song-heading > div:nth-child(2),
+.next-strip > div {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.song-icon {
+  flex-shrink: 0;
+}
+h1,
+h2,
+h3,
+p,
+.notice {
+  overflow-wrap: anywhere;
+}
+.song-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.song-card,
+.stage-card,
+.settings {
+  min-width: 0;
+}
+.button,
+.text-button {
+  white-space: normal;
+}
+.button svg,
+.text-button svg,
+.nav svg {
+  flex-shrink: 0;
+}
+.range-ends,
+.mode small,
+.coming,
+footer,
+.roll-label,
+.song-kicker {
+  font-size: 11px;
+}
+@media (max-width: 900px) {
+  .song-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 580px) {
+  aside {
+    height: auto;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  nav {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .nav {
+    width: 100%;
+    font-size: 11px;
+    justify-content: flex-start;
+    padding: 8px;
+    gap: 8px;
+    margin: 0;
+  }
+  .heading .button,
+  .song-heading .text-button {
+    font-size: 12px;
+  }
+  .stage-top {
+    height: auto;
+    min-height: 48px;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px;
+  }
+  .transport { gap: 6px; }
+  .song-grid { grid-template-columns: minmax(0, 1fr); }
+  footer { flex-wrap: wrap; gap: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Keep MIDI activity visible after disabling the decorative pulse. */
+  .midi-pulse.received {
+    animation: none;
+    background: #3b7631;
+    box-shadow: none;
+  }
+}
+@media (forced-colors: active) {
+  .keyboard button:focus-visible {
+    outline-color: Highlight;
+  }
+}
