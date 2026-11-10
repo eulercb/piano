@@ -1,6 +1,7 @@
-import { matchMelodyPitch, melodyPosition } from "./practice";
+import { PracticeSession, frameTime, type PracticeHand, type PracticeMode, type RhythmSummary } from "./session";
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { createRoot } from "react-dom/client";
+import { useRegisterSW } from "virtual:pwa-register/react";
 import {
   Piano,
   Library,
@@ -93,15 +94,27 @@ function load(): Song[] {
     return [];
   }
 }
+function TimingSummary({ summary }: { summary: RhythmSummary }) {
+  return (
+    <dl className="timing-summary">
+      <div><dt>On time</dt><dd>{summary.onTime} / {summary.total}</dd></div>
+      <div><dt>Early</dt><dd>{summary.early}</dd></div>
+      <div><dt>Late</dt><dd>{summary.late}</dd></div>
+      <div><dt>Missed</dt><dd>{summary.missed}</dd></div>
+      <div><dt>Extra presses</dt><dd>{summary.extra}</dd></div>
+    </dl>
+  );
+}
 function App() {
   const [songs, setSongs] = useState<Song[]>(load),
     [song, setSong] = useState<Song>(demoSong),
     [page, setPage] = useState("practice"),
-    [hand, setHand] = useState("both"),
-    [mode, setMode] = useState("listen"),
+    [hand, setHand] = useState<PracticeHand>("both"),
+    [mode, setMode] = useState<PracticeMode>("listen"),
     [speed, setSpeed] = useState(50),
     [playing, setPlaying] = useState(false),
-    [time, setTime] = useState(0),
+    [, refreshSession] = useState(0),
+    [countIn, setCountIn] = useState(true),
     [notice, setNotice] = useState(""),
     [from, setFrom] = useState(0),
     [to, setTo] = useState(duration(demoSong)),
@@ -113,11 +126,12 @@ function App() {
     [firstMeasure, setFirstMeasure] = useState(0),
     [lastMeasure, setLastMeasure] = useState(0),
     [repeatPassage, setRepeatPassage] = useState(false);
+  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
+    onRegisterError() {
+      setNotice("Offline support could not be updated. You can continue practising online.");
+    },
+  });
   const file = useRef<HTMLInputElement>(null),
-    clock = useRef(0),
-    sounded = useRef(new Set<string>()),
-    matched = useRef(new Set<string>()),
-    active = useRef<Note[]>([]),
     inputRef = useRef<(p: number) => void>(() => {}),
     midiRef = useRef<any>(null),
     last = useRef(0);
@@ -128,20 +142,71 @@ function App() {
       return [];
     }
   }, [song]);
-  const notes = song.notes.filter((n) => hand === "both" || n.hand === hand),
-    total = duration(song);
-  active.current = notes;
+  const session = useMemo(() => new PracticeSession({
+    notes: song.notes, duration: duration(song), tempo: song.tempo,
+    hand, mode, countIn,
+  }), [song, hand, mode, countIn]);
+  const notes = session.notes, total = duration(song),
+    time = Math.min(total, session.position);
+  function redraw() {
+    refreshSession((v) => v + 1);
+  }
   function reset(t = 0) {
     silence();
+    session.restart(t);
     setPlaying(false);
-    clock.current = t;
-    setTime(t);
-    sounded.current = new Set(
-      song.notes.filter((n) => n.start < t).map((n) => n.id),
-    );
-    matched.current = new Set(
-      song.notes.filter((n) => n.start < t).map((n) => n.id),
-    );
+    setNotice("");
+    redraw();
+  }
+  function step(now: number) {
+    const wasRunning = session.running;
+    const timing = frameTime(last.current, now);
+    const result = session.advanceFrame(timing.seconds, speed, repeatPassage);
+    last.current = timing.timestamp;
+    if (result.interrupted) {
+      silence();
+      setPlaying(false);
+      setNotice("Practice paused after an interruption. Press Play to continue from here.");
+    }
+    if (result.looped) silence();
+    if (!muted) {
+      // A delayed frame should not produce a burst of old count-in clicks.
+      if (result.countBeats.length && session.countingIn)
+        sound(84, 0.045, 0.5);
+      if (!result.looped)
+        for (const n of result.audioNotes)
+          sound(n.pitch, n.duration / (speed / 100), n.velocity);
+    }
+    if (wasRunning && session.completed) {
+      setPlaying(false);
+      setNotice(mode === "rhythm"
+        ? "Pass complete. Review your timing below, then try another pass."
+        : mode === "melody"
+          ? "Beautiful work. You completed this passage."
+          : "Playback complete. Make another pass, or prepare a smaller passage.");
+    }
+    redraw();
+  }
+  function togglePlayback() {
+    if (session.running) {
+      step(performance.now());
+      session.pause();
+      silence();
+      setPlaying(false);
+    } else {
+      if (!notes.length) {
+        setNotice("This passage has no notes for this hand. Choose another hand or piece.");
+        return;
+      }
+      audio ??= new AudioContext();
+      void audio.resume();
+      setNotice("");
+      last.current = performance.now();
+      session.start();
+      setPlaying(true);
+      step(last.current);
+    }
+    redraw();
   }
   function select(s: Song) {
     reset();
@@ -153,20 +218,17 @@ function App() {
     setNotice("");
   }
   function input(p: number) {
-    sound(p);
+    if (!muted) sound(p);
     setPressed((old) => [...new Set([...old, p])]);
     window.setTimeout(
       () => setPressed((old) => old.filter((x) => x !== p)),
       180,
     );
-    if (!playing || mode !== "melody") return;
-    for (const id of matchMelodyPitch(
-      active.current,
-      matched.current,
-      p,
-      clock.current,
-    ))
-      matched.current.add(id);
+    if (!session.running) return;
+    // Grade against the input's actual time rather than the last animation frame.
+    step(performance.now());
+    session.press(p, speed);
+    redraw();
   }
   inputRef.current = input;
   useEffect(() => {
@@ -200,49 +262,25 @@ function App() {
     last.current = performance.now();
     let id = 0;
     const tick = (now: number) => {
-      const delta = (Math.min((now - last.current) / 1000, 0.08) * speed) / 100;
-      last.current = now;
-      let next = clock.current + delta;
-      if (mode === "melody") {
-        next = melodyPosition(active.current, matched.current, next);
-      }
-      for (const n of song.notes) {
-        if (n.start <= next && !sounded.current.has(n.id)) {
-          sounded.current.add(n.id);
-          if (
-            !muted &&
-            (mode === "listen"
-              ? active.current.includes(n)
-              : !active.current.includes(n))
-          )
-            sound(n.pitch, n.duration / (speed / 100), n.velocity);
-        }
-      }
-      clock.current = next;
-      setTime(next);
-      if (next >= total) {
-        if (repeatPassage) {
-          silence();
-          clock.current = 0;
-          setTime(0);
-          sounded.current.clear();
-          matched.current.clear();
-          id = requestAnimationFrame(tick);
-          return;
-        }
-        setPlaying(false);
-        setNotice(
-          mode === "melody"
-            ? "Beautiful work. You completed this passage."
-            : "Playback complete. Make another pass, or prepare a smaller passage.",
-        );
-        return;
-      }
-      id = requestAnimationFrame(tick);
+      step(now);
+      if (session.running) id = requestAnimationFrame(tick);
     };
+    const onVisibility = () => {
+      if (document.hidden && session.running) {
+        session.pause();
+        silence();
+        setPlaying(false);
+        setNotice("Practice paused while the app was hidden. Press Play when you’re ready.");
+        redraw();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     id = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(id);
-  }, [playing, speed, mode, song, hand, muted, total, repeatPassage]);
+    return () => {
+      cancelAnimationFrame(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [playing, speed, session, muted, repeatPassage]);
   async function connect() {
     try {
       const nav = navigator as any;
@@ -403,8 +441,8 @@ function App() {
     keys = Array.from({ length: high - low + 1 }, (_, i) => low + i),
     width = 100 / keys.length;
   const waiting =
-    mode === "melody" && playing
-      ? notes.find((n) => !matched.current.has(n.id) && n.start <= time + 0.02)
+    mode === "melody" && playing && !session.countingIn
+      ? notes.find((n) => !session.matched.has(n.id) && n.start <= time + 0.02)
       : undefined;
   return (
     <div className="shell">
@@ -515,6 +553,21 @@ function App() {
               Import song
             </button>
           </div>
+          {needRefresh && (
+            <div role="status" className="update-notice">
+              <div>
+                <b>A new version is ready.</b>
+                <p>Save or export your song first. Reloading discards unsaved edits; saved library songs stay on this device.</p>
+              </div>
+              <button className="button" onClick={async () => {
+                session.pause();
+                silence();
+                setPlaying(false);
+                try { await updateServiceWorker(true); }
+                catch { setNotice("The update could not be loaded. Save your work, then reload the app manually."); }
+              }}>Reload update</button>
+            </div>
+          )}
           {notice && (
             <div role="status" className="notice">
               {notice}
@@ -891,7 +944,9 @@ function App() {
                   <div className="stage-top">
                     <span>
                       <span className="live-dot" />
-                      {waiting
+                      {playing && session.countingIn
+                        ? `Get ready · ${session.countBeat} of 4 beats`
+                        : waiting
                         ? "Your turn · " + noteName(waiting.pitch)
                         : playing
                           ? "Follow the music"
@@ -904,10 +959,19 @@ function App() {
                     </div>
                   </div>
                   <div className="roll" style={{ height: 310 }}>
+                    {session.countingIn && playing && (
+                      <div className="count-in" role="status" aria-live="polite">
+                        <span>Get ready</span>
+                        <strong>{session.countBeat}</strong>
+                        <span>of 4 beats · then play</span>
+                      </div>
+                    )}
                     <div className="roll-label">
                       {mode === "melody"
                         ? "PLAY THE HIGHLIGHTED NOTES"
-                        : "LISTEN • LEARN • REPEAT"}
+                        : mode === "rhythm"
+                          ? "PLAY AS NOTES REACH THE LINE"
+                          : "LISTEN • LEARN • REPEAT"}
                     </div>
                     {keys.map((p) => (
                       <div
@@ -984,13 +1048,7 @@ function App() {
                     <button
                       className="play-button"
                       aria-label={playing ? "Pause" : "Play"}
-                      onClick={() => {
-                        if (playing) silence();
-                        if (time >= total) reset();
-                        audio ??= new AudioContext();
-                        void audio.resume();
-                        setPlaying(!playing);
-                      }}
+                      onClick={togglePlayback}
                     >
                       {playing ? <Pause size={20} /> : <Play size={20} />}
                     </button>
@@ -1009,7 +1067,7 @@ function App() {
                       className={"icon-button " + (muted ? "muted" : "")}
                       aria-label={muted ? "Unmute" : "Mute"}
                       aria-pressed={muted}
-                      onClick={() => setMuted(!muted)}
+                      onClick={() => { silence(); setMuted(!muted); }}
                     >
                       <Volume2 size={19} />
                     </button>
@@ -1031,7 +1089,7 @@ function App() {
                         className={hand === id ? "selected" : ""}
                         onClick={() => {
                           reset();
-                          setHand(id);
+                          setHand(id as PracticeHand);
                         }}
                       >
                         {label}
@@ -1080,13 +1138,18 @@ function App() {
                       "Melody practice",
                       "The music waits for your next note.",
                     ],
+                    [
+                      "rhythm",
+                      "Rhythm practice",
+                      "Practice note starts. Get early, on-time or late feedback.",
+                    ],
                   ].map(([id, title, desc]) => (
                     <button
                       key={id}
                       className={"mode " + (mode === id ? "selected" : "")}
                       onClick={() => {
                         reset();
-                        setMode(id);
+                        setMode(id as PracticeMode);
                       }}
                     >
                       <span className="radio" />
@@ -1096,6 +1159,18 @@ function App() {
                       </span>
                     </button>
                   ))}
+                  <label className="repeat-control">
+                    <input
+                      type="checkbox"
+                      checked={countIn}
+                      onChange={(e) => { reset(); setCountIn(e.target.checked); }}
+                    />
+                    Count in 4 beats
+                  </label>
+                  <p className="coming">
+                    Four quarter-note beats at the starting tempo and selected speed,
+                    before each pass. This is a beat count, not a measure.
+                  </p>
                   <label className="repeat-control">
                     <input
                       type="checkbox"
@@ -1109,10 +1184,38 @@ function App() {
                     comfortably before speeding up.
                   </p>
                   <p className="coming">
-                    Coming next: rhythm & recital scoring.
+                    Coming next: recital mode and saved practice history.
                   </p>
                 </section>
               </div>
+              {mode === "rhythm" && (
+                <section className="rhythm-panel" aria-label="Rhythm feedback">
+                  <div className="rhythm-heading">
+                    <div>
+                      <h3>Note-onset timing · pass {session.pass}</h3>
+                      <p>{hand === "both" ? "Both hands" : `${hand === "left" ? "Left" : "Right"} hand`} · {speed}% speed</p>
+                    </div>
+                    <div className="timing-feedback" role="status" aria-live="polite" aria-atomic="true">
+                      {session.countingIn && playing ? "Get ready. Notes are not graded yet."
+                        : session.feedback ? `${session.feedback.kind === "on-time" ? "On time" : session.feedback.kind === "extra" ? "No matching note" : session.feedback.kind[0].toUpperCase() + session.feedback.kind.slice(1)} · ${noteName(session.feedback.pitch)}${session.feedback.offsetMs !== undefined && session.feedback.kind !== "on-time" ? ` · ${Math.abs(session.feedback.offsetMs)} ms` : ""}`
+                          : "Play the shown notes as they reach the line."}
+                    </div>
+                  </div>
+                  <TimingSummary summary={session.summary} />
+                  {session.previousResult && (
+                    <div className="previous-pass">
+                      <b>Previous pass</b>
+                      <TimingSummary summary={session.previousResult} />
+                    </div>
+                  )}
+                  <p className="rhythm-help">
+                    Note-onset feedback only. Correct pitches within 100 ms count as on time. Up to 300 ms early
+                    or late gets timing feedback; unmatched notes are missed.
+                    Only the selected hand’s notes are targets. Note length and pedal
+                    are not graded. Device/audio latency is not calibrated.
+                  </p>
+                </section>
+              )}
               <div className="below-stage">
                 <div>
                   <span className="tip-icon">✦</span>
