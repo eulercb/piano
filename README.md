@@ -28,7 +28,9 @@ The workflow tests and builds PRs, then deploys successful main pushes through G
 
 ## Android and a USB-C piano
 
-Target: current Chrome on Android, with a class-compliant USB MIDI Casio and suitable USB-C/OTG adapter. This hardware path is not yet physically tested. Tap **Connect piano** after opening the HTTPS app, allow access, then play. No microphone recognition or sysex is requested.
+Target: current Chrome on Android, with a class-compliant USB MIDI Casio and suitable USB-C/OTG adapter. This hardware path is not yet physically tested. Tap **Connect piano** after opening the HTTPS app, then allow MIDI access. A sole connected input is selected automatically; if several are present, choose your Casio under **Piano input**. Only that input affects practice. Play a key and check the last-note/activity indicator before starting a passage. No microphone recognition or sysex is requested.
+
+The input list updates as devices are plugged in or removed. If the selected piano disconnects, the app keeps its selection and reconnects only that same input ID; it never silently switches to another device. If the browser assigns a different ID, select the piano again. **Disconnect** stops MIDI input, and **Reconnect piano** retries the connection. Denied permission, missing browser support, missing inputs and input-open failures have separate guidance. Touch and typing keys remain available. Device choices and activity are session-only, not saved in browser storage.
 
 Library → **Open song folder** progressively uses `showDirectoryPicker` when available; otherwise select multiple files via **Import song**. The first slice copies files into local app storage and requires explicit re-opening to refresh, rather than promising permanent background folder access. Uncompressed MusicXML imports as a new playable score. Save/export a Piano project to retain score and fingerings.
 

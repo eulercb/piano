@@ -1126,3 +1126,20 @@ footer {
 }
 .update-notice > div { flex: 1; min-width: 200px; }
 .update-notice p { color: #53634e; font-size: 12px; margin-top: 4px; }
+
+/* Keep MIDI selection and feedback usable with long device names and touch input. */
+header { height: auto; min-height: 84px; padding-top: 16px; padding-bottom: 16px; gap: 20px; }
+.midi-device { width: min(100%, 370px); min-width: 0; }
+.midi-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.midi-actions .device { min-height: 44px; font-size: 12px; }
+.midi-actions button:disabled { cursor: wait; opacity: 0.65; }
+.midi-status { color: #52644e; font-size: 12px; line-height: 1.5; margin-top: 8px; overflow-wrap: anywhere; }
+.midi-input-label { display: block; margin: 10px 0 5px; font-size: 12px; font-weight: 600; }
+.midi-device select { width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 1px solid #c5d0bb; border-radius: 6px; background: #fffef9; color: inherit; font: inherit; }
+.midi-device select:focus-visible { outline: 3px solid #cf9347; outline-offset: 4px; }
+.midi-activity { display: flex; align-items: center; gap: 7px; color: #42643e; font-size: 12px; margin-top: 8px; }
+.midi-pulse { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: #b0bea8; }
+.midi-pulse.received { animation: midi-note 600ms ease-out; }
+@keyframes midi-note { from { background: #3b7631; box-shadow: 0 0 0 4px #8eb77e66; } to { background: #b0bea8; box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .midi-pulse.received { animation: none; } }
+@media (max-width: 580px) { header { align-items: stretch; flex-direction: column; gap: 12px; } .midi-device { width: 100%; } }

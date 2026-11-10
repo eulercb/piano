@@ -32,6 +32,7 @@ import {
 } from "./music";
 import "./style.css";
 import { Score } from "./Score";
+import { MidiConnection } from "./MidiConnection";
 import { normalizeSong, parseProject } from "./project";
 import { parseMusicXml } from "./musicxml";
 import {
@@ -119,7 +120,6 @@ function App() {
     [from, setFrom] = useState(0),
     [to, setTo] = useState(duration(demoSong)),
     [pressed, setPressed] = useState<number[]>([]),
-    [midiStatus, setMidiStatus] = useState("Connect piano"),
     [muted, setMuted] = useState(false),
     [showScore, setShowScore] = useState(true),
     [editIndex, setEditIndex] = useState(0),
@@ -133,7 +133,6 @@ function App() {
   });
   const file = useRef<HTMLInputElement>(null),
     inputRef = useRef<(p: number) => void>(() => {}),
-    midiRef = useRef<any>(null),
     last = useRef(0);
   const measures = useMemo(() => {
     try {
@@ -252,8 +251,6 @@ function App() {
   useEffect(
     () => () => {
       silence();
-      midiRef.current?.inputs.forEach((p: any) => (p.onmidimessage = null));
-      if (midiRef.current) midiRef.current.onstatechange = null;
     },
     [],
   );
@@ -281,39 +278,6 @@ function App() {
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [playing, speed, session, muted, repeatPassage]);
-  async function connect() {
-    try {
-      const nav = navigator as any;
-      if (!nav.requestMIDIAccess) {
-        setNotice(
-          "Web MIDI is unavailable in this browser. Try desktop Chrome or Edge, or use the on-screen keys.",
-        );
-        return;
-      }
-      const access = await nav.requestMIDIAccess({ sysex: false });
-      midiRef.current = access;
-      const attach = () => {
-        access.inputs.forEach(
-          (p: any) =>
-            (p.onmidimessage = (e: any) => {
-              if ((e.data[0] & 240) === 144 && e.data[2] > 0)
-                inputRef.current(e.data[1]);
-            }),
-        );
-        setMidiStatus(
-          access.inputs.size
-            ? `${access.inputs.size} piano connected`
-            : "No MIDI device found",
-        );
-      };
-      access.onstatechange = attach;
-      attach();
-    } catch {
-      setNotice(
-        "MIDI access wasn’t available. You can still use the on-screen piano.",
-      );
-    }
-  }
   function save(s: Song) {
     setSongs((previous) => {
       const next = [s, ...previous.filter((x) => x.id !== s.id)];
@@ -499,17 +463,7 @@ function App() {
                   : "My library"}
             </span>
           </div>
-          <button className="device" onClick={connect}>
-            <span
-              className={
-                midiStatus.includes("connected")
-                  ? "status-dot connected"
-                  : "status-dot"
-              }
-            />
-            {midiStatus}
-            <ChevronRight size={14} />
-          </button>
+          <MidiConnection onNote={(pitch) => inputRef.current(pitch)} />
         </header>
         <input
           ref={file}

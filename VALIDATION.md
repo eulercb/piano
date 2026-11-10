@@ -1,5 +1,15 @@
 # Validation
 
+## MIDI input selection slice
+
+- All 160 automated tests pass (120 existing plus 40 synthetic MIDI regressions); TypeScript and Vite/PWA production build pass. Dependencies and package files are unchanged.
+- Coverage: click-only access with sysex disabled, sole-input selection, explicit choice with several inputs, selected-input-only note delivery, velocity-zero/note-off filtering, empty/denied/unavailable/error states, repeated clicks, cancellation/disposal with pending permission requests, stale events, selection changes, and hotplug with a retained or replaced port object.
+- Delayed port opens/closes are tested across cancellation, reconnect and rapid A → B → A selection. Independent review found an asynchronous close/reopen race; per-port operation serialization and three deferred-close regressions address it. Re-review passed with no remaining actionable findings.
+- Connection status and labelled native input selection are separate from the non-live last-note/activity display. Controls are touch-sized and the indicator respects reduced-motion preferences. These are implementation checks, not rendered accessibility or mobile layout verification.
+- No browser MIDI permission or physical hardware was used in tests. Android Chrome/Casio USB-C behavior, actual permission dialogs, rendered layout/screen readers and audio latency remain unverified. No publication or deployment is included.
+- Hardware acceptance when available: connect a powered Casio using USB-C/OTG on HTTPS Chrome; choose the correct input and check activity; verify another input cannot advance melody/rhythm; unplug/replug the chosen piano; cancel/retry permission and reconnect repeatedly; confirm touch keys still work after disconnect. Export private project backups before device testing.
+- The existing notation bundle warning remains (~524 KiB gzip on this base); score loading optimization belongs to a separate change.
+
 ## Beginner rhythm and count-in slice
 
 - All 120 automated tests pass (the prior 82 plus 38 synthetic transport/rhythm regressions); TypeScript and Vite/PWA production build pass. Existing CI still runs the complete `npm test` suite and `npm run build` on every PR.
