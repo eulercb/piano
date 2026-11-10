@@ -1,6 +1,11 @@
 /** All times are seconds; velocity is normalized to [0, 1]. */
-export type Note = { id: string; pitch: number; start: number; duration: number; velocity: number; hand: 'left' | 'right'; finger?: number }
-export type Song = { id: string; title: string; notes: Note[]; tempo: number; scoreXml?: string }
+export type Note = { id: string; pitch: number; start: number; duration: number; velocity: number; hand: 'left' | 'right'; finger?: number; sourceNoteIds?: string[] }
+export type Song = { id: string; title: string; notes: Note[]; tempo: number; scoreXml?: string; scoreOrigin?: 'musicxml'; duration?: number }
+
+/** Total playback length, including explicitly recorded trailing rests/silence. */
+export function songDuration(song: Song): number {
+  return song.notes.reduce((end, note) => Math.max(end, note.start + note.duration), Number.isFinite(song.duration) ? Math.max(0, song.duration!) : 0)
+}
 
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value))
 
@@ -132,7 +137,7 @@ export function parseMidi(buffer: ArrayBuffer): Song {
   sustained.forEach(queue => queue.forEach(note => finish(note, seconds)))
   notes.sort((a, b) => a.start - b.start || a.pitch - b.pitch)
   if (!notes.length) throw new Error('This MIDI file contains no playable notes.')
-  return { id: `midi-${Date.now()}`, title: title.trim() || 'Imported MIDI', tempo, notes }
+  return { id: `midi-${Date.now()}`, title: title.trim() || 'Imported MIDI', tempo, notes, duration: seconds }
 }
 
 /** Export a format-0 piano MIDI, preserving seconds at a single tempo. */
@@ -157,7 +162,8 @@ export function exportMidi(song: Song): Uint8Array {
   events.sort((a, b) => a.tick - b.tick || Number(b.off) - Number(a.off))
   let previous = 0
   for (const event of events) { track.push(...variable(event.tick - previous), ...event.data); previous = event.tick }
-  track.push(0, 255, 47, 0)
+  const endTick = Math.max(previous, Math.round(songDuration(song) * ticksPerSecond))
+  track.push(...variable(endTick - previous), 255, 47, 0)
   const length = track.length
   return new Uint8Array([77, 84, 104, 100, 0, 0, 0, 6, 0, 0, 0, 1, 1, 224, 77, 84, 114, 107, (length >>> 24) & 255, (length >>> 16) & 255, (length >>> 8) & 255, length & 255, ...track])
 }
@@ -165,7 +171,7 @@ export function exportMidi(song: Song): Uint8Array {
 /** Clip intersecting notes to [start, end), rebasing the result to zero. */
 export function trimSong(song: Song, start: number, end: number): Song {
   if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) throw new Error('Choose a valid trim range.')
-  return { ...song, notes: song.notes.filter(note => note.start < end && note.start + note.duration > start).map(note => {
+  return { ...song, duration: end - start, notes: song.notes.filter(note => note.start < end && note.start + note.duration > start).map(note => {
     const from = Math.max(note.start, start), to = Math.min(note.start + note.duration, end)
     return { ...note, start: from - start, duration: to - from }
   }) }

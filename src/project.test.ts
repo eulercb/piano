@@ -7,6 +7,10 @@ const original: Song = { id: 'source', title: 'Study', tempo: 120, scoreXml: '<s
 ] }
 const withNote = (patch: Record<string, unknown>) => ({ ...original, notes: [{ ...original.notes[0], ...patch }] })
 describe('project validation', () => {
+  it('preserves explicit playback duration and rejects truncating or invalid duration', () => {
+    expect(normalizeSong({...original,duration:3}).duration).toBe(3)
+    for(const duration of [1, -1, Infinity, 86401]) expect(()=>normalizeSong({...original,duration})).toThrow(/duration/)
+  })
   it('normalizes chronological order and preserves unique IDs, hands, fingers and notation', () => {
     const normalized = parseProject(JSON.stringify({ version: 1, song: original }))
     expect(normalized.notes.map(n => n.id)).toEqual(['first', 'second'])
@@ -38,3 +42,13 @@ describe('project validation', () => {
     expect(() => normalizeSong({ ...original, notes: new Array(100001) })).toThrow(/100,000/)
   })
 })
+
+it('rebuilds editable score mappings from MusicXML on project round-trip', async () => {
+ const xml='<score-partwise><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions></attributes><note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note></measure></part></score-partwise>';
+ const {parseMusicXml}=await import('./musicxml');
+ const imported=parseMusicXml(xml).song;
+ const result=parseProject(JSON.stringify({version:1,song:imported}));
+ expect(result.scoreOrigin).toBe('musicxml');
+ expect(result.notes[0].sourceNoteIds).toEqual(imported.notes[0].sourceNoteIds);
+ expect(result.scoreXml).toBe(xml);
+});
