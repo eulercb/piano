@@ -1,0 +1,8 @@
+{
+  "rights": "Two original synthetic exercises authored for this project, plus one deterministic image perturbation. No private score or existing composition.",
+  "cases": [
+    {"id": "rhythm-accidentals", "input": "rhythm-accidentals.png", "gold": "rhythm-accidentals.musicxml", "features": ["dotted quarter", "dotted half", "flagged and beamed eighth notes", "quarter rests", "sharp", "flat"]},
+    {"id": "chords-ties", "input": "chords-ties.png", "gold": "chords-ties.musicxml", "features": ["three-note chords", "three cross-bar ties", "whole and half notes"]},
+    {"id": "rhythm-skew-contrast", "input": "rhythm-skew-contrast.png", "gold": "rhythm-accidentals.musicxml", "features": ["same rhythm exercise", "grayscale mapping round(45 + pixel * 0.75)", "1 degree counterclockwise rotation with bicubic resampling and expanded canvas, fill 236"]}
+  ]
+}

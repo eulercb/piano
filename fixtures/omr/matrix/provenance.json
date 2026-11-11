@@ -1,0 +1,43 @@
+{
+  "rights": "Two original synthetic exercises authored for this project, plus one deterministic image perturbation. No private score or existing composition.",
+  "authored_from": "scripts/omr/render_matrix.py; reviewed rendered pixels before recognition",
+  "engine": {
+    "version": "Audiveris 5.11.0",
+    "package_source": "https://github.com/Audiveris/audiveris/releases/download/5.11.0/Audiveris-5.11.0-ubuntu22.04-x86_64.deb",
+    "package_bytes": 78048872,
+    "package_sha256": "ae714594f40e54b1a4951fc3f914f08ae38fe5d07b7f2283b1a904fdb6e0a318",
+    "launcher_sha256": "64ad1b8f8a528efc9234b90000480df4510588fa905014ebffa64746e50623c3",
+    "runtime": "bundled Java 25.0.3; see docs/local-omr-evaluation.md for classifier and licensing provenance"
+  },
+  "renderers": {
+    "verovio": "6.4.1-fbe8f46",
+    "cairosvg": "2.8.2",
+    "pillow": "13.0.0",
+    "note": "Optional temporary developer tools only. Rendering emitted Fontconfig no-writable-cache warnings; the three PNGs were visually inspected, with no missing musical glyph observed."
+  },
+  "recognition_inputs": "Exactly three original synthetic PNGs in cases.json; no private scores, phone photographs, retries, correction, bundled engine, model, or download.",
+  "network_isolation": "not provided or verified; prior isolation and syscall-observation denials were not retried",
+  "sha256": {
+    "cases.json": "a59a69f885784696cb704f8005975de92458600dc54eaa4a12c6f03622bc87a9",
+    "chords-ties.musicxml": "af012119b2db8af3cd527a94796b33ad26f6f190d1966599558e06ed1ffd73ac",
+    "chords-ties.png": "76b418cba900977ca77d058cbbe9c8164f115cb09b5da971937633db92776245",
+    "rhythm-accidentals.musicxml": "ccecc89b11fe585ac27859bb80f4100cec5570cf99ab3e8f95f9c0d978dbc270",
+    "rhythm-accidentals.png": "cc1a4920f3dcb867cb3daca252dcf58f0c1802515cdb171a50c2bad2e1dd2a7d",
+    "rhythm-skew-contrast.png": "79cdbebac122c2148c0d6514e81d50d0a579f39fce89aacabcfb387f2a6dd509"
+  },
+  "public_artifacts": {
+    "kind": "Derived, reviewed public copies; original raw exports and logs retained only locally",
+    "removed_metadata": [
+      "identification/source",
+      "identification/miscellaneous (source-file and source-sheet-1)",
+      "identification/encoding/encoding-date"
+    ],
+    "removed_report_fields": [
+      "platform/kernel/libc string",
+      "Python environment version",
+      "raw log files and log references"
+    ],
+    "musical_content": "No notes, rests, durations, staves, voices, ties, divisions, measures, layout or playback data changed.",
+    "png_metadata_review": "All three PNGs contain only IHDR, optional bKGD, IDAT and IEND chunks; no text, EXIF, paths or machine identifiers. PNG bytes unchanged."
+  }
+}
