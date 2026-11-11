@@ -2,6 +2,7 @@ import { validFolderSource } from "./songFolder";
 import { safeDocument } from "./scoreSource";
 import type { Note, Song } from "./music";
 import { parseMusicXml } from "./musicxml";
+import { MAX_SONG_TITLE_LENGTH } from "./songTitle";
 
 const MAX_NOTES = 100000;
 const MAX_SECONDS = 24 * 60 * 60;
@@ -26,7 +27,7 @@ export function normalizeSong(value: unknown, options: { preserveUnsafeScore?: b
   if (
     typeof value.title !== "string" ||
     !value.title.trim() ||
-    value.title.length > 500
+    value.title.length > MAX_SONG_TITLE_LENGTH
   )
     return invalid("choose a title of 1–500 characters.");
   if (!finite(value.tempo) || value.tempo <= 0 || value.tempo > 10000)

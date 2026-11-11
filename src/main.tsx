@@ -47,6 +47,7 @@ import { PracticeHistoryStore, PracticePassRecorder, type PracticePass } from ".
 import { PracticeNextSteps } from "./PracticeNextSteps";
 import { practiceHandName, practiceModeName, type PracticeStep } from "./practiceNextSteps";
 import { parseProject } from "./project";
+import { passageTitle } from "./songTitle";
 import { storedFolder, fileDigest, contentDigest, readPermission, supportedSong, type FolderConnection, type FolderSource } from "./songFolder";
 import { SongLibrary } from "./songLibrary";
 import { PracticeBookmarks } from "./PracticeBookmarks";
@@ -1385,7 +1386,7 @@ export function App() {
                             if (!mayTrimCurrent()) return;
                             const s = trimSong(song, from, to);
                             s.id = crypto.randomUUID();
-                            s.title = song.title + " · passage";
+                            s.title = passageTitle(song.title);
                             select(s);
                           } catch (e) {
                             setNotice((e as Error).message);
