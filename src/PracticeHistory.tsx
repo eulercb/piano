@@ -7,7 +7,7 @@ import {
 } from "./practiceHistory";
 import "./practiceHistory.css";
 
-const modeNames = { listen: "Listening", melody: "Melody", rhythm: "Rhythm" };
+const modeNames = { listen: "Listening", melody: "Melody", rhythm: "Rhythm", recital: "Recital" };
 const handNames = { left: "Left hand", right: "Right hand", both: "Both hands" };
 
 function PassSummary({ pass }: { pass: PracticePass }) {
@@ -102,8 +102,8 @@ export function PracticeHistory({ store }: { store: PracticeHistoryStore }) {
       <button className="text-button" disabled={changing} onClick={() => setPending(null)}>Cancel deletion</button>
     </div>}
     <div className="history-suggestion"><b>A gentle next step</b><p>{practiceSuggestion(passes)}</p></div>
-    <p className="history-limits">Note-start feedback only: it does not judge note lengths, fingering, touch, pedal, expression or overall musical ability. Listening is not a performance score. Melody mode waits, so finishing does not measure timing. Device latency can affect rhythm counts; doubled unisons count as separate written notes.</p>
-    {!passes.length ? <div className="history-empty"><h3>Ready for your first pass.</h3><p>Finish listening to a piece or complete a melody or rhythm passage. It will appear here automatically.</p></div> : <>
+    <p className="history-limits">Note-start feedback only: it does not judge note lengths, fingering, touch, pedal, expression or overall musical ability. Listening is not a performance score. Melody mode waits, so finishing does not measure timing. Device latency can affect rhythm and recital counts; doubled unisons count as separate written notes.</p>
+    {!passes.length ? <div className="history-empty"><h3>Ready for your first pass.</h3><p>Finish listening to a piece or complete a melody, rhythm or recital passage. It will appear here automatically.</p></div> : <>
       <p className="history-total">{passes.length} completed {passes.length === 1 ? "pass" : "passes"}{snapshot.temporary ? " · temporary, export before closing" : " · saved locally"}</p>
       <ol className="history-list">{passes.slice(0, limit).map((pass) => <li key={pass.id}>
         <div className="history-pass-heading"><div><h3>{pass.pieceTitle}</h3><time dateTime={pass.completedAt}>{new Date(pass.completedAt).toLocaleString()}</time></div>

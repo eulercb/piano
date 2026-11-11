@@ -278,7 +278,7 @@ describe("interrupted animation frames", () => {
     const s = make({ hand: "right", notes: [note("l", 48, 1, "left"), note("r")] });
     s.start();
     const result = s.advanceFrame(2, 100, false);
-    expect(result).toEqual({ audioNotes: [], countBeats: [], looped: false, interrupted: true });
+    expect(result).toEqual({ audioNotes: [], countBeats: [], looped: false, metronomeBeat: false, interrupted: true });
     expect(s.running).toBe(false);
     expect(s.position).toBe(0);
     expect(s.summary.missed).toBe(0);
@@ -345,4 +345,254 @@ it("keeps RAF/input timestamps monotonic without counting elapsed time twice", (
   }
   expect(timestamp).toBe(120);
   expect(elapsed).toBeCloseTo(0.02);
+});
+
+describe("recital end-only pitch/onset assessment", () => {
+  const recital = (overrides: Partial<SessionOptions> = {}, startAt = 0) =>
+    make({ mode: "recital", ...overrides }, startAt);
+  const empty = (total: number) => ({ total, onTime: 0, early: 0, late: 0, missed: 0, extra: 0 });
+
+  it("keeps moving through misses and reveals all feedback only after completion", () => {
+    const s = recital({ duration: 5, notes: [note("a", 60, 1), note("b", 64, 2), note("c", 67, 3), note("d", 72, 4)] });
+    run(s, 1);
+    s.press(60, 100);
+    s.press(61, 100);
+    s.advance(0.8, 100, false);
+    s.press(64, 100);
+    s.advance(1.4, 100, false);
+    s.press(67, 100);
+    s.advance(1.3, 100, false);
+    expect(s.position).toBeCloseTo(4.5);
+    expect(s.summary).toEqual(empty(4));
+    expect(s.grades.size).toBe(0);
+    expect(s.matched.size).toBe(0);
+    expect(s.extra).toBe(0);
+    expect(s.feedback).toBeUndefined();
+    expect(s.previousResult).toBeUndefined();
+    s.advance(0.5, 100, false);
+    expect(s.completed).toBe(true);
+    expect(s.summary).toEqual({ total: 4, onTime: 1, early: 1, late: 1, missed: 1, extra: 1 });
+    expect(s.grades).toEqual(new Map([["a", "on-time"], ["b", "early"], ["c", "late"], ["d", "missed"]]));
+    expect(s.feedback).toBeUndefined();
+  });
+
+  it.each([25, 50, 75, 100, 125])("keeps real-time windows at %s%% speed", (speed) => {
+    for (const [offset, kind] of [[-0.301, "extra"], [-0.3, "early"], [-0.1, "on-time"], [0, "on-time"], [0.1, "on-time"], [0.3, "late"], [0.301, "extra"]] as const) {
+      const s = recital();
+      run(s, 1 / (speed / 100) + offset, speed);
+      s.press(60, speed);
+      expect(s.summary).toEqual(empty(1));
+      s.advance(3 / (speed / 100), speed, false);
+      expect(s.completed).toBe(true);
+      expect(s.grades.get("a")).toBe(kind === "extra" ? "missed" : kind);
+      expect(s.summary.extra).toBe(kind === "extra" ? 1 : 0);
+    }
+  });
+
+  it("scores the selected hand only and plays the other hand as accompaniment", () => {
+    const s = recital({ hand: "right", notes: [note("l", 48, 1, "left"), note("r", 60, 1)] });
+    expect(run(s, 1).audioNotes.map((n) => n.id)).toEqual(["l"]);
+    s.press(60, 100);
+    s.advance(2, 100, false);
+    expect(s.summary).toEqual({ ...empty(1), onTime: 1 });
+    expect(s.grades.has("l")).toBe(false);
+  });
+
+  it("plays no automatic selected-hand notes when practising both hands", () => {
+    const s = recital({ notes: [note("l", 48, 1, "left"), note("r")] });
+    expect(run(s, 3).audioNotes).toEqual([]);
+    expect(s.summary).toEqual({ ...empty(2), missed: 2 });
+  });
+
+  it("handles chord order and doubled unisons but requires a new press for a repetition", () => {
+    const s = recital({ notes: [note("a"), note("unison"), note("chord", 64), note("repeat", 60, 2)] });
+    run(s, 1);
+    s.press(64, 100);
+    s.press(60, 100);
+    s.press(60, 100);
+    s.advance(2, 100, false);
+    expect(s.summary).toEqual({ ...empty(4), onTime: 3, missed: 1, extra: 1 });
+  });
+
+  it("matches the nearest unanswered repetition without crediting a note twice", () => {
+    const s = recital({ notes: [note("a"), note("b", 60, 1.2)] });
+    run(s, 1.19);
+    s.press(60, 100);
+    s.advance(0.2, 100, false);
+    s.press(60, 100);
+    s.advance(2, 100, false);
+    expect(s.summary).toEqual({ ...empty(2), onTime: 1, missed: 1, extra: 1 });
+    expect(s.grades.get("b")).toBe("on-time");
+  });
+
+  it("preserves trailing rests before revealing the result", () => {
+    const s = recital({ notes: [note("a", 60, 0)], duration: 8 });
+    run(s, 0);
+    s.press(60, 100);
+    s.advance(7.9, 100, false);
+    expect(s.completed).toBe(false);
+    expect(s.summary).toEqual(empty(1));
+    s.advance(0.1, 100, false);
+    expect(s.summary.onTime).toBe(1);
+  });
+
+  it("ignores count-in input and includes fractional post-count-in time", () => {
+    const s = recital({ notes: [note("a", 60, 0)], countIn: true });
+    expect(run(s, 0, 50).countBeats).toEqual([1]);
+    s.press(60, 50);
+    s.press(61, 50);
+    s.advance(4.2, 50, false);
+    expect(s.position).toBeCloseTo(0.1);
+    s.press(60, 50);
+    s.advance(6, 50, false);
+    expect(s.summary).toEqual({ ...empty(1), late: 1 });
+  });
+
+  it("retains partial count-in and discards no-input pause time", () => {
+    const s = recital({ countIn: true });
+    run(s, 0.75);
+    s.pause();
+    s.press(60, 100);
+    s.advance(10, 100, false);
+    s.start();
+    expect(s.advance(0.25, 100, false).countBeats).toEqual([3]);
+    s.advance(2, 100, false);
+    s.press(60, 100);
+    s.pause();
+    s.press(61, 100);
+    s.advance(10, 100, false);
+    s.start();
+    s.advance(2, 100, false);
+    expect(s.summary).toEqual({ ...empty(1), onTime: 1 });
+  });
+
+  it("does not restart a paused final late-hit window", () => {
+    const s = recital({ duration: 1.05 });
+    run(s, 1.2);
+    s.pause();
+    expect(s.completed).toBe(false);
+    s.start();
+    expect(s.position).toBeCloseTo(1.2);
+    s.press(60, 100);
+    s.advance(0.11, 100, false);
+    expect(s.summary).toEqual({ ...empty(1), late: 1 });
+  });
+
+  it("retains the entire inclusive 300 ms final late window", () => {
+    const s = recital({ duration: 1.05 });
+    run(s, 1.3);
+    expect(s.completed).toBe(false);
+    s.press(60, 100);
+    s.advance(0.001, 100, false);
+    expect(s.completed).toBe(true);
+    expect(s.summary.late).toBe(1);
+    s.press(61, 100);
+    expect(s.summary.extra).toBe(0);
+  });
+
+  it("assesses early presses against the speed actually used before the onset", () => {
+    const s = recital();
+    run(s, 0.8);
+    s.press(60, 100);
+    s.advance(0.4, 50, false); // The expected onset is now 400 ms after the press.
+    expect(s.position).toBeCloseTo(1);
+    s.advance(3, 100, false);
+    expect(s.summary).toEqual({ ...empty(1), missed: 1, extra: 1 });
+  });
+
+  it("uses elapsed time across multiple speeds rather than the latest speed for late presses", () => {
+    const s = recital();
+    run(s, 1);
+    s.advance(0.1, 50, false);
+    s.advance(0.01, 100, false);
+    s.press(60, 100); // 110 ms late despite being only 60 ms ahead in source time.
+    s.advance(3, 100, false);
+    expect(s.summary).toEqual({ ...empty(1), late: 1 });
+  });
+
+  it.each([25, 125])("keeps the final late window when changing speed to %s%%", (speed) => {
+    const s = recital({ duration: 1.01 });
+    run(s, 1.2);
+    s.advance(0.1, speed, false);
+    expect(s.completed).toBe(false);
+    s.press(60, speed);
+    s.advance(0.001, speed, false);
+    expect(s.completed).toBe(true);
+    expect(s.summary).toEqual({ ...empty(1), late: 1 });
+  });
+
+  it("excludes pre-seek notes and resets recordings on restart/seek", () => {
+    const s = recital({ notes: [note("a", 60, 0), note("b", 64, 2)] });
+    run(s, 0);
+    s.press(60, 100);
+    s.press(61, 100);
+    s.restart(1);
+    expect(s.summary).toEqual(empty(1));
+    expect([...s.matched]).toEqual(["a"]);
+    run(s, 1);
+    s.press(64, 100);
+    s.advance(1, 100, false);
+    expect(s.summary).toEqual({ ...empty(1), onTime: 1 });
+    expect(s.grades.has("a")).toBe(false);
+    s.restart();
+    run(s, 3);
+    expect(s.summary).toEqual({ ...empty(2), missed: 2 });
+  });
+
+  it("retains only the previous completed result on repeat with a new count-in", () => {
+    const s = recital({ countIn: true });
+    run(s, 3);
+    s.press(60, 100);
+    expect(s.advance(2, 100, true).looped).toBe(true);
+    expect(s.previousResult).toEqual({ ...empty(1), onTime: 1 });
+    expect(s.summary).toEqual(empty(1));
+    expect(s.pass).toBe(2);
+    expect(s.countBeat).toBe(1);
+    expect(s.grades.size).toBe(0);
+    expect(s.matched.size).toBe(0);
+    expect(s.running).toBe(true);
+    s.press(61, 100);
+    s.advance(5, 100, false);
+    expect(s.completed).toBe(true);
+    expect(s.summary).toEqual({ ...empty(1), missed: 1 });
+    expect(s.previousResult?.onTime).toBe(1);
+    s.start();
+    expect(s.previousResult).toBeUndefined();
+    expect(s.summary).toEqual(empty(1));
+    expect(s.pass).toBe(1);
+  });
+
+  it("repeats from the whole passage after a seek without carrying skipped notes", () => {
+    const s = recital({ notes: [note("a", 60, 0), note("b", 64, 2)] }, 1);
+    run(s, 1);
+    s.press(64, 100);
+    expect(s.advance(1, 100, true).looped).toBe(true);
+    expect(s.previousResult).toEqual({ ...empty(1), onTime: 1 });
+    expect(s.summary).toEqual(empty(2));
+    s.press(60, 100);
+    s.advance(3, 100, false);
+    expect(s.summary).toEqual({ ...empty(2), onTime: 1, missed: 1 });
+  });
+
+  it("pauses after a scheduling gap without counting lost time or producing live misses", () => {
+    const s = recital();
+    run(s, 1);
+    s.press(60, 100);
+    expect(s.advanceFrame(10, 100, false).interrupted).toBe(true);
+    expect(s.position).toBe(1);
+    expect(s.running).toBe(false);
+    expect(s.summary).toEqual(empty(1));
+    s.press(61, 100);
+    s.start();
+    s.advance(2, 100, false);
+    expect(s.summary).toEqual({ ...empty(1), onTime: 1 });
+  });
+
+  it("has no score or extra late window for a selection without remaining notes", () => {
+    const s = recital({ notes: [note("a", 48, 0, "left")], hand: "right" });
+    run(s, 5);
+    expect(s.completed).toBe(true);
+    expect(s.position).toBe(3);
+    expect(s.summary).toEqual(empty(0));
+  });
 });

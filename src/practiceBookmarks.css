@@ -1,0 +1,7 @@
+.practice-bookmarks { margin-top: 1.5rem; padding: 1rem; border: 1px solid #dedbd3; border-radius: 12px; overflow-wrap: anywhere; }
+.practice-bookmarks p { font-size: .85rem; line-height: 1.5; margin: .6rem 0; }
+.practice-bookmarks ul { padding-left: 1rem; }
+.practice-bookmarks li { margin-bottom: 1rem; }
+.practice-bookmarks label { display: block; margin: .75rem 0; }
+.practice-bookmarks input { max-width: 100%; min-height: 44px; }
+.practice-bookmarks button { min-height: 44px; white-space: normal; margin: .25rem 0; }

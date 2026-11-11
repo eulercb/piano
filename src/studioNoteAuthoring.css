@@ -1,0 +1,34 @@
+.studio-note-authoring {
+  margin: 18px 0;
+  padding: 20px;
+  border: 1px solid #dce1d6;
+  border-radius: 12px;
+  background: #fffef9;
+}
+.studio-note-authoring h3 { margin: 0 0 8px; }
+.studio-note-authoring p { color: #536657; font-size: 13px; }
+.authoring-heading, .authoring-selection, .authoring-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.authoring-heading { justify-content: space-between; align-items: flex-start; }
+.authoring-heading > div { flex: 1 1 260px; }
+.authoring-selection { margin: 18px 0 12px; }
+.studio-note-authoring label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: #354f3f; }
+.studio-note-authoring input, .studio-note-authoring select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; padding: 10px; border: 1px solid #bdc9bd; border-radius: 6px; background: white; font: inherit; font-size: 14px; color: #263d36; }
+.studio-note-authoring select:focus-visible { outline: 3px solid #cf9347; outline-offset: 4px; }
+.studio-note-authoring button { min-height: 44px; }
+.studio-note-authoring button:disabled { opacity: .5; cursor: not-allowed; }
+.studio-note-authoring fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.studio-note-authoring legend { font-weight: 600; padding: 8px 0 12px; }
+.authoring-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr)); gap: 12px; }
+.authoring-fields small { font-weight: 400; color: #5c6c5e; }
+.authoring-selection label { width: 110px; }
+.authoring-selection > span { font-size: 12px; color: #536657; }
+.authoring-actions { margin-top: 16px; }
+.studio-note-authoring .authoring-delete { background: #f8e8e4; color: #853528; }
+.studio-note-authoring .authoring-warning, .authoring-confirmation { margin-top: 14px; background: #fff1d9; border: 1px solid #d6b778; border-radius: 8px; padding: 12px; color: #64491b; }
+.studio-note-authoring .authoring-error { margin-top: 12px; color: #9a3029; }
+.studio-note-authoring .authoring-status { margin-top: 12px; color: #2e6246; }
+@media (max-width: 520px) {
+  .studio-note-authoring { padding: 14px; }
+  .authoring-selection > span { flex-basis: 100%; }
+  .authoring-actions .button { flex-grow: 1; }
+}

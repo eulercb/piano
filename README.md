@@ -4,18 +4,19 @@ A local-first browser piano practice workspace. Roadmap: [issue #8](https://gith
 
 ## Develop
 
-Node 22+; `npm ci`, `npm run dev`. Validate with `npm test` and `npm run build`.
+Node 22+; `npm ci`, `npm run dev`. Validate with `npm test`, `npm run build` and `npm run check:release`. The release gate inspects emitted PWA artifacts; it is not browser or hardware acceptance. See [the support matrix and release checklist](docs/release-checklist.md).
 
-The app supports MIDI preparation, a local song library, listening, wait-for-note melody practice, beginner rhythm feedback and a reading score. No account or server-side music storage. Browser MIDI access is optional and requested on click; use Chrome/Edge where Web MIDI is supported. Touch keys and A–; are a demo fallback, not full piano input.
+The app supports MIDI preparation, a local song library, listening, wait-for-note melody practice, beginner rhythm feedback, end-only recital assessment and a reading score. No account or server-side music storage. Browser MIDI access is optional and requested on click; use Chrome/Edge where Web MIDI is supported. Touch keys and A–; are a demo fallback, not full piano input.
 
 ## Scope and limits
 
 - MIDI 0/1 import: tempo maps, note pairs, running status and sustain. Hands are a pitch heuristic except for projects with explicit assignments. Review the result in Studio.
-- Studio: trim seconds non-destructively, transpose, edit note pitch/hand/finger, save locally and export MIDI or a versioned Piano project. MIDI export does not preserve fingerings; project export does.
-- Melody waits for the next note/chord. Listen mode plays the selected hand(s). Rhythm mode keeps moving and grades the selected hand(s) by pitch and onset timing, with the other hand as accompaniment.
+- Studio: trim seconds non-destructively, transpose, edit note pitch/hand/finger, and insert/delete/retime MIDI or project notes. Save locally and export MIDI or a versioned Piano project. MIDI export does not preserve fingerings; project export does.
+- Melody waits for the next note/chord. Listen mode plays the selected hand(s). Rhythm mode keeps moving and gives live pitch/onset feedback. Recital keeps moving and withholds pitch/onset results until the pass finishes. Rhythm and Recital assess the selected hand(s), with the other hand as accompaniment.
 - Optional count-in gives four quarter-note beats at the piece’s starting tempo and selected speed before each pass. It is a plain beat count, not a claimed measure; meter and tempo changes are not inferred for the count-in.
+- Optional **Steady metronome** continues quarter-note clicks after any count-in at the piece’s starting tempo × practice speed. It keeps ticking during Melody waits, does not follow score meter or tempo changes, and is silenced by Mute. Pause retains beat phase; restart, seek, repeat and changing the metronome setting start fresh. It is off by default.
 - Rhythm feedback is deliberately beginner-focused: correct pitches within 100 ms are on time, up to 300 ms early/late receive timing feedback, and unanswered targets become missed. These are real-time windows at every speed. Chords and doubled unisons are supported. Note length, pedal, expression, and device/audio latency are not graded or calibrated.
-- Pause/resume retains the attempt and any partial count-in. Restart, seeking, changing hand/mode, or changing the count-in setting starts fresh; seeking excludes earlier notes from the attempt. Repeat shows the previous pass summary and resets the new pass. Completed passes are saved in local practice history; recital grading remains backlog work.
+- Pause/resume retains the attempt and any partial count-in. Restart, seeking, changing hand/mode, or changing the count-in setting starts fresh; seeking excludes earlier notes from the attempt. Repeat shows the previous pass summary and resets the new pass. Completed passes, including Recital, are saved in local practice history. Unfinished recital attempts do not expose grades or create completed history.
 - Backgrounding the app or an animation scheduling gap over 250 ms pauses practice rather than catching up with a burst of missed notes or accompaniment. Press Play to resume.
 - If browser audio is suspended, interrupted or closed, audible practice pauses immediately with its position, partial count-in and results intact. Play waits for audio to run before starting; pending starts can be canceled and never resume after navigation or a new selection. Muted practice remains available without audio. Unmuting unavailable audio pauses until you press Play or choose Mute again.
 - Direct MusicXML imports support source-linked score edits and measure trimming. Older MIDI projects with an attached MusicXML retain an explicitly labelled reference score; edits to those projects do not change the reference. Matching MusicXML-origin scores show a playback cursor and measure position, with optional pane-only follow scrolling. Reference-only scores stay unsynchronized.
@@ -49,7 +50,7 @@ The keyboard and falling-note guide fill the usable screen width between safe-ar
 
 ### Choosing the next practice step
 
-After a completed listening, melody or rhythm pass, open **Results** for gentle next-step choices. Repeat from the beginning or try another approach. Melody and rhythm passes also offer increasing or decreasing practice speed by 5 percentage points (within 25–125%). Listening leads to one-hand wait-for-notes practice. Exploring the other hand or combining both uses wait-for-notes at the current speed or 50%, whichever is slower; empty-hand options are omitted.
+After a completed listening, melody, rhythm or recital pass, open **Results** for gentle next-step choices. Repeat from the beginning or try another approach. Melody, rhythm and recital passes also offer increasing or decreasing practice speed by 5 percentage points (within 25–125%). Listening leads to one-hand wait-for-notes practice. Exploring the other hand or combining both uses wait-for-notes at the current speed or 50%, whichever is slower; empty-hand options are omitted.
 
 These are choices, not automatic progression or a claim of mastery. The exact hand, speed and mode are shown before selection. Choosing a step closes Results and resets to the beginning of the selected piece/prepared passage, leaving playback paused until **Play**. Count-in and repeat preferences stay in place. The song, source tempo, Studio draft and already recorded history are unchanged. **Choose a shorter passage in Studio** opens preparation without trimming or saving anything automatically.
 
@@ -61,9 +62,11 @@ Target: current Chrome on Android, with a class-compliant USB MIDI Casio and sui
 
 The input list updates as devices are plugged in or removed. If the selected piano disconnects, the app keeps its selection and reconnects only that same input ID; it never silently switches to another device. If the browser assigns a different ID, select the piano again. **Disconnect** stops MIDI input, and **Reconnect piano** retries the connection. Denied permission, missing browser support, missing inputs and input-open failures have separate guidance. Touch and typing keys remain available. Device choices and activity are session-only, not saved in browser storage.
 
-Losing an active selected MIDI input pauses Melody and Rhythm immediately, including a count-in, and silences accompaniment. The current position, partial matches and timing results stay intact; no missed notes or history completion are added while paused. A compact notice stays visible outside the Piano panel with cable/reconnect guidance. Reconnection never resumes practice automatically: press **Play** when ready. Listen mode is not interrupted. To continue without MIDI, choose **Touch/typing keys (no MIDI)** under Piano input or **Disconnect**, then press **Play**; this clears the reconnect reminder without changing saved songs or Studio drafts.
+Losing an active selected MIDI input pauses Melody, Rhythm and Recital immediately, including a count-in, and silences accompaniment. The current position, partial matches and timing results stay intact; no missed notes or history completion are added while paused. A compact notice stays visible outside the Piano panel with cable/reconnect guidance. Reconnection never resumes practice automatically: press **Play** when ready. Listen mode is not interrupted. To continue without MIDI, choose **Touch/typing keys (no MIDI)** under Piano input or **Disconnect**, then press **Play**; this clears the reconnect reminder without changing saved songs or Studio drafts.
 
-Library → **Open song folder** progressively uses `showDirectoryPicker` when available; otherwise select multiple files via **Import song**. The first slice copies files into local app storage and requires explicit re-opening to refresh, rather than promising permanent background folder access. MusicXML and compressed .mxl import as new playable scores. Save/export a Piano project to retain score and fingerings.
+Library → **Open song folder** progressively uses read-only `showDirectoryPicker` when available; otherwise select multiple files via **Import song**. Supported browsers can remember a folder shortcut with IndexedDB. Opening the app only restores that shortcut: it does not scan files or ask for permission. **Refresh / reconnect folder** rechecks permission after your click and reads up to 50 supported files in the selected folder, without recursion or background scanning.
+
+Content fingerprints skip unchanged sources even when you have edited their saved copies. A changed source is offered as a separate new copy; cancel keeps your existing work and lets you reconsider on the next refresh. Missing source files never remove saved songs, and no source file is written. An unavailable or damaged shortcut store leaves file import and session-only folder access available. Browser permissions and persisted handles still require actual browser acceptance. MusicXML and compressed .mxl import as playable scores. Save/export a Piano project to retain score and fingerings.
 
 ## Score-linked Studio
 
@@ -71,12 +74,24 @@ Import `.musicxml`, `.xml` or compressed `.mxl` directly to create playable note
 
 For these imported scores, Studio pitch/finger edits and transposition rewrite the MusicXML and re-derive playback. Trim by whole measures (including a pickup) to keep notation and sound aligned; inherited attributes and crossing ties are repaired. Export MusicXML or a Piano project. Editing MIDI-only songs retains the simpler seconds-based editor.
 
-This remains incremental: no freehand note insertion/duration editor or full notation-authoring application yet.
+### MIDI and project note authoring
+
+For MIDI/project notes, **Add, delete & retime notes** shares selection with the existing pitch/hand/finger controls. Insert a note with explicit pitch, start, duration, hand and optional finger; apply start/duration edits; or confirm deletion of the selected note. Notes remain chronological, other notes do not shift, and saved trailing silence is preserved. Apply changes, then save or export the project. Editing pauses and resets playback; save conflicts and quota failures retain the open draft for export.
+
+MusicXML-origin notes do not offer structural insertion/deletion/retiming: that would require repairing notation voices, ties and rhythm, not just changing playback. Their existing source-linked pitch/hand/finger edits and measure trimming remain available. An older MIDI/project with attached reference notation keeps that reference and explicitly warns that playback edits do not change it. This is not a full notation-authoring application or optical music recognition.
 
 ## Practice history and score following
 
-Completed listen, melody and rhythm passes are stored locally with hand, speed range and passage context. Open History for gentle next-step suggestions, JSON backups and explicit delete/clear controls. Storage is bounded; export backups before clearing browser data. Modern Web Locks serialize changes across tabs; without that API, use one app tab to avoid simultaneous-write conflicts.
+Completed listen, melody, rhythm and recital passes are stored locally with hand, speed range and passage context. Open History for gentle next-step suggestions, JSON backups and explicit delete/clear controls. Storage is bounded; export backups before clearing browser data. Modern Web Locks serialize changes across tabs; without that API, use one app tab to avoid simultaneous-write conflicts.
 
 The score cursor requires unchanged correspondence between MusicXML and playable notes. Written grace positions share the principal note; performed grace timing remains approximate. Follow scrolling is opt-in and stays inside the score pane.
 
 Compressed scores are read locally with strict size, path, integrity and decompression limits. External images and resource links are rejected; no archive resources are fetched. Original imported files are not overwritten.
+
+## Practice bookmarks
+
+In Practice → **Setup**, name and save a bookmark for the built-in demo or a saved piece/prepared passage. Save Studio edits first. A bookmark stores hand, mode, speed, count-in and repeat choices; open it from Setup or Library to return to the beginning, paused. It does not capture a playback position or change the current metronome preference. Original songs, source tempo and history remain unchanged.
+
+Bookmarks check a SHA-256 music-content revision, including notes, fingers and notation. A changed or missing piece is not silently substituted. If a restored project has a new library ID, a unique exact musical match can be opened only after confirmation; ambiguous matches are rejected. Unsaved drafts still require confirmation before replacement, and a newer navigation or edit cancels an older pending restore.
+
+Export/import bookmark backups separately from song projects. Bookmarks contain names, titles, settings and revision hashes, not notes or scores. Restore the song project too if its library entry is missing. Storage is bounded to 50 bookmarks and 128 KiB; corrupt data, quota errors and conflicting imports do not silently overwrite existing data. Deletion and backup merges require explicit choices. Use one app tab where Web Locks are unavailable.

@@ -300,3 +300,23 @@ describe("gentle suggestions", () => {
     }
   });
 });
+
+describe("recital history integration", () => {
+  it("records completed recital counts and round-trips backup without mixing modes", () => {
+    const { session, recorder } = transport("recital");
+    session.start();
+    recorder.advanceFrame(0, 100, false);
+    session.press(60, 100);
+    recorder.advanceFrame(0.2, 100, false);
+    session.press(62, 100);
+    recorder.advanceFrame(0.2, 100, false);
+    const completed = recorder.advanceFrame(0.11, 100, false).completedPass;
+    expect(completed).toMatchObject({ mode: "recital", rhythm: { total: 2, onTime: 2, missed: 0 } });
+    expect(parsePracticeHistory(JSON.stringify({ kind: "piano-practice-history", version: 1, passes: [completed] }))[0]).toEqual(completed);
+  });
+  it("does not use rhythm sessions to suggest recital speed progression", () => {
+    const recital = { ...pass("recital"), mode: "recital" as const };
+    expect(practiceSuggestion([recital, pass("rhythm1"), pass("rhythm2")])).not.toContain("55%");
+    expect(() => normalizePracticePass({ ...recital, rhythm: undefined })).toThrow();
+  });
+});

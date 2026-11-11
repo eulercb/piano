@@ -13,7 +13,7 @@ export type PracticeStep = {
 export const practiceHandName = (hand: PracticeHand) =>
   hand === "both" ? "Both hands" : hand === "left" ? "Left hand" : "Right hand";
 export const practiceModeName = (mode: PracticeMode) =>
-  mode === "listen" ? "Listen" : mode === "melody" ? "Wait for notes" : "Rhythm";
+  mode === "listen" ? "Listen" : mode === "melody" ? "Wait for notes" : mode === "recital" ? "Recital" : "Rhythm";
 
 /** Choices, not an automatic lesson plan or a claim that a skill was mastered. */
 export function practiceNextSteps(pass: PracticePass, song: Song, speed: number): PracticeStep[] {
@@ -31,6 +31,8 @@ export function practiceNextSteps(pass: PracticePass, song: Song, speed: number)
     if (speed < 125) add("faster", "Try a small speed increase", pass.hand, pass.mode, Math.min(125, speed + 5));
     if (pass.mode === "melody") add("rhythm", "Try note-start timing", pass.hand, "rhythm");
     else add("melody", "Return to waiting for notes", pass.hand, "melody");
+    if (pass.mode === "rhythm") add("recital", "Try an uninterrupted pass", pass.hand, "recital");
+    if (pass.mode === "recital") add("rhythm", "Return to live timing feedback", pass.hand, "rhythm");
     if (pass.hand === "both") {
       add("left", "Focus on the left hand", "left", "melody", Math.min(speed, 50));
       add("right", "Focus on the right hand", "right", "melody", Math.min(speed, 50));

@@ -25,13 +25,14 @@ class ControlledAudio extends EventTarget {
   static initialState = "running";
   static initialResume = () => Promise.resolve();
   currentTime = 0; destination = {}; state = ControlledAudio.initialState;
-  starts: number[] = []; stoppedImmediately = 0;
+  starts: number[] = []; pitches: number[] = []; stoppedImmediately = 0;
   resume = vi.fn(ControlledAudio.initialResume);
   close = vi.fn(async () => { this.change("closed"); });
   constructor() { super(); ControlledAudio.instances.push(this); }
   createOscillator() {
-    return { frequency: { value: 0 }, connect() {}, disconnect() {}, onended: null,
-      start: () => { this.starts.push(this.currentTime); },
+    const frequency = { value: 0 };
+    return { frequency, connect() {}, disconnect() {}, onended: null,
+      start: () => { this.starts.push(this.currentTime); this.pitches.push(frequency.value); },
       stop: (time?: number) => { if (time === undefined) this.stoppedImmediately++; } };
   }
   createGain() { return { connect() {}, disconnect() {}, gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} } }; }
@@ -107,7 +108,7 @@ it.each(["suspended", "interrupted", "closed"])("preserves partial count-in imme
   if (state === "closed") expect(ControlledAudio.instances).toHaveLength(2);
 });
 
-it.each(["Listen", "Melody practice · wait for notes", "Rhythm practice"])("retains position and results in %s until explicit Play after recovery", async mode => {
+it.each(["Listen", "Melody practice · wait for notes", "Rhythm practice", "Recital practice"])("retains position and results in %s until explicit Play after recovery", async mode => {
   prepare(mode); click("Play"); click("Play C4"); advance(.2);
   const before = position(), audio = context();
   act(() => audio.change("suspended")); advance(20);
@@ -116,7 +117,7 @@ it.each(["Listen", "Melody practice · wait for notes", "Rhythm practice"])("ret
   expect(position()).toBe(before); expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
   click("Play"); advance(.8); click("Play D4"); advance(1); click("Play E4"); advance(.5);
   await act(settle); expect(passes()).toHaveLength(1);
-  if (mode === "Rhythm practice") expect(passes()[0].rhythm).toMatchObject({ onTime: 3, missed: 0, extra: 0 });
+  if (mode === "Rhythm practice" || mode === "Recital practice") expect(passes()[0].rhythm).toMatchObject({ onTime: 3, missed: 0, extra: 0 });
 });
 
 it.each(["frame", "input"])("checks actual audio state before a %s when statechange has not arrived", source => {
@@ -236,7 +237,7 @@ it("preserves saved songs, completed history and a dirty Studio draft across aud
   const closing = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(closing); expect(closing.defaultPrevented).toBe(true);
 });
 
-it.each(["Melody practice · wait for notes", "Rhythm practice"])("retains a partially matched chord after audio recovery in %s", async mode => {
+it.each(["Melody practice · wait for notes", "Rhythm practice", "Recital practice"])("retains a partially matched chord after audio recovery in %s", async mode => {
   localStorage.setItem("piano-songs", JSON.stringify([{ ...song, notes: [
     ...[60, 64, 67].map((pitch, i) => ({ id: `chord-${i}`, pitch, start: 0, duration: .5, velocity: .7, hand: "right" })),
     { id: "next", pitch: 62, start: 1, duration: .5, velocity: .7, hand: "right" },
@@ -247,7 +248,7 @@ it.each(["Melody practice · wait for notes", "Rhythm practice"])("retains a par
   expect(position()).toBe(0); expect(passes()).toHaveLength(0);
   click("Play"); click("Play E4"); click("Play G4"); advance(1); click("Play D4"); advance(.5);
   await act(settle); expect(passes()).toHaveLength(1);
-  if (mode === "Rhythm practice") expect(passes()[0].rhythm).toMatchObject({ onTime: 4, missed: 0, extra: 0 });
+  if (mode === "Rhythm practice" || mode === "Recital practice") expect(passes()[0].rhythm).toMatchObject({ onTime: 4, missed: 0, extra: 0 });
 });
 
 it("cancels pending audio Play when the selected MIDI input disconnects", async () => {
@@ -333,4 +334,104 @@ it("adversarial: pending preview is invalidated by unmount along with its key ti
   expect(vi.getTimerCount()).toBe(beforeTimers + 1); view.unmount(); expect(vi.getTimerCount()).toBeLessThanOrEqual(beforeTimers);
   await act(async () => { audio.change("running"); pending.resolve(); await settle(); });
   expect(audio.starts).toHaveLength(0); expect(frames.size).toBe(0); expect(audio.close).toHaveBeenCalledTimes(1);
+});
+
+// Ongoing metronome regressions use the real transport and audio lifecycle.
+function enableMetronome() {
+  click("Practice setup");
+  const toggle = screen.getByRole("checkbox", { name: "Steady metronome" }) as HTMLInputElement;
+  expect(toggle.checked).toBe(false);
+  fireEvent.click(toggle); click("Done");
+}
+const clicks = () => context().pitches.filter(pitch => Math.abs(pitch - 440 * 2 ** ((84 - 69) / 12)) < .001).length;
+
+it("keeps opt-in clicks going during melody waits, preserving pause phase without history", () => {
+  prepare("Melody practice · wait for notes"); enableMetronome();
+  click("Play"); expect(clicks()).toBe(1);
+  advance(2.2); expect(clicks()).toBe(3); expect(position()).toBe(0);
+  click("Pause"); advance(20); expect(clicks()).toBe(3);
+  click("Play"); expect(clicks()).toBe(3);
+  advance(.7); expect(clicks()).toBe(3);
+  advance(.1); expect(clicks()).toBe(4); expect(passes()).toHaveLength(0);
+});
+
+it("hands off count-in to ongoing clicks once, and mute does not accumulate beats", () => {
+  prepare("Melody practice · wait for notes", true); enableMetronome();
+  click("Play"); advance(3.9); expect(clicks()).toBe(4);
+  advance(.1); expect(clicks()).toBe(5);
+  advance(.9); expect(clicks()).toBe(5);
+  click("Mute"); advance(3); expect(clicks()).toBe(5);
+  click("Unmute"); expect(clicks()).toBe(5);
+  advance(.1); expect(clicks()).toBe(6);
+  expect(position()).toBe(0); expect(passes()).toHaveLength(0);
+});
+
+it.each(["suspended", "interrupted", "closed"])("stops ongoing clicks when audio is %s and resumes without backlog", state => {
+  prepare("Melody practice · wait for notes"); enableMetronome();
+  click("Play"); advance(.2); const audio = context(), count = clicks();
+  act(() => audio.change(state)); advance(20);
+  expect(clicks()).toBe(count); expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+  if (state !== "closed") act(() => audio.change("running"));
+  click("Play"); const resumed = clicks();
+  advance(.7); expect(clicks()).toBe(resumed);
+  advance(.1); expect(clicks()).toBe(resumed + 1);
+  expect(passes()).toHaveLength(0);
+});
+
+it("never starts the metronome during pending audio or after canceled navigation", async () => {
+  const pending = deferred();
+  ControlledAudio.initialState = "suspended";
+  ControlledAudio.initialResume = () => pending.promise;
+  prepare(); enableMetronome(); click("Play");
+  advance(10); expect(context().starts).toHaveLength(0);
+  click("My library");
+  await act(async () => { context().change("running"); pending.resolve(); await settle(); });
+  advance(10); expect(context().starts).toHaveLength(0); expect(passes()).toHaveLength(0);
+});
+
+it("pauses the beat on backgrounding and rejects stale frames without catch-up", () => {
+  prepare("Melody practice · wait for notes"); enableMetronome();
+  click("Play"); advance(.2); const count = clicks(), queued = [...frames.values()];
+  hidden(true);
+  act(() => { now += 10000; queued.forEach(frame => frame(now)); });
+  expect(clicks()).toBe(count);
+  hidden(false); click("Play"); advance(.8); expect(clicks()).toBe(count + 1);
+  act(() => { now += 10000; const callbacks = [...frames.values()]; frames.clear(); callbacks.forEach(frame => frame(now)); });
+  expect(clicks()).toBe(count + 1); expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+  expect(passes()).toHaveLength(0);
+});
+
+it("leaves clicks off by default and does not change source tempo when adjusting practice speed", () => {
+  prepare("Melody practice · wait for notes"); click("Play"); advance(1.2);
+  expect(clicks()).toBe(0);
+  click("Pause"); enableMetronome(); click("Play"); advance(.2);
+  expect(clicks()).toBe(1);
+  click("Practice setup");
+  fireEvent.change(screen.getByRole("slider", { name: "Tempo percentage" }), { target: { value: "50" } });
+  click("Done"); click("Play"); advance(1.5); expect(clicks()).toBe(1);
+  advance(.1); expect(clicks()).toBe(2);
+  expect(JSON.parse(localStorage.getItem("piano-songs")!)[0].tempo).toBe(60);
+  expect(passes()).toHaveLength(0);
+});
+
+it("starts fresh after seek/restart and silences immediately when disabled or unmounted", () => {
+  const view = prepare("Melody practice · wait for notes"); enableMetronome();
+  click("Play"); advance(.2); expect(clicks()).toBe(1);
+  fireEvent.change(screen.getByRole("slider", { name: "Playback position" }), { target: { value: "1" } });
+  click("Play"); expect(clicks()).toBe(2);
+  click("Restart"); click("Play"); expect(clicks()).toBe(3);
+  click("Practice setup"); fireEvent.click(screen.getByRole("checkbox", { name: "Steady metronome" }));
+  click("Done"); click("Play"); advance(1.2); expect(clicks()).toBe(3);
+  const audio = context(); view.unmount(); advance(10);
+  expect(audio.pitches.filter(pitch => pitch > 1000)).toHaveLength(3);
+  expect(audio.close).toHaveBeenCalledOnce(); expect(passes()).toHaveLength(0);
+});
+
+it("records the same single completed listening pass with ongoing clicks, then stops", async () => {
+  prepare("Listen"); enableMetronome(); click("Play"); advance(10);
+  await act(settle);
+  expect(passes()).toHaveLength(1);
+  expect(passes()[0].mode).toBe("listen");
+  const count = clicks(); expect(count).toBeGreaterThan(1);
+  advance(10); expect(clicks()).toBe(count); expect(passes()).toHaveLength(1);
 });

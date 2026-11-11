@@ -1,6 +1,6 @@
 /** All times are seconds; velocity is normalized to [0, 1]. */
 export type Note = { id: string; pitch: number; start: number; duration: number; velocity: number; hand: 'left' | 'right'; finger?: number; sourceNoteIds?: string[] }
-export type Song = { id: string; title: string; notes: Note[]; tempo: number; scoreXml?: string; scoreOrigin?: 'musicxml'; duration?: number }
+export type Song = { id: string; title: string; notes: Note[]; tempo: number; scoreXml?: string; scoreOrigin?: 'musicxml'; duration?: number; folderSource?: import('./songFolder').FolderSource }
 
 /** Total playback length, including explicitly recorded trailing rests/silence. */
 export function songDuration(song: Song): number {
