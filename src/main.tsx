@@ -1,3 +1,4 @@
+import { safeDocument } from "./scoreSource";
 import { PianoAudio } from "./audio";
 import { pianoShortcutPitch, isPianoVirtualClick } from "./pianoKeyboard";
 import { pianoKeyGeometry, fallingNoteGeometry, ROLL_LOOKAHEAD_SECONDS } from "./pianoGeometry";
@@ -317,8 +318,12 @@ export function App() {
   function savedBookmarkSong(id: string) {
     library.refresh();
     const fresh = library.getSnapshot();
-    if (fresh.message) throw Error("The saved library could not be read. Bookmark was not opened.");
-    return id === demoSong.id ? demoSong : fresh.songs.find(item => item.id === id);
+    if (fresh.blocked) throw Error("The saved library could not be read. Bookmark was not opened.");
+    const saved = id === demoSong.id ? demoSong : fresh.songs.find(item => item.id === id);
+    // Recovery warnings about other songs do not invalidate a safe bookmark.
+    // A selected unsafe source is never silently replaced with another piece.
+    if (saved?.scoreXml !== undefined) safeDocument(saved.scoreXml);
+    return saved;
   }
   async function saveBookmark(name: string) {
     const generation = importGeneration.current, playback = playbackGeneration.current;
@@ -353,6 +358,10 @@ export function App() {
       if (!saved) {
         const matches: Song[] = [];
         for (const candidate of library.getSnapshot().songs) {
+          // Skip blocked notation during missing-ID recovery, not hashing errors:
+          // an unavailable digest API or a newer selection must still stop restore.
+          try { if (candidate.scoreXml !== undefined) safeDocument(candidate.scoreXml); }
+          catch { continue; }
           if (await songRevision(candidate) === bookmark.revision) matches.push(candidate);
           if (!current()) return;
         }

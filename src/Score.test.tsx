@@ -18,8 +18,13 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+const firstXml = '<score-partwise version="first"/>';
+const referenceXml = '<score-partwise version="reference"/>';
+const pendingXml = '<score-partwise version="pending"/>';
+const latestXml = '<score-partwise version="latest"/>';
+const secondXml = '<score-partwise version="second"/>';
 const instances: FakeRenderer[] = [];
-let load = vi.fn<(xml: string) => Promise<void>>();
+let load = vi.fn<(xml: Document) => Promise<void>>();
 let draw = vi.fn<() => void>();
 
 class FakeCursor {
@@ -48,11 +53,11 @@ class FakeRenderer {
     instances.push(this);
     this.AutoResizeEnabled = options.autoResize;
   }
-  load = vi.fn(async (xml: string) => {
-    this.xml = xml;
+  load = vi.fn(async (xml: Document) => {
+    this.xml = new XMLSerializer().serializeToString(xml);
     await load(xml);
     // Model load() writing state/DOM even if cleanup ran while it was pending.
-    this.container.textContent = `Loaded ${xml}`;
+    this.container.textContent = `Loaded ${this.xml}`;
   });
   render = vi.fn(() => {
     draw();
@@ -97,7 +102,7 @@ describe("lazy reading score", () => {
     const score = deferred<void>();
     importRenderer.mockReturnValue(module.promise);
     load.mockReturnValue(score.promise);
-    const view = render(<Score xml="first" editable />);
+    const view = render(<Score xml={firstXml} editable />);
     expect(screen.getByRole("status").textContent).toMatch(/Loading reading score/);
     expect(view.container.querySelector(".score-sheet")?.getAttribute("aria-busy")).toBe("true");
     expect(instances).toHaveLength(0);
@@ -107,9 +112,9 @@ describe("lazy reading score", () => {
     expect(instances[0].render).not.toHaveBeenCalled();
     expect(screen.getByRole("status")).toBeTruthy();
     await act(async () => { score.resolve(); });
-    expect(instances[0].load).toHaveBeenCalledWith("first");
+    expect(instances[0].load.mock.calls[0][0]).toBeInstanceOf(Document);
     expect(instances[0].render).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Rendered first")).toBeTruthy();
+    expect(screen.getByText(`Rendered ${firstXml}`)).toBeTruthy();
     expect(screen.queryByRole("status")).toBeNull();
     expect(view.container.querySelector(".score-sheet")?.getAttribute("aria-busy")).toBe("false");
     expect(screen.getByText(/Score-linked Studio/)).toBeTruthy();
@@ -119,7 +124,7 @@ describe("lazy reading score", () => {
 
   it("offers an accessible retry when the module download fails", async () => {
     importRenderer.mockRejectedValueOnce(new Error("offline"));
-    render(<Score xml="first" />);
+    render(<Score xml={firstXml} />);
     expect((await screen.findByRole("alert")).textContent).toMatch(/MIDI practice is still available/);
     expect(screen.queryByRole("status")).toBeNull();
     expect(instances).toHaveLength(0);
@@ -130,21 +135,21 @@ describe("lazy reading score", () => {
     expect(screen.getByRole("status")).toBeTruthy();
     await act(async () => { retry.resolve(rendererModule); });
     expect(importRenderer).toHaveBeenCalledTimes(2);
-    expect(screen.getByText("Rendered first")).toBeTruthy();
+    expect(screen.getByText(`Rendered ${firstXml}`)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Retry score" })).toBeNull();
   });
 
   it.each(["load", "render"])("cleans up a %s failure and retries with a fresh instance", async (step) => {
     if (step === "load") load.mockRejectedValueOnce(new Error("bad score"));
     else draw.mockImplementationOnce(() => { throw new Error("drawing failed"); });
-    render(<Score xml="first" />);
+    render(<Score xml={firstXml} />);
     await screen.findByRole("alert");
     const failed = instances[0];
     expect(failed.dispose).toHaveBeenCalled();
     expect(failed.clear).toHaveBeenCalled();
     expect(failed.container.childNodes).toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "Retry score" }));
-    await screen.findByText("Rendered first");
+    await screen.findByText(`Rendered ${firstXml}`);
     expect(instances).toHaveLength(2);
     expect(failed.container.isConnected).toBe(false);
     expect(screen.queryByRole("alert")).toBeNull();
@@ -153,22 +158,23 @@ describe("lazy reading score", () => {
   it("ignores an obsolete module import after XML changes", async () => {
     const oldImport = deferred<RendererModule>();
     importRenderer.mockReturnValueOnce(oldImport.promise);
-    const view = render(<Score xml="first" />);
-    view.rerender(<Score xml="second" />);
-    await screen.findByText("Rendered second");
+    const view = render(<Score xml={firstXml} />);
+    view.rerender(<Score xml={secondXml} />);
+    await screen.findByText(`Rendered ${secondXml}`);
     await act(async () => { oldImport.resolve(rendererModule); });
     expect(instances).toHaveLength(1);
-    expect(load).toHaveBeenCalledExactlyOnceWith("second");
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(new XMLSerializer().serializeToString(load.mock.calls[0][0])).toBe(secondXml);
   });
 
   it.each(["resolve", "reject"])("ignores an obsolete score load that later %ss", async (outcome) => {
     const oldLoad = deferred<void>();
     load.mockReturnValueOnce(oldLoad.promise);
-    const view = render(<Score xml="first" />);
+    const view = render(<Score xml={firstXml} />);
     await waitFor(() => expect(instances).toHaveLength(1));
     const old = instances[0];
-    view.rerender(<Score xml="second" />);
-    await screen.findByText("Rendered second");
+    view.rerender(<Score xml={secondXml} />);
+    await screen.findByText(`Rendered ${secondXml}`);
     expect(old.dispose).toHaveBeenCalled();
     expect(old.clear).toHaveBeenCalled();
     expect(old.container.isConnected).toBe(false);
@@ -178,7 +184,7 @@ describe("lazy reading score", () => {
     });
     expect(old.render).not.toHaveBeenCalled();
     expect(old.container.childNodes).toHaveLength(0);
-    expect(screen.getByText("Rendered second")).toBeTruthy();
+    expect(screen.getByText(`Rendered ${secondXml}`)).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByRole("status")).toBeNull();
     window.dispatchEvent(new Event("resize"));
@@ -189,7 +195,7 @@ describe("lazy reading score", () => {
   it("does not initialize a renderer when unmounted during import", async () => {
     const module = deferred<RendererModule>();
     importRenderer.mockReturnValue(module.promise);
-    const view = render(<Score xml="first" />);
+    const view = render(<Score xml={firstXml} />);
     view.unmount();
     await act(async () => { module.resolve(rendererModule); });
     expect(instances).toHaveLength(0);
@@ -198,7 +204,7 @@ describe("lazy reading score", () => {
   it.each(["resolve", "reject"])("cleans up when a load %ss after unmount", async (outcome) => {
     const score = deferred<void>();
     load.mockReturnValue(score.promise);
-    const view = render(<Score xml="first" />);
+    const view = render(<Score xml={firstXml} />);
     await waitFor(() => expect(instances).toHaveLength(1));
     const instance = instances[0];
     view.unmount();
@@ -214,8 +220,8 @@ describe("lazy reading score", () => {
   });
 
   it("releases a rendered score and its resize listener when XML is removed", async () => {
-    const view = render(<Score xml="first" />);
-    await screen.findByText("Rendered first");
+    const view = render(<Score xml={firstXml} />);
+    await screen.findByText(`Rendered ${firstXml}`);
     const instance = instances[0];
     view.rerender(<Score />);
     window.dispatchEvent(new Event("resize"));
@@ -229,19 +235,19 @@ describe("lazy reading score", () => {
 
   it("does not retain an error when XML is removed or replaced", async () => {
     importRenderer.mockRejectedValueOnce(new Error("offline"));
-    const view = render(<Score xml="first" />);
+    const view = render(<Score xml={firstXml} />);
     await screen.findByRole("alert");
     view.rerender(<Score />);
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByRole("button", { name: "Retry score" })).toBeNull();
-    view.rerender(<Score xml="second" />);
-    await screen.findByText("Rendered second");
+    view.rerender(<Score xml={secondXml} />);
+    await screen.findByText(`Rendered ${secondXml}`);
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("supports Strict Mode setup/cleanup and releases the active renderer on unmount", async () => {
-    const view = render(<StrictMode><Score xml="first" /></StrictMode>);
-    await screen.findByText("Rendered first");
+    const view = render(<StrictMode><Score xml={firstXml} /></StrictMode>);
+    await screen.findByText(`Rendered ${firstXml}`);
     expect(importRenderer).toHaveBeenCalledTimes(2);
     expect(instances).toHaveLength(1);
     const instance = instances[0];
@@ -455,11 +461,11 @@ describe("synchronized reading score", () => {
 
 describe("reading score size", () => {
   it("offers bounded accessible controls for reference scores without changing their XML", async () => {
-    const view = render(<Score xml="reference" />);
+    const view = render(<Score xml={referenceXml} />);
     const size = screen.getByRole("combobox", { name: "Score size" }) as HTMLSelectElement;
     expect(size.disabled).toBe(true);
     expect((screen.getByRole("button", { name: "Reset size" }) as HTMLButtonElement).disabled).toBe(true);
-    await screen.findByText("Rendered reference");
+    await screen.findByText(`Rendered ${referenceXml}`);
     expect(size.disabled).toBe(false);
     expect(Array.from(size.options).map(option => option.value)).toEqual(["75", "100", "125", "150", "175", "200"]);
     const pane = screen.getByRole("region", { name: "Reading score" });
@@ -477,7 +483,8 @@ describe("reading score size", () => {
     expect(instances[0].Zoom).toBe(1);
     expect(size.value).toBe("100");
     expect(instances).toHaveLength(1);
-    expect(instances[0].load).toHaveBeenCalledExactlyOnceWith("reference");
+    expect(instances[0].load).toHaveBeenCalledExactlyOnceWith(expect.any(Document));
+    expect(instances[0].xml).toBe(referenceXml);
     view.unmount();
   });
 
@@ -510,16 +517,16 @@ describe("reading score size", () => {
 
 describe("reading size lifecycle", () => {
   it("retains view size through pending replacement and ignores obsolete loads", async () => {
-    const view = render(<Score xml="first" />);
-    await screen.findByText("Rendered first");
+    const view = render(<Score xml={firstXml} />);
+    await screen.findByText(`Rendered ${firstXml}`);
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "175" } });
     const pending = deferred<void>();
     load.mockReturnValueOnce(pending.promise);
-    view.rerender(<Score xml="pending" />);
+    view.rerender(<Score xml={pendingXml} />);
     await waitFor(() => expect(instances).toHaveLength(2));
     expect((screen.getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
-    view.rerender(<Score xml="latest" />);
-    await screen.findByText("Rendered latest");
+    view.rerender(<Score xml={latestXml} />);
+    await screen.findByText(`Rendered ${latestXml}`);
     expect(instances[2].Zoom).toBe(1.75);
     await act(async () => pending.resolve());
     expect(instances[1].render).not.toHaveBeenCalled();
@@ -530,8 +537,8 @@ describe("reading size lifecycle", () => {
   });
 
   it("cancels queued resize when size changes and preserves size through retry", async () => {
-    render(<Score xml="first" />);
-    await screen.findByText("Rendered first");
+    render(<Score xml={firstXml} />);
+    await screen.findByText(`Rendered ${firstXml}`);
     window.dispatchEvent(new Event("resize"));
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "150" } });
     await new Promise(resolve => setTimeout(resolve, 150));
@@ -545,9 +552,10 @@ describe("reading size lifecycle", () => {
     expect((screen.getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
     expect(instances[0].dispose).toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Retry score" }));
-    await screen.findByText("Rendered first");
+    await screen.findByText(`Rendered ${firstXml}`);
     expect(instances[1].Zoom).toBe(2);
-    expect(instances[1].load).toHaveBeenCalledExactlyOnceWith("first");
+    expect(instances[1].load).toHaveBeenCalledExactlyOnceWith(expect.any(Document));
+    expect(instances[1].xml).toBe(firstXml);
   });
 
   it("rebuilds with the selected size when switching compact layout in Strict Mode", async () => {
@@ -656,4 +664,31 @@ it("keeps compact size and follow controls in one keyboard-scrollable group", as
   view.rerender(<Score xml={linkedXml} sourceSong={song} />);
   await screen.findByRole("checkbox");
   expect(screen.getByRole("group", { name: "Reading controls" }).hasAttribute("tabindex")).toBe(false);
+});
+
+it.each([
+  'https://example.invalid/score.xml', '//example.invalid/score.xml', '<score-partwise>',
+  '<?xml-stylesheet href="https://example.invalid/style"?><score-partwise/>',
+  '<score-partwise><credit-image source="https://example.invalid/image"/></score-partwise>',
+  '<score-partwise><link href="relative.xml"/></score-partwise>',
+])('never loads an unsafe cached/source prop, including on retry: %s', async xml => {
+  const sourceSong = { id: 'legacy', title: 'Legacy', tempo: 120, notes: [], scoreXml: xml };
+  const original = JSON.stringify(sourceSong);
+  const view = render(<Score xml={xml} sourceSong={sourceSong} />);
+  expect((await screen.findByRole('alert')).textContent).toMatch(/MIDI practice is still available/);
+  fireEvent.click(screen.getByRole('button', { name: 'Retry score' }));
+  await screen.findByRole('alert');
+  expect(importRenderer).not.toHaveBeenCalled();
+  expect(load).not.toHaveBeenCalled();
+  expect(JSON.stringify(sourceSong)).toBe(original);
+  view.rerender(<Score xml={firstXml} />);
+  await screen.findByText(`Rendered ${firstXml}`);
+  expect(load.mock.calls[0][0]).toBeInstanceOf(Document);
+});
+
+it.each(['\uFEFF \n', '<!-- inline -->', '<?xml version="1.0"?>'])('passes a Document, never an ambiguous original string (%s)', async prefix => {
+  render(<Score xml={prefix + firstXml} />);
+  await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+  expect(load.mock.calls[0][0]).toBeInstanceOf(Document);
+  expect(load.mock.calls[0][0].documentElement.nodeName).toBe('score-partwise');
 });

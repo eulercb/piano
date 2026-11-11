@@ -58,7 +58,7 @@ it('records a seeked repeat and a full repeat as separate complete backup-compat
 });
 
 it('retains frozen originals and source metadata across chained structural edits and backup restoration', () => {
-  const original = normalizeSong({ ...song, scoreXml: '<reference/>' });
+  const original = normalizeSong({ ...song, scoreXml: '<score-partwise/>' });
   const before = JSON.stringify(original);
   original.notes.forEach(Object.freeze); Object.freeze(original.notes); Object.freeze(original);
   const inserted = insertNote(original, { pitch: 127, start: 3.75, duration: .5, hand: 'left', finger: 5 });
@@ -67,7 +67,7 @@ it('retains frozen originals and source metadata across chained structural edits
   const restored = parseProject(JSON.stringify({ version: 1, song: deleted }));
   expect(restored).toEqual(deleted);
   expect(restored.duration).toBe(4.25);
-  expect(restored.scoreXml).toBe('<reference/>');
+  expect(restored.scoreXml).toBe('<score-partwise/>');
   expect(restored.notes.find(n => n.id === 'b')).toMatchObject({ finger: 4, velocity: .6, hand: 'right' });
   expect(JSON.stringify(original)).toBe(before);
 });

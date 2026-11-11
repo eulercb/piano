@@ -1,4 +1,5 @@
 import { validFolderSource } from "./songFolder";
+import { safeDocument } from "./scoreSource";
 import type { Note, Song } from "./music";
 import { parseMusicXml } from "./musicxml";
 
@@ -20,7 +21,7 @@ const invalid = (reason: string): never => {
  * Missing/duplicate note IDs are regenerated together, before sorting.
  * Empty songs are allowed so a deliberately empty trimmed passage can be saved.
  */
-export function normalizeSong(value: unknown): Song {
+export function normalizeSong(value: unknown, options: { preserveUnsafeScore?: boolean } = {}): Song {
   if (!record(value)) return invalid("song must be an object.");
   if (
     typeof value.title !== "string" ||
@@ -93,7 +94,18 @@ export function normalizeSong(value: unknown): Song {
     };
   });
   notes.sort((a, b) => a.start - b.start || a.pitch - b.pitch);
-  if (value.scoreOrigin === "musicxml") {
+  // Saved projects can predate the inline-only boundary. Keep their source and
+  // validated performance notes recoverable, but disable source-linked editing.
+  // New project imports remain strict. Rendering independently checks all input.
+  let unsafeScore = false;
+  if (typeof value.scoreXml === "string") {
+    try { safeDocument(value.scoreXml); }
+    catch (error) {
+      if (!options.preserveUnsafeScore) throw error;
+      unsafeScore = true;
+    }
+  }
+  if (value.scoreOrigin === "musicxml" && !unsafeScore) {
     if (typeof value.scoreXml !== "string")
       return invalid("editable MusicXML source is missing.");
     const parsed = parseMusicXml(value.scoreXml).song;

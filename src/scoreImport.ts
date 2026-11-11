@@ -1,4 +1,5 @@
-import { DOMParser, type Element } from '@xmldom/xmldom'
+import { safeDocument } from './scoreSource'
+import { type Element } from '@xmldom/xmldom'
 import { Inflate } from 'pako'
 import { parseMusicXml } from './musicxml'
 
@@ -40,37 +41,6 @@ function decodeXml(bytes: Uint8Array, label: string): string {
   return xml
 }
 
-function safeDocument(xml: string, container = false) {
-  if ((xml.match(/</g)?.length ?? 0) > (container ? 1024 : 350000)) fail('the XML document has too many elements.')
-  if (/<!ENTITY\b|<!DOCTYPE[^>]*\[/i.test(xml) || (container && /<!DOCTYPE\b/i.test(xml))) {
-    fail('custom XML entities and internal DTDs are not supported.')
-  }
-  // xmldom is an offline parser. Ordinary MusicXML external DOCTYPE declarations
-  // are preserved, but are never resolved. Block references a renderer could fetch.
-  if (/<\?xml-stylesheet\b/i.test(xml)) fail('external XML stylesheets are not supported. Export a self-contained score.')
-  let document
-  try {
-    document = new DOMParser({ onError: (_level, message) => { throw new Error(message) } }).parseFromString(xml, 'application/xml')
-  } catch { return fail(`${container ? 'META-INF/container.xml' : 'the score'} is not well-formed XML.`) }
-  const root = document.documentElement
-  if (!root) return fail('the XML document has no root element.')
-  const nodes = [root, ...Array.from(root.getElementsByTagName('*'))]
-  if (nodes.length > (container ? 512 : 160001)) fail('the XML document has too many elements.')
-  for (const node of nodes) {
-    let depth = 0
-    for (let parent = node.parentNode; parent && depth <= 64; parent = parent.parentNode) depth++
-    if (depth > 64) fail('XML nesting is too deep.')
-    if (['image', 'credit-image', 'include'].includes(node.localName ?? '')) {
-      fail('score images and included external resources are not supported. Export a self-contained MusicXML score without images.')
-    }
-    for (const attribute of Array.from(node.attributes)) {
-      if (attribute.localName === 'href' && !attribute.value.startsWith('#')) {
-        fail('external score links are not supported. Export a self-contained MusicXML score.')
-      }
-    }
-  }
-  return root
-}
 
 function validPath(path: string, allowDirectory = false): void {
   const parts = (allowDirectory && path.endsWith('/') ? path.slice(0, -1) : path).split('/')

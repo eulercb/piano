@@ -1,4 +1,5 @@
-import { DOMParser, type Element } from '@xmldom/xmldom'
+import { safeDocument } from './scoreSource'
+import { type Element } from '@xmldom/xmldom'
 import type { Note, Song } from './music'
 import type { ScoreTimeline, ScoreTimingEntry } from './scoreCursor'
 
@@ -28,24 +29,10 @@ const EPS = 1e-7
  * Original XML is preserved. Unwritten expressive performance is not inferred.
  */
 export function parseMusicXml(xml: string): { song: Song; warnings: string[]; measureStartTempos: number[]; scoreTimeline: ScoreTimeline } {
-  if (typeof xml !== 'string' || new TextEncoder().encode(xml).byteLength > 5 * 1024 * 1024) fail('choose a score smaller than 5 MiB.')
-  if (/<!ENTITY\b|<!DOCTYPE[^>]*\[/i.test(xml)) fail('custom XML entities and internal DTDs are not supported.')
-  if ((xml.match(/</g)?.length ?? 0) > 350000) fail('score has too many XML elements.')
-  let root: Element
-  try {
-    const document = new DOMParser({ onError: (_level, message) => { throw new Error(message) } }).parseFromString(xml, 'application/xml')
-    if (!document.documentElement) return fail('missing score root.')
-    root = document.documentElement
-  } catch { return fail('the file is not well-formed XML.') }
+  const root = safeDocument(xml)
   if (root.localName === 'score-timewise') fail('timewise scores are not supported; export a partwise MusicXML score.')
   if (root.localName !== 'score-partwise') fail('choose a score-partwise MusicXML file.')
   const all = Array.from(root.getElementsByTagName('*'))
-  if (all.length > 160000) fail('score has too many elements.')
-  for (const node of all) {
-    let depth = 0
-    for (let parent = node.parentNode; parent && depth <= 64; parent = parent.parentNode) depth++
-    if (depth > 64) fail('XML nesting is too deep.')
-  }
   const unsupported = ['repeat', 'ending', 'segno', 'coda', 'measure-repeat', 'multiple-rest', 'unpitched', 'senza-misura', 'swing', 'glissando', 'slide', 'bend', 'tremolo', 'octave-shift']
   for (const tag of unsupported) if (all.some(node => node.localName === tag)) fail(`${tag} playback is not supported; use an unfolded, pitched piano score.`)
   for (const sound of all.filter(node => node.localName === 'sound')) {
