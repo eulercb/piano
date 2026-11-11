@@ -194,8 +194,26 @@ export function trimScoreMeasures(
       const dir = doc.createElementNS(firstMeasure.namespaceURI, "direction"),
         sound = doc.createElementNS(firstMeasure.namespaceURI, "sound");
       sound.setAttribute("tempo", String(tempo));
+      const directionType = doc.createElementNS(firstMeasure.namespaceURI, "direction-type"),
+        metronome = doc.createElementNS(firstMeasure.namespaceURI, "metronome"),
+        beatUnit = doc.createElementNS(firstMeasure.namespaceURI, "beat-unit"),
+        perMinute = doc.createElementNS(firstMeasure.namespaceURI, "per-minute");
+      // Carry playback tempo without duplicating the source's visible marking.
+      metronome.setAttribute("print-object", "no");
+      beatUnit.textContent = "quarter";
+      perMinute.textContent = String(tempo);
+      metronome.appendChild(beatUnit);
+      metronome.appendChild(perMinute);
+      directionType.appendChild(metronome);
+      dir.appendChild(directionType);
       dir.appendChild(sound);
-      firstMeasure.insertBefore(dir, firstMeasure.firstChild);
+      // OSMD needs the initial divisions/staves/clefs before a direction.
+      // Keep inherited tempo ahead of original directions (which may override
+      // it), but after leading attributes, including those already in the bar.
+      let anchor = firstMeasure.firstChild;
+      while (anchor && (anchor.nodeType !== 1 ||
+        ["attributes", "print", "barline"].includes((anchor as Element).localName || ""))) anchor = anchor.nextSibling;
+      firstMeasure.insertBefore(dir, anchor);
     }
     for (let i = 0; i < measures.length; i++)
       if (i < start || i > end) part.removeChild(measures[i]);
