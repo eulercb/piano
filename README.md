@@ -78,7 +78,15 @@ For these imported scores, Studio pitch/finger edits and transposition rewrite t
 
 For MIDI/project notes, **Add, delete & retime notes** shares selection with the existing pitch/hand/finger controls. Insert a note with explicit pitch, start, duration, hand and optional finger; apply start/duration edits; or confirm deletion of the selected note. Notes remain chronological, other notes do not shift, and saved trailing silence is preserved. Apply changes, then save or export the project. Editing pauses and resets playback; save conflicts and quota failures retain the open draft for export.
 
-MusicXML-origin notes do not offer structural insertion/deletion/retiming: that would require repairing notation voices, ties and rhythm, not just changing playback. Their existing source-linked pitch/hand/finger edits and measure trimming remain available. An older MIDI/project with attached reference notation keeps that reference and explicitly warns that playback edits do not change it. This is not a full notation-authoring application or optical music recognition.
+### Written MusicXML note authoring
+
+For source-linked MusicXML, **Add, delete & resize written notes** works within existing written slots. Select a plain explicit rest to insert a note, replace an independent note with an equal-duration rest, shorten a note and leave silence, or lengthen it into an immediately following plain rest in the same voice and staff. Durations are quarter-note beats, not seconds. Every operation rewrites notation and re-derives playback; it does not move later notes or the other hand. Save or export after applying changes. Saved originals and source files are untouched until you explicitly save the draft.
+
+This is a bounded editor, not free notation layout. Chords, ties, grace/cue notes, beams, tuplets, complex attached notation and note-level attributes are refused. Simple fingerings and pitch spelling are preserved when resizing. Supported durations are whole through 64th notes, optionally single-dotted, and both the note and any remaining rest must fit these values, the score's divisions and available space. Keep at least one sounding note in the score. Existing pitch/hand/finger edits and whole-measure trimming remain available. Use a notation editor for unsupported changes. A project whose playback no longer matches its source is refused rather than silently replaced. An older MIDI/project with attached reference notation keeps that reference and explicitly warns that playback edits do not change it.
+
+### Starting from a PDF or photo
+
+The collapsed preparation guide beside **Import song** explains a separate local desktop recognition and correction workflow. Piano Studio does **not** recognize notes from PDFs/photos, install a recognizer or upload scans. Importing MusicXML is not OMR. The [OMR research and private preparation guide](docs/private-score-preparation.md) records candidate engines, license/runtime limits, safe handling and the verification needed before any recognition integration. Review converted notation against the original; successful import is not proof of musical accuracy.
 
 ## Practice history and score following
 
