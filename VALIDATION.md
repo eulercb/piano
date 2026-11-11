@@ -1,5 +1,11 @@
 # Validation
 
+## Bookmark restore CI synchronization after rebasing #22
+
+- The CI failure was a test race: the awaited piece title already existed as the Library card's `h3`, before asynchronous revision verification completed. Holding the digest pending deterministically reproduces the original missing-Play failure. Restore assertions now wait for the practice-room `h1`; no production behavior, assertions or timeouts were relaxed.
+- A retained delayed-digest regression checks that Library remains visible until verification completes, then opens the exact piece paused at the beginning without changing saved songs or history. MusicXML authoring and the local OMR experiment are unchanged.
+- All **20 bookmark app tests** pass, including **20 consecutive repetitions of the four successful-restore cases** (80 focused executions). TypeScript/Vite/PWA production build, all **7 emitted-artifact contracts** and whitespace checks pass. The full suite and remote CI are deferred to the final combined-head gate. Existing bundle-size warnings remain; this is synthetic DOM verification, not browser/device acceptance.
+
 ## Experimental local Audiveris recognition
 
 - Separate opt-in Linux CLI, stacked on draft #22. It invokes a trusted user-supplied Audiveris executable on one PNG and publishes a new MusicXML file. No app/server integration, automatic engine/model downloads, source replacement or saved-library changes.
