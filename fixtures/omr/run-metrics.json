@@ -1,0 +1,9 @@
+{
+  "elapsed_seconds": 8.829,
+  "output_bytes": 7800,
+  "child_max_rss_kib_linux": 387536,
+  "engine_warning_lines": 3,
+  "review_required": true,
+  "network_isolation": "not provided or verified",
+  "limits": "1536 MiB Java heap, 2 JVM processors, CPU/wall timeout, 64 MiB per file; not total RSS/disk quotas"
+}

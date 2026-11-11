@@ -1,0 +1,15 @@
+{
+  "rights": "Original synthetic exercise and blank control authored for this project; no private input or existing composition.",
+  "negative_control": {
+    "input": "blank.png",
+    "adapter_exit": 1,
+    "engine_exit": 1,
+    "output_created": false
+  },
+  "sha256": {
+    "piano-quarter-notes.musicxml": "62e994da3c4c794d824d5ad4eec23bb10f9ed8700ebc2eafa29fa729136c0eb1",
+    "piano-quarter-notes.png": "e07741138647d44e8269ea2739d09feb5350f395a6f37ad3680a3a9cb7fb4af0",
+    "audiveris-5.11.0.musicxml": "21addf41e307d8ccceedda67cf35389945c429b0c6b040c08c3134b00b1ffec4",
+    "blank.png": "71050387c75c1e3ea28570c1bd3ad5b11f355e30ed9dfcd65e911739a11854ba"
+  }
+}

@@ -1,5 +1,14 @@
 # Validation
 
+## Experimental local Audiveris recognition
+
+- Separate opt-in Linux CLI, stacked on draft #22. It invokes a trusted user-supplied Audiveris executable on one PNG and publishes a new MusicXML file. No app/server integration, automatic engine/model downloads, source replacement or saved-library changes.
+- Actual Audiveris 5.11.0 recognition of the original two-bar grand-staff fixture produced all **16/16 pitch, onset, duration, staff and measure matches**, with matching voice partitions after arbitrary voice-ID normalization. Captured output is unchanged and the real app importer agrees with the gold. A separate actual blank-image run failed with no destination created. These are narrow synthetic controls, not phone-photo/general-score accuracy.
+- Latest measured adapter run: **8.829 seconds**, 387,536 KiB maximum child RSS on this cloud Linux machine. This is neither total process-tree memory nor a phone/low-end/cold-cache benchmark. OCR warnings remain. Exact package/model hashes, bundled Java 25.0.3, rendering-tool provenance, source observations and input/output hashes are recorded in [the evaluation](docs/local-omr-evaluation.md) and fixtures.
+- Final **824 tests across 56 files**, production build, **9 Python safeguard tests** and whitespace checks pass. CI runs the Python safeguards without downloading/running Audiveris; fake executables in those tests are not recognition evidence. An initial concurrent app run hit an existing five-second MIDI test timeout; the complete two-worker rerun passed with unchanged assertions/timeouts.
+- Independent review prompted fixes for SIGTERM process cleanup, UTF-16 XML/entity rejection, voice-correspondence validation and partial-output publication. Final review passed. Output is staged and atomically linked without overwriting, with explicit file/input/timeout/heap bounds; this is not a complete memory/process/disk sandbox.
+- Network-namespace isolation and syscall observation were denied before their respective test execution; neither was retried or bypassed. No blocked-network or observed-network recognition claim is made. Only original synthetic material was processed. Private-score offline safety, phone-photo accuracy, broader notation, target-platform cancellation and license/model redistribution acceptance remain open. No browser/device acceptance, merge or deployment.
+
 ## Fixed-slot MusicXML authoring and private score preparation
 
 - Builds on draft #21 head `659c6f6a5c695aaaa20d4b50d66c2869067690ef` without changing that branch. Adds source-linked insertion into explicit rests, confirmed deletion to equal rests, and duration changes within existing note/adjacent-rest space. Both hands, later note timing, measure boundaries, tempo and source provenance remain fixed. Simple fingerings, pitch spelling and supported display details survive resizing.

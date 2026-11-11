@@ -1,0 +1,17 @@
+{
+  "voice_partition_matches": true,
+  "gold_events": 16,
+  "recognized_events": 16,
+  "exact_pitch_onset_duration_staff_measure_matches": 16,
+  "precision": 1.0,
+  "recall": 1.0,
+  "voice_mapping": {
+    "(0, '1', '1')": [
+      "1"
+    ],
+    "(0, '2', '2')": [
+      "5"
+    ]
+  },
+  "scope": "Event multiset, measure index, staff and voice correspondence; no notation/engraving correctness claim"
+}
