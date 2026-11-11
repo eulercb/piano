@@ -1,5 +1,5 @@
 import { songDuration, type Song } from "./music";
-import { PracticeSession, type PracticeHand, type PracticeMode, type RhythmSummary } from "./session";
+import { PracticeSession, type NoteStartCounts, type PracticeHand, type PracticeMode, type RhythmSummary, type WrittenHandSummary } from "./session";
 
 export const HISTORY_KEY = "piano-practice-history";
 export const MAX_HISTORY_PASSES = 200;
@@ -23,6 +23,8 @@ export type PracticePass = {
   endSeconds: number;
   noteCount: number;
   rhythm?: RhythmSummary;
+  /** Optional for older backups; only completed both-hand timing passes save this. */
+  writtenHands?: WrittenHandSummary;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -38,6 +40,15 @@ const timestamp = (value: unknown): value is string =>
   Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 function invalid(reason: string): never {
   throw new Error(`Invalid practice history: ${reason}`);
+}
+
+const noteStartFields = ["total", "onTime", "early", "late", "missed"] as const;
+function normalizeWrittenPart(value: unknown): NoteStartCounts {
+  if (!isRecord(value) || Object.keys(value).length !== noteStartFields.length ||
+    !count(value.total) || !count(value.onTime) || !count(value.early) || !count(value.late) || !count(value.missed) ||
+    value.onTime + value.early + value.late + value.missed !== value.total)
+    return invalid("written-part counts must describe completed note starts without hand-attributed extra presses.");
+  return { total: value.total, onTime: value.onTime, early: value.early, late: value.late, missed: value.missed };
 }
 
 /** Only allow summary fields: never retain score XML, notes, or arbitrary imported data. */
@@ -66,6 +77,17 @@ export function normalizePracticePass(value: unknown): PracticePass {
       return invalid("rhythm counts must describe a completed pass.");
     rhythm = { total: r.total, onTime: r.onTime, early: r.early, late: r.late, missed: r.missed, extra: r.extra };
   } else if (value.rhythm !== undefined) return invalid("only rhythm or recital passes have timing counts.");
+  let writtenHands: WrittenHandSummary | undefined;
+  if (value.writtenHands !== undefined) {
+    if (!rhythm || value.hand !== "both") return invalid("only both-hand rhythm or recital passes have written-part counts.");
+    const parts = value.writtenHands;
+    if (!isRecord(parts) || Object.keys(parts).length !== 2)
+      return invalid("written-part counts need left and right parts.");
+    const left = normalizeWrittenPart(parts.left), right = normalizeWrittenPart(parts.right);
+    if (noteStartFields.some((field) => left[field] + right[field] !== rhythm![field]))
+      return invalid("written-part counts must add up to the overall timing counts.");
+    writtenHands = { left, right };
+  }
   return {
     id: value.id, pieceId: value.pieceId, pieceRevision: value.pieceRevision,
     pieceTitle: value.pieceTitle, startedAt: value.startedAt, completedAt: value.completedAt,
@@ -73,6 +95,7 @@ export function normalizePracticePass(value: unknown): PracticePass {
     speedMin: value.speedMin, speedMax: value.speedMax,
     startSeconds: value.startSeconds, endSeconds: value.endSeconds, noteCount: value.noteCount,
     ...(rhythm ? { rhythm } : {}),
+    ...(writtenHands ? { writtenHands } : {}),
   };
 }
 
@@ -159,7 +182,10 @@ export class PracticePassRecorder {
               mode: this.session.options.mode, hand: this.session.options.hand,
               tempo: this.song.tempo, endSeconds: this.session.options.duration, noteCount,
               ...((this.session.options.mode === "rhythm" || this.session.options.mode === "recital")
-                ? { rhythm: result.looped ? this.session.previousResult : this.session.summary } : {}),
+                ? {
+                  rhythm: result.looped ? this.session.previousResult : this.session.summary,
+                  writtenHands: result.looped ? this.session.previousWrittenHands : this.session.writtenHands,
+                } : {}),
             });
           } catch {
             historyError = "This completed pass could not be recorded because its piece details are outside the history format. Playing is still available; existing history is unchanged.";

@@ -11,12 +11,16 @@ export type RhythmFeedback = {
   pitch: number;
   offsetMs?: number;
 };
-export type RhythmSummary = {
+export type NoteStartCounts = {
   total: number;
   onTime: number;
   early: number;
   late: number;
   missed: number;
+};
+/** Saved score assignments, never a claim about which physical hand played. */
+export type WrittenHandSummary = { left: NoteStartCounts; right: NoteStartCounts };
+export type RhythmSummary = NoteStartCounts & {
   extra: number;
 };
 export type SessionOptions = {
@@ -56,6 +60,9 @@ export class PracticeSession {
   extra = 0;
   feedback?: RhythmFeedback;
   previousResult?: RhythmSummary;
+  /** Completed written-part counts only; current attempts remain unpublished. */
+  writtenHands?: WrittenHandSummary;
+  previousWrittenHands?: WrittenHandSummary;
   private startAt: number;
   private countRemaining: number;
   private sentCountBeat = 0;
@@ -107,6 +114,21 @@ export class PracticeSession {
     };
   }
 
+  /** Called only at completion, after Recital publishes its end-only grades. */
+  private summarizeWrittenHands(): WrittenHandSummary | undefined {
+    if (this.options.hand !== "both" || (this.options.mode !== "rhythm" && this.options.mode !== "recital")) return;
+    const empty = (): NoteStartCounts => ({ total: 0, onTime: 0, early: 0, late: 0, missed: 0 });
+    const result = { left: empty(), right: empty() };
+    for (const note of this.notes) {
+      if (note.start < this.startAt) continue;
+      const counts = result[note.hand], grade = this.grades.get(note.id);
+      counts.total++;
+      if (grade === "on-time") counts.onTime++;
+      else if (grade) counts[grade]++;
+    }
+    return result;
+  }
+
   start() {
     // A paused final late-hit window is still part of this attempt, even when
     // the visible progress bar has reached the written end of the piece.
@@ -145,6 +167,8 @@ export class PracticeSession {
     this.extra = 0;
     this.pass = 1;
     this.previousResult = undefined;
+    this.writtenHands = undefined;
+    this.previousWrittenHands = undefined;
     this.skipEarlierNotes();
     this.resetRecital();
   }
@@ -253,12 +277,14 @@ export class PracticeSession {
         }
         this.extra = result.extra;
       }
+      this.writtenHands = this.summarizeWrittenHands();
       if (repeat) {
-        const summary = this.summary, pass = this.pass;
+        const summary = this.summary, writtenHands = this.writtenHands, pass = this.pass;
         this.restart();
         this.pass = pass + 1;
         this.previousResult = this.options.mode === "rhythm" || this.options.mode === "recital"
           ? summary : undefined;
+        this.previousWrittenHands = writtenHands;
         this.start();
         result.looped = true;
       } else {

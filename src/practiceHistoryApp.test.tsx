@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App } from "./main";
 import { stubDialogs } from "./testDialog";
 import { HISTORY_KEY, parsePracticeHistory } from "./practiceHistory";
+import type { Song } from "./music";
+import { SONGS_KEY } from "./songLibrary";
 
 vi.mock("virtual:pwa-register/react", () => ({ useRegisterSW: () => ({ needRefresh: [false], updateServiceWorker: vi.fn() }) }));
 vi.mock("./Score", () => ({ Score: () => null }));
@@ -40,6 +42,76 @@ beforeEach(() => {
   vi.stubGlobal("AudioContext", SilentAudio);
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.clear(); });
+
+const study: Song = { id: "written-parts", title: "Synthetic both-hand study", tempo: 120, duration: 1, notes: [
+  { id: "left-unison", pitch: 60, start: 0, duration: 0.2, hand: "left", velocity: 0.7 },
+  { id: "right-unison", pitch: 60, start: 0, duration: 0.2, hand: "right", velocity: 0.7 },
+  { id: "left-missed", pitch: 64, start: 0.5, duration: 0.2, hand: "left", velocity: 0.7 },
+  { id: "right-late", pitch: 62, start: 0.5, duration: 0.2, hand: "right", velocity: 0.7 },
+] };
+const click = (name: string | RegExp) => fireEvent.click(screen.getByRole("button", { name }));
+function openBothHandStudy(mode: "rhythm" | "recital", repeat = false) {
+  localStorage.setItem(SONGS_KEY, JSON.stringify([study]));
+  render(<App />); click("My library"); click(/Synthetic both-hand study/); click("Practice setup");
+  click(mode === "rhythm" ? /^Rhythm practice/ : /^Recital practice/);
+  fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" }));
+  fireEvent.change(screen.getByRole("slider", { name: "Tempo percentage" }), { target: { value: "100" } });
+  if (repeat) fireEvent.click(screen.getByRole("checkbox", { name: "Repeat this passage" }));
+  click("Done");
+}
+
+it.each(["rhythm", "recital"] as const)("saves both-hand %s written counts only after completion, preserves pauses, and reloads them in History", (mode) => {
+  openBothHandStudy(mode);
+  const savedSong = localStorage.getItem(SONGS_KEY);
+  click("Play"); click("Play C4"); click("Play C♯4"); advance(0.2);
+  expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
+  click("Results");
+  const results = screen.getByRole("dialog", { name: "Practice results" });
+  if (mode === "recital") {
+    expect(within(results).queryByText("On time")).toBeNull();
+    expect(within(results).getByText(/Feedback appears after the pass/)).toBeTruthy();
+  }
+  expect(screen.queryByRole("group", { name: "Written left part" })).toBeNull();
+  click("Done"); advance(2);
+  expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
+  click("Play"); advance(0.5); click("Play D4"); advance(0.4);
+  const passes = parsePracticeHistory(localStorage.getItem(HISTORY_KEY)!);
+  expect(passes).toHaveLength(1);
+  expect(passes[0]).toMatchObject({ mode, hand: "both", noteCount: 4,
+    rhythm: { total: 4, onTime: 2, early: 0, late: 1, missed: 1, extra: 1 },
+    writtenHands: {
+      left: { total: 2, onTime: 1, early: 0, late: 0, missed: 1 },
+      right: { total: 2, onTime: 1, early: 0, late: 1, missed: 0 },
+    },
+  });
+  const savedHistory = localStorage.getItem(HISTORY_KEY);
+  cleanup(); render(<App />); click("Practice setup"); click("Practice history");
+  const left = within(screen.getByRole("group", { name: "Written left part" }));
+  const right = within(screen.getByRole("group", { name: "Written right part" }));
+  expect(left.getByText("On time").nextElementSibling?.textContent).toBe("1 / 2");
+  expect(left.getByText("Missed").nextElementSibling?.textContent).toBe("1");
+  expect(right.getByText("Late").nextElementSibling?.textContent).toBe("1");
+  expect(screen.getAllByText("Extra presses")).toHaveLength(1);
+  expect(localStorage.getItem(HISTORY_KEY)).toBe(savedHistory);
+  expect(localStorage.getItem(SONGS_KEY)).toBe(savedSong);
+});
+
+it.each(["rhythm", "recital"] as const)("keeps completed %s loop parts separate from the next unfinished attempt", (mode) => {
+  openBothHandStudy(mode, true);
+  click("Play"); click("Play C4"); advance(1.1);
+  const first = parsePracticeHistory(localStorage.getItem(HISTORY_KEY)!);
+  expect(first).toHaveLength(1);
+  expect(first[0].writtenHands).toEqual({
+    left: { total: 2, onTime: 1, early: 0, late: 0, missed: 1 },
+    right: { total: 2, onTime: 1, early: 0, late: 0, missed: 1 },
+  });
+  click("Play C♯4"); advance(0.2);
+  click("Practice setup"); click("Practice history");
+  expect(parsePracticeHistory(localStorage.getItem(HISTORY_KEY)!)).toEqual(first);
+  expect(screen.getByText(/1 completed pass · saved locally/)).toBeTruthy();
+  expect(screen.getAllByText("1 / 2")).toHaveLength(2);
+  expect(screen.getByText("Extra presses").nextElementSibling?.textContent).toBe("0");
+});
 
 it("saves a real playback completion once, preserves pauses, and displays history from navigation", () => {
   render(<App />);
