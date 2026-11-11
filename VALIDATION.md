@@ -1,5 +1,11 @@
 # Validation
 
+## Export-test cleanup after rebasing #22
+
+- CI passed all 825 tests but caught a delayed project-export callback after the note-authoring test restored jsdom's `URL`, which has no object-URL methods. The final quota-failure/export test reproduces the same `main.tsx:639` exception when its original teardown stays alive long enough for revocation; the identical observation passes with the fix.
+- All four App export suites now use a shared test-only download helper. It controls only the download timeout, checks no revocation through 999 ms and exactly one revocation of the created URL at 1,000 ms, and verifies no timer remains before restoring mocks. FileReader serialization stays real. Production export/revocation behavior, MusicXML authoring and the OMR experiment are unchanged.
+- Final local gate: **825 tests across 56 files** pass with no unhandled errors, along with the **9 Python safeguard tests**, TypeScript/Vite/PWA production build, **7 emitted-artifact contracts** and whitespace checks. The four affected suites also pass all **36 focused tests** and **10 consecutive repetitions of five export cases** (50 executions). Independent review found no issues. Existing bundle-size warnings remain; remote CI and browser/device acceptance are separate checks.
+
 ## Bookmark restore CI synchronization after rebasing #22
 
 - The CI failure was a test race: the awaited piece title already existed as the Library card's `h3`, before asynchronous revision verification completed. Holding the digest pending deterministically reproduces the original missing-Play failure. Restore assertions now wait for the practice-room `h1`; no production behavior, assertions or timeouts were relaxed.

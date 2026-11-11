@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { clickDownload } from "./testDownload";
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from './main';
@@ -33,7 +34,7 @@ async function open(container: HTMLElement) { choose(container, file(xml, 'synth
 function downloadText() {
   return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsText(downloads.at(-1)!); });
 }
-async function exportProject() { fireEvent.click(button('Export project + fingers')); return downloadText(); }
+async function exportProject() { clickDownload(button('Export project + fingers')); return downloadText(); }
 
 it('shows optional preparation guidance near import without changing songs or appearing in the practice room', () => {
   const view = render(<App />);
@@ -63,7 +64,7 @@ it('inserts a written note, preserves saved music until Save, and round trips li
   expect(music(draft).filter(note => note.pitch !== 65)).toEqual(music(original));
   expect(music(parseMusicXml(draft.scoreXml!).song)).toEqual(music(draft));
   expect(draft.duration).toBe(original.duration);
-  fireEvent.click(button('Export MusicXML'));
+  clickDownload(button('Export MusicXML'));
   const exportedXml = await downloadText();
   expect(exportedXml).toBe(draft.scoreXml);
   expect(music(parseMusicXml(exportedXml).song)).toEqual(music(draft));

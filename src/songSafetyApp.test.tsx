@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { clickDownload } from "./testDownload";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App } from "./main";
@@ -62,7 +63,7 @@ it("preserves unreadable saved bytes and keeps a failed import open for export",
   expect(localStorage.getItem(SONGS_KEY)).toBe(source);
   expect(screen.getByText(/Import is open but not saved/)).toBeTruthy();
   await waitFor(() => expect(beforeUnload()).toBe(true));
-  fireEvent.click(screen.getByRole("button", { name: "Export project + fingers" }));
+  clickDownload(screen.getByRole("button", { name: "Export project + fingers" }));
   expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled();
 });
 it("stops a multiple-file import on failed persistence instead of replacing the exportable copy", async () => {

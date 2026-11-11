@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { clickDownload } from "./testDownload";
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from './main';
@@ -40,7 +41,7 @@ const change = (name: string, value: string) => fireEvent.change(screen.getByRol
 const value = (name: string) => (screen.getByRole('spinbutton', { name: new RegExp(`^${name}`) }) as HTMLInputElement).value;
 function prepare() { fireEvent.click(button('Practice setup')); fireEvent.click(button('Prepare a song')); }
 async function exportProject() {
-  fireEvent.click(button('Export project + fingers'));
+  clickDownload(button('Export project + fingers'));
   return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsText(downloads.at(-1)!); });
 }
 

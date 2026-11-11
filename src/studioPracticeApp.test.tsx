@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { clickDownload } from "./testDownload";
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deflateRaw } from 'pako';
@@ -211,7 +212,7 @@ describe('existing import → Studio → practice workflow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Prepare a song' }));
     await screen.findByRole('checkbox', { name: 'Follow score while playing' });
     expect(screen.getByText('Reading position: measure 1 of 1')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Export project + fingers' }));
+    clickDownload(screen.getByRole('button', { name: 'Export project + fingers' }));
     expect(clickedDownloads.at(-1)?.filename).toBe(`${title} · passage.piano.json`);
     expect(clickedDownloads.at(-1)?.href).toBe(downloads.at(-1)?.url);
     const exported = await blobText(downloads.at(-1)!.blob), restored = parseProject(exported);
