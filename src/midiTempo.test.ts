@@ -62,11 +62,11 @@ describe("retained MIDI tempo", () => {
     expect(trimSong(song, 0, 1).midiTempoMap).toEqual([changes[0]]);
   });
 
-  it("keeps MIDI export byte-identical to legacy flattening and note seconds within tick resolution", () => {
-    const song = parseMidi(sourceMidi()), { midiTempoMap: _map, ...legacy } = song;
-    expect(exportMidi(song)).toEqual(exportMidi(legacy));
+  it("exports retained tempo changes and note seconds within legacy tick resolution", () => {
+    const song = parseMidi(sourceMidi());
     const restored = parseMidi(exportMidi(song).buffer as ArrayBuffer);
-    expect(restored.midiTempoMap).toEqual([changes[0]]);
+    expect(restored.midiTempoMap!.map(change => change.microsecondsPerQuarter)).toEqual(changes.map(change => change.microsecondsPerQuarter));
+    restored.midiTempoMap!.forEach((change, i) => expect(change.seconds).toBeCloseTo(changes[i].seconds, 3));
     expect(restored.duration).toBeCloseTo(song.duration!, 3);
     restored.notes.forEach((n, i) => {
       expect(n.start).toBeCloseTo(song.notes[i].start, 3);

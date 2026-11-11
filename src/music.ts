@@ -1,5 +1,6 @@
 import { MAX_MIDI_TEMPO_CHANGES, MIN_MIDI_MICROSECONDS, normalizeMidiTempoMap, trimMidiTempoMap, type MidiTempoChange } from './midiTempo'
 import { serializeProject } from './projectFormat'
+import { exportMappedMidi } from './midiExport'
 
 /** All times are seconds; velocity is normalized to [0, 1]. */
 export type Note = { id: string; pitch: number; start: number; duration: number; velocity: number; hand: 'left' | 'right'; finger?: number; sourceNoteIds?: string[] }
@@ -164,10 +165,10 @@ export function parseMidi(buffer: ArrayBuffer): Song {
   return song
 }
 
-/** Export a format-0 piano MIDI, preserving seconds at a single tempo.
- * Retained tempo changes are intentionally flattened; use a project to keep them.
- */
+/** Export format-0 piano MIDI. Retained maps use a separately audited clock;
+ * map-less songs keep the original single-tempo bytes and quantization. */
 export function exportMidi(song: Song): Uint8Array {
+  if (song.midiTempoMap !== undefined) return exportMappedMidi(song)
   if (!Number.isFinite(song.tempo) || song.tempo <= 0) throw new Error('Tempo must be positive.')
   const ppqn = 480, microseconds = clamp(Math.round(60000000 / song.tempo), 1, 0xffffff)
   const ticksPerSecond = ppqn * 1000000 / microseconds

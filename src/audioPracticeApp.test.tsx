@@ -444,7 +444,7 @@ it.each([false, true])("uses retained MIDI changes after library reload, never r
   prepare("Listen"); enableMetronome();
   click("Practice setup");
   expect(screen.getByText(mapped ? /follow retained MIDI tempo changes/ : /no verified source tempo map/)).toBeTruthy();
-  if (mapped) expect(screen.getByText(/MIDI export flattens them while preserving note seconds/)).toBeTruthy();
+  if (mapped) expect(screen.getByText(/MIDI export retains these changes when timing permits/)).toBeTruthy();
   click("Done"); click("Play"); advance(.9);
   expect(clicks()).toBe(mapped ? 2 : 1);
   advance(.5); expect(clicks()).toBe(mapped ? 3 : 2);
