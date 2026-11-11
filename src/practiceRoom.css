@@ -83,9 +83,14 @@
   height: 100%; max-height: 100%; min-height: 0; margin: 0; padding: 6px 10px;
   display: flex; flex-direction: column; border: 0; border-radius: 0; overflow: hidden;
 }
+/* Bound all reading controls together so short landscape still has a score pane.
+   The focusable scroller exposes every control even when rows exceed its height. */
+.practice-room .compact-score .score-reading-controls {
+  flex-shrink: 0; min-height: 0; max-height: 50%; overflow: auto;
+  overscroll-behavior: contain;
+}
 .practice-room .compact-score .score-follow-controls {
-  margin: 0; gap: 4px 12px; flex-direction: row; flex-shrink: 0;
-  max-height: 50%; overflow: auto; align-items: center;
+  margin: 0; gap: 4px 12px; flex-direction: row; align-items: center;
 }
 .practice-room .compact-score .score-follow-controls label { min-height: 44px; font-size: 12px; }
 .practice-room .compact-score .score-follow-hint { font-size: 11px; }

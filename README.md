@@ -102,6 +102,12 @@ The score cursor requires unchanged correspondence between MusicXML and playable
 
 Compressed scores are read locally with strict size, path, integrity and decompression limits. External images and resource links are rejected; no archive resources are fetched. Original imported files are not overwritten.
 
+### Reading score size
+
+Use **Score size** to engrave at 75–200%, or **Reset size** to return to 100%. Larger sizes make notes and printed fingerings easier to read, but can require more scrolling. Both source-linked and reference scores have a keyboard-focusable, internally scrolling pane. Controls work in Studio and the compact Practice score view. In compact Practice, size and follow controls share a keyboard-focusable scrolling area capped at half the available score space so short landscape layouts retain a reading pane.
+
+Changing size or resizing the pane keeps playback at its current time and rebuilds the reading cursor. Scrolling stays in the pane and remains opt-in while playing; paused or non-following views retain their scroll offsets. Size is a temporary preference for the mounted view, retained through score replacement/retry but not saved to projects or browser storage. Source notation, notes and fingerings are unchanged. Render failures retain the retry and MIDI practice paths. Automated DOM/lifecycle checks are covered; real mobile rendering and hardware remain unverified.
+
 ## Practice bookmarks
 
 In Practice → **Setup**, name and save a bookmark for the built-in demo or a saved piece/prepared passage. Save Studio edits first. A bookmark stores hand, mode, speed, count-in and repeat choices; open it from Setup or Library to return to the beginning, paused. It does not capture a playback position or change the current metronome preference. Original songs, source tempo and history remain unchanged.

@@ -43,7 +43,6 @@
 - Remaining acceptance is explicit in [the release checklist](docs/release-checklist.md): rendered portrait/landscape and native dialogs, interactive notation, real folder permissions/persisted handles, offline/installed PWA/update cycles, actual Android/Casio USB-C and real audio/latency. No private scores were uploaded or added, and no device acceptance is inferred from mocks.
 - Scope limits: structural MusicXML insertion/deletion/retiming and OMR are not implemented. The metronome is a steady starting-BPM beat rather than score-meter/tempo-map following. Bookmarks restore the beginning and saved hand/mode/speed/count-in/repeat, leaving the current metronome preference unchanged.
 
-
 ## Gentle next steps after completed practice
 
 - Final aggregate gate: all **568 tests pass** across 33 files. TypeScript and the Vite/PWA production build pass; whitespace checks pass. No dependencies or private scores were added. The existing large lazy notation chunk warning remains.
@@ -143,6 +142,14 @@
 - The PWA update banner uses the plugin’s explicit update hook, warns about unsaved edits, and reloads only after the user clicks. Browser/service-worker update lifecycle is not verified.
 - Browser interaction, rendered layout, audio timing/quality, physical Casio/Android MIDI, and installed/offline PWA behavior remain unverified. The managed browser is blocked; automated state-machine tests are not browser or hardware validation.
 - The existing notation bundle warning remains (~522 KiB gzip). No deployment is included in this slice.
+
+## Reading-score size controls
+
+- Independent main-based slice: accessible 75–200% engraving size and 100% reset for linked and reference scores. Re-rendering preserves current playback time, rebuilds the score cursor, retains manual scroll offsets when follow is off/paused, and respects opt-in pane-only following. Size is temporary view state, never written into songs or browser storage.
+- Original pre-#21 baseline: **580 tests across 33 files** passed with `npm test -- --maxWorkers=2`; TypeScript/Vite/PWA production build and whitespace checks passed. Twelve added DOM/CSS cases and the expanded installed-OSMD contract cover repeated sizing, replacement/compact transitions, stale async loads, retry, Strict Mode, focus, simultaneous seek/size changes and source-data preservation.
+- Independent review found compact controls could consume the short-landscape sheet area. Size and follow controls now share a keyboard-focusable, internally scrolling group bounded to half the pane height, preserving the other half for the score. Authored-CSS budget and containment/focus regressions pass; 47 focused checks passed independently. This is source-derived evidence, not a rendered device measurement.
+- A default-worker run under concurrent task load passed 579 tests and hit one existing five-second Studio test timeout. The complete bounded-worker rerun passed with unchanged timeouts and assertions. No persistent application defect was established by that timeout.
+- Rebased onto main `72a26dcad206e1ed4672303da1c13515281ee42c` after #21's squash merge. Both sides of README/VALIDATION conflicts were retained; source/test patches are unchanged. Fresh validation passes **785 tests across 49 files**, production build and all **7 release contracts** now available from merged #21. No private assets, dependencies, merge, deployment or browser/device acceptance are added by this rebase. Existing large lazy-notation bundle warning remains.
 
 ## Score-linked Studio slice
 

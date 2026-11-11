@@ -9,6 +9,7 @@ import "./scoreCursor.css";
 type RenderState = {
   xml?: string;
   attempt: number;
+  compact: boolean;
   phase: "loading" | "ready" | "error";
 };
 
@@ -33,6 +34,10 @@ export function Score({
   const el = useRef<HTMLDivElement>(null);
   const renderer = useRef<OpenSheetMusicDisplay | undefined>(undefined);
   const follower = useRef<ScoreCursorFollower | undefined>(undefined);
+  // Reading preferences are local to this mounted view, never written into a song.
+  const [zoom, setZoom] = useState(100);
+  const zoomRef = useRef(100);
+  const redraw = useRef<(() => void) | undefined>(undefined);
   const [follow, setFollow] = useState(false);
   const [cursorReady, setCursorReady] = useState(false);
   const [renderVersion, setRenderVersion] = useState(0);
@@ -48,10 +53,11 @@ export function Score({
   const [state, setState] = useState<RenderState>({
     xml,
     attempt: 0,
+    compact,
     phase: "loading",
   });
   // A changed input must not briefly expose the previous score's error/ready state.
-  const phase = state.xml === xml && state.attempt === attempt
+  const phase = state.xml === xml && state.attempt === attempt && state.compact === compact
     ? state.phase
     : "loading";
 
@@ -65,33 +71,37 @@ export function Score({
     // late completion cannot write into a newer score's live container.
     const container = document.createElement("div");
     el.current.append(container);
-    setState({ xml, attempt, phase: "loading" });
+    setState({ xml, attempt, compact, phase: "loading" });
 
+    const renderAgain = () => {
+      clearTimeout(resizeTimer);
+      if (cancelled || !osmd || renderer.current !== osmd) return;
+      try {
+        // OSMD replaces cursor objects during render(). Rebind and reposition it
+        // even when React batches cursorReady=false/true into one update.
+        follower.current?.dispose();
+        follower.current = undefined;
+        setCursorReady(false);
+        const viewport = el.current;
+        const scrollTop = viewport?.scrollTop ?? 0, scrollLeft = viewport?.scrollLeft ?? 0;
+        osmd.Zoom = zoomRef.current / 100;
+        osmd.render();
+        if (viewport) { viewport.scrollTop = scrollTop; viewport.scrollLeft = scrollLeft; }
+        setRenderVersion(value => value + 1);
+      } catch {
+        release();
+        setState({ xml, attempt, compact, phase: "error" });
+      }
+    };
     const resize = () => {
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        if (cancelled || !osmd || renderer.current !== osmd) return;
-        try {
-          // OSMD replaces cursor objects during render(). Never keep a follower
-          // pointing at the previous cursor or let its auto-resize scroll the page.
-          follower.current?.dispose();
-          follower.current = undefined;
-          setCursorReady(false);
-          const viewport = el.current;
-          const scrollTop = viewport?.scrollTop ?? 0, scrollLeft = viewport?.scrollLeft ?? 0;
-          osmd.render();
-          if (viewport) { viewport.scrollTop = scrollTop; viewport.scrollLeft = scrollLeft; }
-          setRenderVersion(value => value + 1);
-        } catch {
-          release();
-          setState({ xml, attempt, phase: "error" });
-        }
-      }, 120);
+      resizeTimer = setTimeout(renderAgain, 120);
     };
     const release = () => {
       clearTimeout(resizeTimer);
       observer?.disconnect();
       window.removeEventListener("resize", resize);
+      if (redraw.current === renderAgain) redraw.current = undefined;
       // dispose() removes window listeners; clear() releases the loaded sheet.
       if (renderer.current === osmd) {
         follower.current?.dispose();
@@ -118,8 +128,10 @@ export function Score({
         });
         await osmd.load(xml);
         if (cancelled) return;
+        osmd.Zoom = zoomRef.current / 100;
         osmd.render();
         renderer.current = osmd;
+        redraw.current = renderAgain;
         // OSMD's built-in auto-resize calls window.scrollTo(). Own resizing so
         // only the opt-in follower can scroll, and only inside the score pane.
         window.addEventListener("resize", resize);
@@ -134,11 +146,11 @@ export function Score({
           });
           observer.observe(container);
         }
-        setState({ xml, attempt, phase: "ready" });
+        setState({ xml, attempt, compact, phase: "ready" });
       } catch {
         if (!cancelled) {
           release();
-          setState({ xml, attempt, phase: "error" });
+          setState({ xml, attempt, compact, phase: "error" });
         }
       } finally {
         // An in-flight load can repopulate internal sheet state after cleanup.
@@ -152,6 +164,11 @@ export function Score({
       container.remove();
     };
   }, [xml, attempt, compact]);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+    redraw.current?.();
+  }, [zoom]);
 
   useEffect(() => {
     setCursorReady(false);
@@ -170,7 +187,7 @@ export function Score({
       active?.dispose();
       if (follower.current === active) follower.current = undefined;
     };
-  }, [timeline, phase, xml, attempt, renderVersion]);
+  }, [timeline, phase, xml, attempt, compact, renderVersion]);
 
   useEffect(() => {
     if (phase !== "ready") return;
@@ -182,12 +199,12 @@ export function Score({
       follower.current = undefined;
       setCursorReady(false);
     }
-  }, [playbackTime, follow, playing, phase, cursorReady, timeline]);
+  }, [playbackTime, follow, playing, phase, cursorReady, timeline, renderVersion]);
 
   // Enabling follow is explicit; pausing/seeking/loading never scrolls the page.
   useEffect(() => {
     if (follow && playing && cursorReady) follower.current?.reveal();
-  }, [follow, playing, cursorReady]);
+  }, [follow, playing, cursorReady, renderVersion]);
 
   const measureIndex = timeline?.measures.findIndex((measure, index, all) =>
     playbackTime >= measure.start && (index === all.length - 1 || playbackTime < all[index + 1].start));
@@ -204,20 +221,30 @@ export function Score({
         </p>
       </div>
       }
-      {xml && sourceSong && phase === "ready" && (
-        <div className="score-follow-controls">
-          {synchronized ? <>
-            <p className="score-position">Reading position: measure {(measureIndex ?? -1) + 1 || 1} of {timeline.measures.length}</p>
-            <label>
-              <input type="checkbox" checked={follow} onChange={event => setFollow(event.target.checked)} />
-              Follow score while playing
+      {xml && <div className="score-reading-controls" role="group" aria-label="Reading controls" tabIndex={compact ? 0 : undefined}>
+          <div className="score-size-controls" role="group" aria-label="Reading score size">
+            <label>Score size
+              <select value={zoom} disabled={phase !== "ready"} onChange={event => setZoom(Number(event.target.value))}>
+                {[75, 100, 125, 150, 175, 200].map(value => <option key={value} value={value}>{value}%</option>)}
+              </select>
             </label>
-            {!compact && <p className="score-follow-hint">The blue cursor follows written positions. Scrolling is off until you enable it.
-              {hasGraces && " Grace notes share their principal written position; their playback timing is approximate."}
-            </p>}
-          </> : <p className="score-follow-hint">Playback cursor unavailable for this score. Direct MusicXML imports with matching playback support synchronized reading.</p>}
-        </div>
-      )}
+            <button type="button" disabled={phase !== "ready" || zoom === 100} onClick={() => setZoom(100)}>Reset size</button>
+          </div>
+        {sourceSong && phase === "ready" && (
+          <div className="score-follow-controls">
+            {synchronized ? <>
+              <p className="score-position">Reading position: measure {(measureIndex ?? -1) + 1 || 1} of {timeline.measures.length}</p>
+              <label>
+                <input type="checkbox" checked={follow} onChange={event => setFollow(event.target.checked)} />
+                Follow score while playing
+              </label>
+              {!compact && <p className="score-follow-hint">The blue cursor follows written positions. Scrolling is off until you enable it.
+                {hasGraces && " Grace notes share their principal written position; their playback timing is approximate."}
+              </p>}
+            </> : <p className="score-follow-hint">Playback cursor unavailable for this score. Direct MusicXML imports with matching playback support synchronized reading.</p>}
+          </div>
+        )}
+      </div>}
       {xml && phase === "loading" && <p role="status">Loading reading score…</p>}
       {xml && phase === "error" && (
         <div>
@@ -230,7 +257,7 @@ export function Score({
         </div>
       )}
       {xml ? (
-        <div className={`score-sheet${timeline ? " score-follow-viewport" : ""}`} ref={el} role={timeline ? "region" : undefined} aria-label={timeline ? "Reading score" : undefined} tabIndex={timeline ? 0 : undefined} aria-busy={phase === "loading"} />
+        <div className="score-sheet score-follow-viewport" ref={el} role="region" aria-label="Reading score" tabIndex={0} aria-busy={phase === "loading"} />
       ) : (
         <p className="score-empty">
           Import MusicXML or a Piano project with a score to read along. MIDI files

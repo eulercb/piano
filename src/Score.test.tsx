@@ -36,6 +36,7 @@ class FakeCursor {
 }
 
 class FakeRenderer {
+  Zoom = 1;
   cursor = new FakeCursor();
   private resizing = false;
   private onResize = () => this.render();
@@ -449,4 +450,210 @@ describe("synchronized reading score", () => {
     expect(instances[0].container.isConnected).toBe(true);
     next.mockRestore();
   });
+});
+
+
+describe("reading score size", () => {
+  it("offers bounded accessible controls for reference scores without changing their XML", async () => {
+    const view = render(<Score xml="reference" />);
+    const size = screen.getByRole("combobox", { name: "Score size" }) as HTMLSelectElement;
+    expect(size.disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Reset size" }) as HTMLButtonElement).disabled).toBe(true);
+    await screen.findByText("Rendered reference");
+    expect(size.disabled).toBe(false);
+    expect(Array.from(size.options).map(option => option.value)).toEqual(["75", "100", "125", "150", "175", "200"]);
+    const pane = screen.getByRole("region", { name: "Reading score" });
+    expect(pane.tabIndex).toBe(0);
+    expect(pane.classList.contains("score-follow-viewport")).toBe(true);
+    pane.scrollTop = 80;
+    pane.scrollLeft = 12;
+    for (const value of ["200", "75", "150"]) {
+      fireEvent.change(size, { target: { value } });
+      expect(instances[0].Zoom).toBe(Number(value) / 100);
+      expect(pane.scrollTop).toBe(80);
+      expect(pane.scrollLeft).toBe(12);
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Reset size" }));
+    expect(instances[0].Zoom).toBe(1);
+    expect(size.value).toBe("100");
+    expect(instances).toHaveLength(1);
+    expect(instances[0].load).toHaveBeenCalledExactlyOnceWith("reference");
+    view.unmount();
+  });
+
+  it.each([false, true])("repositions each replacement cursor at the current time with follow=%s", async followEnabled => {
+    const { song } = parseMusicXml(linkedXml);
+    render(<Score xml={linkedXml} sourceSong={song} playbackTime={1} playing />);
+    const follow = await screen.findByRole("checkbox");
+    const pane = screen.getByRole("region", { name: "Reading score" });
+    pane.getBoundingClientRect = () => rectangle(0, 400);
+    const bounds = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() =>
+      ({ ...rectangle(500 - pane.scrollTop, 600 - pane.scrollTop), left: 50, right: 70 }));
+    if (followEnabled) fireEvent.click(follow);
+    const scroll = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    for (const value of ["125", "200", "75"]) {
+      pane.scrollTop = 0;
+      const oldCursor = instances[0].cursor;
+      fireEvent.change(screen.getByRole("combobox"), { target: { value } });
+      expect(instances[0].cursor).not.toBe(oldCursor);
+      expect(oldCursor.hide).toHaveBeenCalled();
+      expect(instances[0].cursor.index).toBe(2);
+      expect(instances[0].cursor.show).toHaveBeenCalledTimes(1);
+      expect(pane.scrollTop).toBe(followEnabled ? 224 : 0);
+    }
+    expect(instances[0].load).toHaveBeenCalledTimes(1);
+    expect(scroll).not.toHaveBeenCalled();
+    bounds.mockRestore();
+  });
+});
+
+
+describe("reading size lifecycle", () => {
+  it("retains view size through pending replacement and ignores obsolete loads", async () => {
+    const view = render(<Score xml="first" />);
+    await screen.findByText("Rendered first");
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "175" } });
+    const pending = deferred<void>();
+    load.mockReturnValueOnce(pending.promise);
+    view.rerender(<Score xml="pending" />);
+    await waitFor(() => expect(instances).toHaveLength(2));
+    expect((screen.getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
+    view.rerender(<Score xml="latest" />);
+    await screen.findByText("Rendered latest");
+    expect(instances[2].Zoom).toBe(1.75);
+    await act(async () => pending.resolve());
+    expect(instances[1].render).not.toHaveBeenCalled();
+    expect(instances[2].render).toHaveBeenCalledTimes(1);
+    expect(instances[2].container.isConnected).toBe(true);
+    view.rerender(<Score />);
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+  it("cancels queued resize when size changes and preserves size through retry", async () => {
+    render(<Score xml="first" />);
+    await screen.findByText("Rendered first");
+    window.dispatchEvent(new Event("resize"));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "150" } });
+    await new Promise(resolve => setTimeout(resolve, 150));
+    expect(instances[0].render).toHaveBeenCalledTimes(2);
+    window.dispatchEvent(new Event("resize"));
+    await waitFor(() => expect(instances[0].render).toHaveBeenCalledTimes(3));
+    expect(instances[0].Zoom).toBe(1.5);
+    draw.mockImplementationOnce(() => { throw new Error("engraving failed"); });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "200" } });
+    expect(screen.getByRole("alert")).toBeTruthy();
+    expect((screen.getByRole("combobox") as HTMLSelectElement).disabled).toBe(true);
+    expect(instances[0].dispose).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Retry score" }));
+    await screen.findByText("Rendered first");
+    expect(instances[1].Zoom).toBe(2);
+    expect(instances[1].load).toHaveBeenCalledExactlyOnceWith("first");
+  });
+
+  it("rebuilds with the selected size when switching compact layout in Strict Mode", async () => {
+    const { song } = parseMusicXml(linkedXml);
+    const view = render(<StrictMode><Score xml={linkedXml} sourceSong={song} playbackTime={1} /></StrictMode>);
+    await screen.findByRole("checkbox");
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "150" } });
+    view.rerender(<StrictMode><Score xml={linkedXml} sourceSong={song} playbackTime={1} compact /></StrictMode>);
+    await screen.findByRole("checkbox");
+    const active = instances[instances.length - 1];
+    expect(active.Zoom).toBe(1.5);
+    expect(active.cursor.index).toBe(2);
+    expect(active.cursor.show).toHaveBeenCalled();
+    view.unmount();
+    expect(active.dispose).toHaveBeenCalled();
+  });
+});
+
+describe("independent reading-size regressions", () => {
+  it("retains keyboard focus and paused manual scroll through repeated size changes", async () => {
+    const { song } = parseMusicXml(linkedXml);
+    render(<Score xml={linkedXml} sourceSong={song} playbackTime={1} />);
+    fireEvent.click(await screen.findByRole("checkbox"));
+    const size = screen.getByRole("combobox") as HTMLSelectElement;
+    const pane = screen.getByRole("region", { name: "Reading score" });
+    pane.getBoundingClientRect = () => rectangle(0, 400);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() => rectangle(500, 600));
+    size.focus();
+    pane.scrollTop = 80;
+    pane.scrollLeft = 12;
+    for (const value of ["200", "75", "175", "100"]) {
+      fireEvent.change(size, { target: { value } });
+      expect(document.activeElement).toBe(size);
+      expect(pane.scrollTop).toBe(80);
+      expect(pane.scrollLeft).toBe(12);
+      expect(instances[0].cursor.index).toBe(2);
+      expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(true);
+    }
+  });
+
+  it("ignores an obsolete compact-layout load for the identical XML", async () => {
+    const { song } = parseMusicXml(linkedXml);
+    const pending = deferred<void>();
+    load.mockReturnValueOnce(pending.promise);
+    const view = render(<Score xml={linkedXml} sourceSong={song} playbackTime={1} />);
+    await waitFor(() => expect(instances).toHaveLength(1));
+    view.rerender(<Score xml={linkedXml} sourceSong={song} playbackTime={1} compact />);
+    await screen.findByRole("checkbox");
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "200" } });
+    await act(async () => pending.resolve());
+    expect(instances[0].render).not.toHaveBeenCalled();
+    expect(instances[0].container.isConnected).toBe(false);
+    expect(instances[1].container.isConnected).toBe(true);
+    expect(instances[1].Zoom).toBe(2);
+    expect(instances[1].cursor.index).toBe(2);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("positions the latest playback time when seeking and resizing in the same batch", async () => {
+    const { song } = parseMusicXml(linkedXml);
+    const unchanged = JSON.stringify(song);
+    const view = render(<Score xml={linkedXml} sourceSong={song} playbackTime={0} playing />);
+    await screen.findByRole("checkbox");
+    act(() => {
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "150" } });
+      view.rerender(<Score xml={linkedXml} sourceSong={song} playbackTime={1} playing />);
+    });
+    expect(instances[0].cursor.index).toBe(2);
+    expect(instances[0].Zoom).toBe(1.5);
+    expect(instances[0].load).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(song)).toBe(unchanged);
+  });
+
+  it("recovers the linked cursor and follow preference after a size render failure", async () => {
+    const { song } = parseMusicXml(linkedXml);
+    render(<Score xml={linkedXml} sourceSong={song} playbackTime={1} />);
+    fireEvent.click(await screen.findByRole("checkbox"));
+    draw.mockImplementationOnce(() => { throw new Error("render failure"); });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "175" } });
+    expect(screen.getByRole("alert")).toBeTruthy();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry score" }));
+    const follow = await screen.findByRole("checkbox") as HTMLInputElement;
+    expect(follow.checked).toBe(true);
+    expect(instances[1].Zoom).toBe(1.75);
+    expect(instances[1].cursor.index).toBe(2);
+    expect(instances[1].cursor.show).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+it("keeps compact size and follow controls in one keyboard-scrollable group", async () => {
+  const { song } = parseMusicXml(linkedXml);
+  const view = render(<Score xml={linkedXml} sourceSong={song} compact />);
+  await screen.findByRole("checkbox");
+  const controls = screen.getByRole("group", { name: "Reading controls" });
+  expect(controls.tabIndex).toBe(0);
+  expect(controls.contains(screen.getByRole("combobox", { name: "Score size" }))).toBe(true);
+  expect(controls.contains(screen.getByRole("button", { name: "Reset size" }))).toBe(true);
+  expect(controls.contains(screen.getByRole("checkbox"))).toBe(true);
+  const pane = screen.getByRole("region", { name: "Reading score" });
+  expect(controls.contains(pane)).toBe(false);
+  controls.focus();
+  expect(document.activeElement).toBe(controls);
+  view.rerender(<Score xml={linkedXml} sourceSong={song} />);
+  await screen.findByRole("checkbox");
+  expect(screen.getByRole("group", { name: "Reading controls" }).hasAttribute("tabindex")).toBe(false);
 });

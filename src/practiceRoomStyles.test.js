@@ -68,3 +68,25 @@ it("reserves a useful guide budget at 568×320 landscape even with the bounded n
   const fixedStage = [26, 34, 54].reduce((sum, size) => sum + size, 0);
   expect(height - notices - outerGap - toolbar - roomGap - fixedStage).toBeGreaterThan(60);
 });
+
+
+it("bounds size and follow controls together to preserve half the short-landscape score interior", () => {
+  const selector = ".practice-room .compact-score .score-reading-controls";
+  expect(value(selector, "max-height")).toBe("50%");
+  expect(value(selector, "overflow")).toBe("auto");
+  expect(value(selector, "overscroll-behavior")).toBe("contain");
+  expect(value(selector, "min-height")).toBe("0");
+  expect(value(".practice-room .compact-score .score-follow-controls", "max-height")).toBeUndefined();
+  const landscape = "(orientation: landscape) and (min-width: 480px) and (max-height: 540px)";
+  const height = 320 - 16;
+  const notices = height * parseFloat(value(".practice-shell .app-messages", "max-height")) / 100;
+  const guide = height - notices
+    - parseFloat(value(".practice-shell .content", "gap", landscape))
+    - parseFloat(value(".room-button", "min-height"))
+    - parseFloat(value(".practice-room", "gap", landscape))
+    - (26 + 34 + 54);
+  const padding = parseFloat(value(".practice-room .compact-score", "padding")) * 2;
+  const interior = guide - padding;
+  const controls = interior * parseFloat(value(selector, "max-height")) / 100;
+  expect(interior - controls).toBeGreaterThan(29);
+});
