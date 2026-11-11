@@ -622,7 +622,14 @@ export function App() {
     }
   }
   function download() {
-    const blob = new Blob([new Uint8Array(exportMidi(song))], {
+    let bytes: Uint8Array;
+    try { bytes = exportMidi(song); }
+    catch (error) {
+      const reason = error instanceof Error ? error.message : "MIDI export failed.";
+      setNotice(`${reason} No MIDI file was created. Your song is unchanged. Choose Export project + fingers to preserve notes, fingerings and tempo changes.`);
+      return;
+    }
+    const blob = new Blob([new Uint8Array(bytes)], {
         type: "audio/midi",
       }),
       url = URL.createObjectURL(blob),
@@ -961,7 +968,7 @@ export function App() {
         {tempoMap
           ? song.scoreOrigin === "musicxml"
             ? "Quarter-note clicks follow numeric tempo changes in this piece’s source MusicXML × practice speed. While Melody waits, clicks keep the tempo at that score position."
-            : "Quarter-note clicks follow retained MIDI tempo changes × practice speed. While Melody waits, clicks keep the tempo at that playback position. Export a Piano project to retain these changes; MIDI export flattens them while preserving note seconds."
+            : "Quarter-note clicks follow retained MIDI tempo changes × practice speed. While Melody waits, clicks keep the tempo at that playback position. MIDI export retains these changes when timing permits; unsupported exports leave your song unchanged. Keep a Piano project for exact timing and fingerings."
           : "Quarter-note clicks use the piece’s starting tempo × practice speed and keep ticking while Melody waits. This piece has no verified source tempo map; an attached reference-only score does not change playback."}
         {" "}Begins after any count-in. No meter accents. Mute silences the clicks.
         Changing this setting starts a fresh attempt.
