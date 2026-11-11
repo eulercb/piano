@@ -38,7 +38,7 @@ cover touchscreen feel, screen readers, native install UX, real audio or MIDI.
 
 ## Merged implementation status
 
-Status at main `d06b94f5ec66adaf91f74d739866dc85cdaea4cb` (2026-11-11):
+Merged implementation snapshot at main `537d107b00b824ec1ee2f76430a483e49944d360` (2026-11-11):
 
 - [#21](https://github.com/eulercb/piano/pull/21): Recital, MIDI/project note
   authoring, folder refresh, bookmarks, steady metronome and release gates.
@@ -51,6 +51,26 @@ Status at main `d06b94f5ec66adaf91f74d739866dc85cdaea4cb` (2026-11-11):
 - [#27](https://github.com/eulercb/piano/pull/27): deferred preparation modules
   with explicit retry; [#28](https://github.com/eulercb/piano/pull/28): supported
   engraving positions and safe same-duration chord-tone additions/removals.
+- [#29](https://github.com/eulercb/piano/pull/29): expanded synthetic desktop
+  recognition evidence and rejection of invalid exported timing.
+- [#30](https://github.com/eulercb/piano/pull/30): independent identities for
+  repeated manual MIDI imports; [#31](https://github.com/eulercb/piano/pull/31):
+  bounded whole-chord duration editing, without shifting later written slots.
+- [#32](https://github.com/eulercb/piano/pull/32): optional metronome follows
+  matching source-MusicXML numeric tempo changes;
+  [#33](https://github.com/eulercb/piano/pull/33): title-safe passage round trips;
+  [#34](https://github.com/eulercb/piano/pull/34): recorded desktop browser evidence.
+- [#35](https://github.com/eulercb/piano/pull/35): new MIDI imports retain tempo
+  maps through projects, library saves and seconds trimming for the metronome.
+  [#36](https://github.com/eulercb/piano/pull/36): guarded MIDI tempo-map export,
+  refusing unrepresentable output rather than flattening its tempo.
+- [#37](https://github.com/eulercb/piano/pull/37): bounded FIFO pairing and
+  event/overlap-capacity safeguards for legacy map-less MIDI export, plus
+  cross-feature roadmap integration tests. Existing quantization remains;
+  these guards do not promise lossless legacy timing.
+- [#38](https://github.com/eulercb/piano/pull/38): preserve inherited tempo in
+  trimmed MusicXML with initial attributes before a complete hidden metronome
+  direction, avoiding failed or empty reading-score rendering.
 
 These merges establish implementation status, not deployment or browser/device
 acceptance. Validation counts and bundle measurements belong to their recorded
@@ -58,12 +78,51 @@ trees in [VALIDATION.md](../VALIDATION.md), not automatically to this main commi
 The desktop CLI requires a separately supplied engine; no browser recognition,
 bundled engine/models or automatic recognition downloads are implemented.
 
-Draft [#29](https://github.com/eulercb/piano/pull/29), first published at `124498e`,
-is pending separately from that main snapshot. Its additional original-fixture evidence
-records **14/14 written events** for clean rhythm/accidentals and the same page
+Merged #29's additional original-fixture evidence records **14/14 written events**
+for clean rhythm/accidentals and the same page
 with one fixed skew/contrast transform. The chord/tie case failed with an invalid
 `divisions=0` export; no accuracy score is assigned. These are synthetic cases,
 not phone photos or general-score/private/offline acceptance.
+
+## Evidence and acceptance boundaries
+
+The #37 merged tree `c29f9d9aa230b7eaa0f33cab01108647d06df0e0` passed local
+validation with **1,246 tests across 81 files**, **22 Python safeguards**, the
+TypeScript/Vite/PWA build and **7 emitted-artifact contracts**. Its exact-head
+[CI run](https://github.com/eulercb/piano/actions/runs/43102152904) also passed.
+The #37 main snapshot also completed its
+[Pages build/deploy run](https://github.com/eulercb/piano/actions/runs/43102648059).
+That deployment result does not establish interactive browser acceptance or
+acceptance of later changes.
+
+The #38 correction passed renewed independent review and
+[exact-head CI](https://github.com/eulercb/piano/actions/runs/43104145038), with
+**1,258 tests** and the full local gate. Corrected-file browser import displayed
+six notes and a moving cursor. Its
+[Pages deployment](https://github.com/eulercb/piano/actions/runs/43104571311)
+succeeded. A subsequent full deployed interior-trim workflow, including actual
+MusicXML/project export and reimport, displayed six notes and usable cursors
+with preserved musical data; pickup/tie-boundary trimming also passed. See the
+extension browser record below. This is
+fixture-specific desktop acceptance, not general notation or device acceptance.
+
+The [desktop browser record](browser-acceptance-2026-11-11.md) identifies the
+observed asset set, exercised original fixtures and limits of that pass. It
+predates the later MIDI tempo-map changes and does not establish their browser
+acceptance. Its muted playback observations do not validate audible timing or
+physical MIDI. The [extension browser record](browser-extensions-2026-11-11.md)
+separately documents later notation/practice checks and #37 MIDI round trips and
+refusal recovery, with exact fixture and runtime limits. Later releases require
+their own checks.
+
+Local test counts in [VALIDATION.md](../VALIDATION.md) describe their named trees.
+CI and a successful Pages deployment establish different facts from interactive
+browser observation. None of these establishes physical Android/Casio behavior,
+installed/offline lifecycle, native folder permissions or screen-reader acceptance.
+The checklist below intentionally retains those open gates. In the extension
+browser pass, **Open song folder** failed before a chooser opened; its underlying
+exception was not established. No folder permission or user-folder access occurred,
+and reconnect/refresh remain unrun. This is a recorded blocker, not acceptance.
 
 ## Historical release-gate evidence (#21)
 
@@ -105,8 +164,8 @@ subpath hosting. Browser emulation is not Android/Casio hardware validation.
 | Issue | Baseline / implementation scope | Required remaining acceptance |
 | --- | --- | --- |
 | [#1 Foundation](https://github.com/eulercb/piano/issues/1) | Local library, original demo, offline-first practice vertical slice | Cold/warm load and cached offline restart on desktop and installed Android; navigation and saved work survive reload. |
-| [#2 Prepare songs](https://github.com/eulercb/piano/issues/2) | MIDI/project import, transpose, trim, finger editing/export, structural editing and safe persistent folder refresh | Real-browser edit/export/reimport round trips; original source unchanged; permissions revoke/regrant and folder refresh conflicts; reject unsupported/corrupt files without destroying drafts. |
-| [#3 Practice engine](https://github.com/eulercb/piano/issues/3) | Listen, melody, rhythm, end-only recital, count-in, optional metronome following matching source-MusicXML numeric tempo changes (MIDI/projects without matching source use starting BPM) and safe interruption handling | Real keyboard and audio onset behavior; pause/resume and interruption during every mode/count-in; recital completion/history and audible metronome phase; never infer calibrated timing. |
+| [#2 Prepare songs](https://github.com/eulercb/piano/issues/2) | MIDI/project import, retained MIDI tempo maps, guarded tempo-map MIDI export, transpose, trim, finger editing/export, structural editing and safe persistent folder refresh | Real-browser edit/export/reimport round trips; original source unchanged; permissions revoke/regrant and folder refresh conflicts; reject unsupported/corrupt files without destroying drafts. |
+| [#3 Practice engine](https://github.com/eulercb/piano/issues/3) | Listen, melody, rhythm, end-only recital, count-in, optional metronome following matching source-MusicXML numeric tempo changes or retained MIDI maps (legacy songs without either use starting BPM; reference scores never supply tempo changes) and safe interruption handling | Real keyboard and audio onset behavior; pause/resume and interruption during every mode/count-in; recital completion/history and audible metronome phase; never infer calibrated timing. |
 | [#4 Connect instruments](https://github.com/eulercb/piano/issues/4) | Selected-input Web MIDI, disconnect/reconnect handling and touch/typing fallback | Physical Android + Casio + USB-C/OTG permission, notes/chords, unplug/replug, multiple devices and repeated reconnect; no automatic resume or wrong-device switch. |
 | [#5 History and adaptive feedback](https://github.com/eulercb/piano/issues/5) | Local history/backup/deletion, written-part timing counts, explicit gentle next-step choices and content-checked practice bookmarks | Completed versus interrupted passes, speed/hand accuracy after next-step choices, reload/multi-tab persistence, backup round trip and quota failure; bookmark backup plus song-project restore under changed IDs. Written-part counts do not identify physical hands. |
 | [#6 Score preparation](https://github.com/eulercb/piano/issues/6) | User-imported MusicXML/MXL, ties/fingers, score-linked edits, bounded fixed-slot, chord-tone and whole-chord-duration authoring, measure trimming, reading cursor/size and experimental desktop recognition | Interactive notation rendering, supported edit/save/export/reimport with aligned hands and preserved silence, source-linked pitch/finger changes, pickup/ties/tuplets after trim, zoom/resize/follow scrolling and unsupported notation rejection. Desktop recognition has narrow synthetic evidence, not general-score or private/offline acceptance. Built-in browser OMR is not implemented. Use original fixtures. |
