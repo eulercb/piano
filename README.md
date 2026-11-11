@@ -88,6 +88,12 @@ This is a bounded editor, not free notation layout. Chords, ties, grace/cue note
 
 The collapsed preparation guide beside **Import song** explains a separate local desktop recognition and correction workflow. Piano Studio does **not** recognize notes from PDFs/photos, install a recognizer or upload scans. Importing MusicXML is not OMR. The [OMR research and private preparation guide](docs/private-score-preparation.md) records candidate engines, license/runtime limits, safe handling and the verification needed before any recognition integration. Review converted notation against the original; successful import is not proof of musical accuracy.
 
+### Experimental desktop recognition
+
+An optional, separately invoked [Linux Audiveris CLI experiment](docs/local-omr-evaluation.md) now converts a chosen PNG to a new MusicXML file. It is not a browser/Android feature or a background service. The real engine matched all 16 musical events in one original clean two-bar fixture and rejected an original blank image; this is not a phone-photo accuracy estimate.
+
+The adapter never downloads an engine, overwrites an output or changes the app library. Supply a trusted separately installed Audiveris executable and review every result. **Network isolation and observation were unavailable here, so private-score offline safety remains unverified. Use synthetic inputs until that acceptance is completed.** No recognizer, runtime or models are bundled. See the evaluation for exact versions, resource limits, warnings, artifacts and remaining tests.
+
 ## Practice history and score following
 
 Completed listen, melody, rhythm and recital passes are stored locally with hand, speed range and passage context. Open History for gentle next-step suggestions, JSON backups and explicit delete/clear controls. Storage is bounded; export backups before clearing browser data. Modern Web Locks serialize changes across tabs; without that API, use one app tab to avoid simultaneous-write conflicts.
