@@ -1,5 +1,14 @@
 # Validation
 
+## Landscape keyboard and falling-note geometry
+
+- All 539 automated tests pass; TypeScript and Vite/PWA production build pass. Dependencies are unchanged. The existing large lazy notation chunk warning remains.
+- White keys now tile the full shared guide width; black keys overlay white-key boundaries rather than consuming flex space. Lanes and notes use the same percentage coordinates in Practice and Studio. Accidental range endpoints expand to adjacent white keys without exceeding MIDI 0–127. Black-key hit targets remain above white-key focus indicators.
+- Practice fills the horizontal safe area without extra guide gutters. The existing portrait/short-landscape grid and transport budgets remain. Note onset is at the roll/keyboard seam, and note travel and duration use the same responsive-height scale, with an 8px minimum visual height for very short notes.
+- Twenty-six new deterministic regressions cover contiguous white keys, accidentals and full-range endpoints, several surface sizes, onset/duration scaling, focused-key stacking, safe-area/CSS contracts, shared real-App geometry across Practice/Studio/score toggles, and audio-start/onset wiring at 50% and 100% speed. Pause/resume, restart, seeking and wrong/correct melody inputs retain the same boundary.
+- Independent review passed. Five retained adversarial regressions cover all 8,256 inclusive MIDI ranges, full-range hand changes, and onset crossings at 25%, 75% and 125% speed.
+- These are coordinate, authored-style and synthetic DOM/audio tests, not rendered-browser, Android/Casio, audio-latency or installed-PWA validation. No browser uploads, mobile emulation, publication or deployment were performed. On-device acceptance remains: check portrait/landscape rotation, safe-area edges, contiguous white keys and overlaid accidentals, notes touching the keyboard when sound starts, and the always-visible transport. Test both with and without browser bars after exporting project backups.
+
 ## Browser audio interruption safety
 
 - Final integrated gate: all 508 tests pass, TypeScript/Vite/PWA build passes and diff checks are clean. Independent review passed after fixing pending-start tempo changes; five additional adversarial cases are retained.
