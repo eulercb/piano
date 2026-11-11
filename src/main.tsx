@@ -38,7 +38,8 @@ import { PracticeRoom, PracticePanel } from "./PracticeRoom";
 import { MidiConnection } from "./MidiConnection";
 import { PracticeHistory } from "./PracticeHistory";
 import { PracticeHistoryStore, PracticePassRecorder } from "./practiceHistory";
-import { normalizeSong, parseProject } from "./project";
+import { parseProject } from "./project";
+import { SongLibrary } from "./songLibrary";
 import { importScoreFile } from "./scoreImport";
 import {
   scoreMeasures,
@@ -84,22 +85,6 @@ function sound(p: number, d = 0.3, v = 0.3) {
   o.start();
   o.stop(audio.currentTime + Math.max(0.04, d));
 }
-function load(): Song[] {
-  try {
-    const songs = JSON.parse(localStorage.getItem("piano-songs") || "[]");
-    return Array.isArray(songs)
-      ? songs.flatMap((s) => {
-          try {
-            return [normalizeSong(s)];
-          } catch {
-            return [];
-          }
-        })
-      : [];
-  } catch {
-    return [];
-  }
-}
 function TimingSummary({ summary }: { summary: RhythmSummary }) {
   return (
     <dl className="timing-summary">
@@ -115,8 +100,16 @@ export function App() {
   const [history] = useState(() => new PracticeHistoryStore());
   const historySnapshot = useSyncExternalStore(history.subscribe, history.getSnapshot);
   useEffect(() => history.listen(), [history]);
-  const [songs, setSongs] = useState<Song[]>(load),
-    [song, setSong] = useState<Song>(demoSong),
+  const [library] = useState(() => new SongLibrary());
+  const librarySnapshot = useSyncExternalStore(library.subscribe, library.getSnapshot);
+  const songs = librarySnapshot.songs;
+  useEffect(() => library.listen(), [library]);
+  const [cleanSong, setCleanSong] = useState<Song>(demoSong);
+  const savedVersion = useRef<Song | null>(null);
+  const [saving, setSaving] = useState(false);
+  const importGeneration = useRef(0);
+  const editingSession = useRef(0);
+  const [song, setSong] = useState<Song>(demoSong),
     [page, setPage] = useState("practice"),
     [hand, setHand] = useState<PracticeHand>("both"),
     [mode, setMode] = useState<PracticeMode>("listen"),
@@ -137,6 +130,24 @@ export function App() {
     [firstMeasure, setFirstMeasure] = useState(0),
     [lastMeasure, setLastMeasure] = useState(0),
     [repeatPassage, setRepeatPassage] = useState(false);
+  const currentSong = useRef(song);
+  currentSong.current = song;
+  const dirty = song !== cleanSong;
+  const temporaryHistory = historySnapshot.temporary && historySnapshot.passes.length > 0;
+  useEffect(() => {
+    if (!dirty && !temporaryHistory) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, temporaryHistory]);
+  useEffect(() => () => { importGeneration.current++; }, []);
+  function mayReloadCurrent() {
+    if (!dirty && !temporaryHistory) return true;
+    return window.confirm(`Reload and discard ${[dirty ? "unsaved song changes" : "", temporaryHistory ? "temporary practice history" : ""].filter(Boolean).join(" and ")}? Cancel to save or export first.`);
+  }
+  function mayReplaceCurrent() {
+    return !dirty || window.confirm("Discard unsaved changes to this piece? Cancel to save or export your project first.");
+  }
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW({
     onRegisterError() {
       setNotice("Offline support could not be updated. You can continue practising online.");
@@ -222,8 +233,12 @@ export function App() {
     }
     redraw();
   }
-  function select(s: Song) {
+  function select(s: Song, saved = false, importing = false) {
+    if (!importing) importGeneration.current++;
+    if (saved || s.id !== song.id) editingSession.current++;
     reset();
+    if (saved || s.id !== song.id) savedVersion.current = songs.find(item => item.id === s.id) ?? null;
+    if (saved) setCleanSong(s);
     setSong(s);
     setPracticeScore(false);
     setFrom(0);
@@ -287,101 +302,111 @@ export function App() {
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [playing, speed, session, recorder, muted, repeatPassage]);
-  function save(s: Song) {
-    setSongs((previous) => {
-      const next = [s, ...previous.filter((x) => x.id !== s.id)];
-      try {
-        localStorage.setItem("piano-songs", JSON.stringify(next));
-        setNotice("Saved to your library on this device.");
-        return next;
-      } catch {
-        setNotice(
-          "Device storage is full or unavailable. Export a project to keep a copy.",
-        );
-        return previous;
-      }
-    });
-  }
-  async function chooseFolder() {
-    try {
-      const picker = (window as any).showDirectoryPicker;
-      if (!picker) {
-        setNotice(
-          "Folder access is unavailable in this browser. Use Import song to select one or more files.",
-        );
-        file.current?.click();
+  async function save(s: Song) {
+    if (saving) return;
+    setSaving(true);
+    const editing = editingSession.current;
+    const copy = s.id === demoSong.id;
+    const result = await library.save(copy ? { ...s, id: crypto.randomUUID(), title: s.title + " · copy" } : s,
+      copy ? null : savedVersion.current);
+    setSaving(false);
+    // A Save requested in an older selection must not rebase a reopened draft.
+    if (editing !== editingSession.current) return;
+    if (result.ok) {
+      savedVersion.current = result.song;
+      if (copy) {
+        reset();
+        const updated = currentSong.current === s ? result.song
+          : { ...currentSong.current, id: result.song.id, title: result.song.title };
+        setSong(updated);
+        setCleanSong(result.song);
+        if (currentSong.current === s) setNotice("Saved to your library on this device.");
         return;
       }
+      if (currentSong.current !== s) return;
+      setCleanSong(s);
+      setNotice("Saved to your library on this device.");
+    } else if (currentSong.current === s) setNotice(result.error);
+  }
+  function mayTrimCurrent() {
+    return !dirty || window.confirm("Create a passage from unsaved changes? This replaces the full-piece draft and loses edits outside the passage. Cancel to save or export the full piece first.");
+  }
+  function startImport() {
+    if (!mayReplaceCurrent()) return;
+    return ++importGeneration.current;
+  }
+  async function chooseFolder() {
+    const picker = (window as any).showDirectoryPicker;
+    if (!picker) {
+      setNotice("Folder access is unavailable in this browser. Use Import song to select one or more files.");
+      file.current?.click();
+      return;
+    }
+    const generation = startImport();
+    if (generation === undefined) return;
+    try {
       const dir = await picker({ mode: "read" });
       let count = 0;
       let attempted = 0;
       const failures: string[] = [];
       for await (const entry of dir.values()) {
-        if (
-          entry.kind === "file" &&
-          /\.(mid|midi|json|xml|musicxml|mxl)$/i.test(entry.name)
-        ) {
+        if (generation !== importGeneration.current) return;
+        if (entry.kind === "file" && /\.(mid|midi|json|xml|musicxml|mxl)$/i.test(entry.name)) {
           attempted++;
           try {
-            const result = await importFile(await entry.getFile());
+            const result = await importFile(await entry.getFile(), generation);
+            if (generation !== importGeneration.current) return;
             if (result.ok) count++;
-            else failures.push(entry.name + ": " + result.error);
+            else {
+              failures.push(entry.name + ": " + result.error);
+              // Do not replace the only exportable copy of an unsaved import.
+              if (result.stop) return;
+            }
           } catch { failures.push(entry.name + ": Could not read this file."); }
           if (attempted >= 50) break;
         }
       }
-      setNotice(
-        attempted
-          ? `Imported ${count} of ${attempted} files from your chosen folder (up to 50). ${failures.length ? `${failures.length} rejected. ${failures.slice(0, 3).join(" ")} ` : ""}Re-open the folder to refresh; background scanning is not enabled.`
-          : "No MIDI, MusicXML or Piano project files found in this folder.",
-      );
+      if (generation !== importGeneration.current) return;
+      setNotice(attempted
+        ? `Imported ${count} of ${attempted} files from your chosen folder (up to 50). ${failures.length ? `${failures.length} rejected. ${failures.slice(0, 3).join(" ")} ` : ""}Re-open the folder to refresh; background scanning is not enabled.`
+        : "No MIDI, MusicXML or Piano project files found in this folder.");
     } catch (e) {
-      if ((e as Error).name !== "AbortError")
+      if (generation === importGeneration.current && (e as Error).name !== "AbortError")
         setNotice("Could not open that folder. Try Import song instead.");
     }
   }
-  async function importFile(f?: File): Promise<{ ok: true } | { ok: false; error: string }> {
-    if (!f) return { ok: false, error: "No file selected." };
+  async function importFile(f: File, generation: number): Promise<{ ok: true } | { ok: false; error: string; stop?: boolean }> {
+    const current = () => generation === importGeneration.current;
     try {
-      if (f.size > 10 * 1024 * 1024)
-        throw Error("Please choose a song file smaller than 10 MB.");
+      if (!current()) return { ok: false, error: "Import canceled.", stop: true };
+      if (f.size > 10 * 1024 * 1024) throw Error("Please choose a song file smaller than 10 MB.");
+      let s: Song, message: string;
       if (/\.(musicxml|xml|mxl)$/i.test(f.name)) {
         const result = await importScoreFile(f);
-        const imported = { ...result.song, id: crypto.randomUUID() };
-        select(imported);
-        save(imported);
-        setPage("prepare");
-        setNotice(
-          result.warnings.length
-            ? result.warnings.join(" ")
-            : "Score imported with playable notes, hands and printed fingerings.",
-        );
-        if(file.current)file.current.value="";
-        return { ok: true };
-      }
-      let s: Song;
-      if (/\.json$/i.test(f.name)) {
+        s = { ...result.song, id: crypto.randomUUID() };
+        message = result.warnings.length ? result.warnings.join(" ")
+          : "Score imported with playable notes, hands and printed fingerings.";
+      } else if (/\.json$/i.test(f.name)) {
         s = { ...parseProject(await f.text()), id: crypto.randomUUID() };
+        message = "Practice project imported with its saved hands and fingerings.";
       } else {
         s = parseMidi(await f.arrayBuffer());
         s.title = f.name.replace(/\.mid(i)?$/i, "");
+        message = "MIDI imported. Hands are estimated by pitch; check the split before practising.";
       }
-      select(s);
-      save(s);
+      if (!current()) return { ok: false, error: "Import canceled.", stop: true };
+      const result = await library.save(s, null, current);
+      if (!current()) return { ok: false, error: "Import canceled.", stop: true };
+      select(result.ok ? result.song : s, result.ok, true);
+      savedVersion.current = result.ok ? result.song : null;
       setPage("prepare");
-      setNotice(
-        /\.json$/i.test(f.name)
-          ? "Practice project imported with its saved hands and fingerings."
-          : "MIDI imported. Hands are estimated by pitch; check the split before practising.",
-      );
+      setNotice(result.ok ? message : `Import is open but not saved. ${result.error} Remaining files were not imported.`);
+      return result.ok ? { ok: true } : { ok: false, error: result.error, stop: true };
     } catch (e) {
       const error = e instanceof Error ? e.message : "Could not read this song file.";
-      setNotice(error);
-      if (file.current) file.current.value = "";
+      if (current()) setNotice(error);
       return { ok: false, error };
     }
-    if (file.current) file.current.value = "";
-    return { ok: true };
   }
   function download() {
     const blob = new Blob([new Uint8Array(exportMidi(song))], {
@@ -434,7 +459,7 @@ export function App() {
       redraw();
     }
   }
-  function navigate(next: string) { reset(); setPage(next); }
+  function navigate(next: string) { importGeneration.current++; reset(); setPage(next); }
   const practiceStage = (
     <section className="stage-card">
       <div className="stage-top">
@@ -750,10 +775,7 @@ export function App() {
               key={id}
               className={page === id ? "nav active" : "nav"}
               aria-current={page === id ? "page" : undefined}
-              onClick={() => {
-                reset();
-                setPage(id);
-              }}
+              onClick={() => navigate(id)}
             >
               <Icon size={19} />
               {label}
@@ -800,7 +822,14 @@ export function App() {
                 Number(/\.(xml|musicxml|mxl)$/i.test(a.name)) -
                 Number(/\.(xml|musicxml|mxl)$/i.test(b.name)),
             );
-            for (const f of files) await importFile(f);
+            e.target.value = "";
+            if (!files.length) return;
+            const generation = startImport();
+            if (generation === undefined) return;
+            for (const f of files) {
+              const result = await importFile(f, generation);
+              if (generation !== importGeneration.current || (!result.ok && result.stop)) break;
+            }
           }}
         />
         <div className="content">
@@ -839,6 +868,8 @@ export function App() {
                 <p>Save or export your song first. Reloading discards unsaved edits; saved library songs stay on this device.</p>
               </div>
               <button className="button" onClick={async () => {
+                if (!mayReloadCurrent()) return;
+                importGeneration.current++;
                 session.pause();
                 silence();
                 setPlaying(false);
@@ -846,6 +877,9 @@ export function App() {
                 catch { setNotice("The update could not be loaded. Save your work, then reload the app manually."); }
               }}>Reload update</button>
             </div>
+          )}
+          {librarySnapshot.message && librarySnapshot.message !== notice && (
+            <div className="notice" role="status">{librarySnapshot.message}</div>
           )}
           {notice && (
             <div role="status" className="notice">
@@ -883,9 +917,10 @@ export function App() {
                 {[demoSong, ...songs].map((s, i) => (
                   <button
                     className="song-card"
-                    key={s.id}
+                    key={i === 0 ? "builtin-demo" : s.id}
                     onClick={() => {
-                      select(s);
+                      if (!mayReplaceCurrent()) return;
+                      select(s, true);
                       setPage("practice");
                     }}
                   >
@@ -938,8 +973,7 @@ export function App() {
                 <button
                   className="text-button"
                   onClick={() => {
-                    reset();
-                    setPage("library");
+                    navigate("library");
                   }}
                 >
                   Change piece <ChevronRight size={16} />
@@ -1007,6 +1041,7 @@ export function App() {
                         className="button light"
                         onClick={() => {
                           try {
+                            if (!mayTrimCurrent()) return;
                             select(
                               trimScoreMeasures(
                                 song,
@@ -1015,7 +1050,7 @@ export function App() {
                               ),
                             );
                             setNotice(
-                              "Passage created. Score and playback trimmed together; original stays in your library.",
+                              "Passage created. Score and playback trimmed together; saved library pieces were not changed. Save or export this passage to keep it.",
                             );
                           } catch (e) {
                             setNotice((e as Error).message);
@@ -1059,6 +1094,7 @@ export function App() {
                               throw Error(
                                 "Choose an end after the start, within this piece.",
                               );
+                            if (!mayTrimCurrent()) return;
                             const s = trimSong(song, from, to);
                             s.id = crypto.randomUUID();
                             s.title = song.title + " · passage";
@@ -1104,7 +1140,7 @@ export function App() {
                   >
                     + Semitone
                   </button>
-                  <button className="button" onClick={() => save(song)}>
+                  <button className="button" disabled={saving} onClick={() => save(song)}>
                     <Check size={16} />
                     Save
                   </button>
@@ -1169,6 +1205,7 @@ export function App() {
                     if (!n) return null;
                     const edit = (patch: Partial<Note>) => {
                       try {
+                        importGeneration.current++;
                         reset();
                         const updated = song.scoreOrigin === "musicxml"
                           ? editScoreNote(song, n.id, patch)
@@ -1262,8 +1299,7 @@ export function App() {
                 <button
                   className="text-button"
                   onClick={() => {
-                    reset();
-                    setPage(page === "prepare" ? "practice" : "prepare");
+                    navigate(page === "prepare" ? "practice" : "prepare");
                   }}
                 >
                   {page === "prepare"
