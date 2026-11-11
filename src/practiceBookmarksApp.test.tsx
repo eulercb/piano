@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 // @ts-expect-error Node built-in is available to Vitest; the app intentionally has no Node typings.
 import { webcrypto } from "node:crypto";
@@ -22,12 +22,32 @@ function library() { fireEvent.click(screen.getByRole("button", { name: "My libr
 function setup() { fireEvent.click(screen.getByRole("button", { name: "Practice setup" })); }
 it("restores exact saved music and settings paused without history or song writes", async () => {
   const before = localStorage.getItem(SONGS_KEY); render(<App />); library(); fireEvent.click(screen.getByRole("button", { name: "Open Slow recital" }));
-  expect(await screen.findByRole("heading", { name: song.title })).toBeTruthy(); expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+  // The library card already has this title as an h3. Wait for the practice-room h1.
+  expect(await screen.findByRole("heading", { name: song.title, level: 1 })).toBeTruthy(); expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
   expect(screen.getByRole("slider", { name: "Playback position" }).getAttribute("value")).toBe("0");
   setup(); expect((screen.getByRole("slider", { name: "Tempo percentage" }) as HTMLInputElement).value).toBe("75");
   expect(screen.getByRole("button", { name: /^Recital practice/ }).getAttribute("aria-pressed")).toBe("true");
   expect((screen.getByRole("checkbox", { name: "Count in 4 beats" }) as HTMLInputElement).checked).toBe(false);
   expect((screen.getByRole("checkbox", { name: "Repeat this passage" }) as HTMLInputElement).checked).toBe(true);
+  expect(localStorage.getItem(SONGS_KEY)).toBe(before); expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
+});
+it("keeps the library title visible while revision verification is pending, then opens paused", async () => {
+  let resolve!: (value: ArrayBuffer) => void;
+  const bytes = Uint8Array.from(revision.match(/../g)!, value => parseInt(value, 16)).buffer;
+  vi.spyOn(crypto.subtle, "digest").mockImplementationOnce(() => new Promise<ArrayBuffer>(r => { resolve = r; }));
+  const before = localStorage.getItem(SONGS_KEY);
+  render(<App />); library(); fireEvent.click(screen.getByRole("button", { name: "Open Slow recital" }));
+  // A title-only async query resolves to the library card even though restore is unfinished.
+  expect((await screen.findByRole("heading", { name: song.title })).tagName).toBe("H3");
+  expect(screen.queryByRole("heading", { name: song.title, level: 1 })).toBeNull();
+  expect(screen.getByRole("heading", { name: "On your music stand" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Play" })).toBeNull();
+  expect(localStorage.getItem(SONGS_KEY)).toBe(before); expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
+  await act(async () => { resolve(bytes); });
+  expect(await screen.findByRole("heading", { name: song.title, level: 1 })).toBeTruthy();
+  expect(screen.queryByRole("heading", { name: "On your music stand" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+  expect(screen.getByRole("slider", { name: "Playback position" }).getAttribute("value")).toBe("0");
   expect(localStorage.getItem(SONGS_KEY)).toBe(before); expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
 });
 it.each(["missing", "changed", "corrupt"])("refuses %s saved revision without substituting music", async kind => {
@@ -87,7 +107,7 @@ it("allows confirmed dirty replacement but never records it as a completed pass"
   render(<App />); setup(); fireEvent.click(screen.getByRole("button", { name: "Prepare a song" }));
   fireEvent.change(screen.getByRole("combobox", { name: "Finger" }), { target: { value: "3" } });
   fireEvent.click(screen.getByRole("button", { name: /Change piece/ })); fireEvent.click(screen.getByRole("button", { name: "Open Slow recital" }));
-  await screen.findByRole("heading", { name: song.title }); expect(window.confirm).toHaveBeenCalled();
+  await screen.findByRole("heading", { name: song.title, level: 1 }); expect(window.confirm).toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "Play" })).toBeTruthy(); expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
 });
 it("imports a bounded metadata backup only after confirmation without importing music", async () => {
@@ -109,7 +129,7 @@ it("recovers a metadata bookmark after project backup reimport assigns a new id,
   // The imported project opens in Studio; return through its Change piece control.
   fireEvent.click(screen.getByRole("button", { name: /Change piece/ }));
   fireEvent.click(screen.getByRole("button", { name: "Open Slow recital" }));
-  await screen.findByRole("heading", { name: song.title });
+  await screen.findByRole("heading", { name: song.title, level: 1 });
   await screen.findByText(/Bookmark opened at the beginning/);
   expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Open matching saved piece"));
   expect(screen.getByRole("button", { name: "Play" })).toBeTruthy(); expect(localStorage.getItem(HISTORY_KEY)).toBeNull();

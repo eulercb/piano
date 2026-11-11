@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { clickDownload } from "./testDownload";
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from './main';
@@ -40,7 +41,7 @@ const change = (name: string, value: string) => fireEvent.change(screen.getByRol
 const value = (name: string) => (screen.getByRole('spinbutton', { name: new RegExp(`^${name}`) }) as HTMLInputElement).value;
 function prepare() { fireEvent.click(button('Practice setup')); fireEvent.click(button('Prepare a song')); }
 async function exportProject() {
-  fireEvent.click(button('Export project + fingers'));
+  clickDownload(button('Export project + fingers'));
   return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsText(downloads.at(-1)!); });
 }
 
@@ -108,9 +109,9 @@ it('rejects invalid timing without touching playback and resets paused playback 
   expect(saved()[0]).toMatchObject({ notes: source.notes, duration: 5 });
 });
 
-it('keeps MusicXML structural authoring locked and preserves reference XML explicitly', async () => {
+it('offers written-slot MusicXML authoring and preserves reference XML explicitly', async () => {
   const view = render(<App />); await open(view.container, { ...source, scoreOrigin: 'musicxml', scoreXml: xml });
-  expect(screen.getByText(/Adding, deleting or retiming MusicXML/)).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Add, delete & resize written notes' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Add a note' })).toBeNull();
   expect(screen.getByRole('combobox', { name: 'Finger' })).toBeTruthy();
   await open(view.container, { ...source, title: 'Reference study', scoreXml: xml });

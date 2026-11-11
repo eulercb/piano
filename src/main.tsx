@@ -37,6 +37,7 @@ import {
 import "./style.css";
 import { Score } from "./Score";
 import { StudioNoteAuthoring } from "./StudioNoteAuthoring";
+import { ScorePreparationGuide } from "./ScorePreparationGuide";
 import { PracticeRoom, PracticePanel } from "./PracticeRoom";
 import { MidiConnection } from "./MidiConnection";
 import { initialMidiSnapshot, type MidiSnapshot } from "./midiInput";
@@ -1107,6 +1108,7 @@ export function App() {
             </button>
           </div>
           }
+          {(page === "prepare" || page === "library") && <ScorePreparationGuide />}
           <div className="app-messages">
           {(midiPaused || (midiState.selectedId && ["disconnected", "error"].includes(midiState.status))) && (
             <div className="midi-recovery">
