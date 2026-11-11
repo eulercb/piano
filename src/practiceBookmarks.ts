@@ -9,7 +9,8 @@ export async function songRevision(song: Song): Promise<string> {
   if (!globalThis.crypto?.subtle) throw Error("Secure bookmark revision checking is unavailable in this browser. Use HTTPS or localhost.");
   const normalized = normalizeSong(song);
   const music = { tempo: normalized.tempo, notes: normalized.notes.map(({ id: _id, ...note }) => note),
-    duration: normalized.duration, scoreXml: normalized.scoreXml, scoreOrigin: normalized.scoreOrigin };
+    duration: normalized.duration, scoreXml: normalized.scoreXml, scoreOrigin: normalized.scoreOrigin,
+    ...(normalized.midiTempoMap === undefined ? {} : { midiTempoMap: normalized.midiTempoMap }) };
   const bytes = new TextEncoder().encode(JSON.stringify(music));
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");

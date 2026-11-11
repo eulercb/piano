@@ -31,7 +31,7 @@ export type SessionOptions = {
   mode: PracticeMode;
   countIn: boolean;
   metronome?: boolean;
-  /** Derived only from matching source notation, never inferred from notes. */
+  /** Derived from matching source notation or retained MIDI tempo, never notes. */
   tempoMap?: readonly TempoSegment[];
 };
 

@@ -142,6 +142,8 @@ export function practicePieceRevision(song: Song) {
   };
   add(`${song.tempo}|${songDuration(song)}|`);
   for (const n of song.notes) add(`${n.pitch},${n.start},${n.duration},${n.hand};`);
+  // Do not add even a marker for map-less songs: all legacy revisions stay exact.
+  if (song.midiTempoMap !== undefined) add(`midi-tempo:${JSON.stringify(song.midiTempoMap)}`);
   return `v1-${song.notes.length}-${(hash >>> 0).toString(16)}`;
 }
 

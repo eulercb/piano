@@ -43,6 +43,7 @@ it.each([
   const title = "T".repeat(length);
   const original = normalizeSong({ ...(kind === "measures" ? parseMusicXml(xml).song : {
     tempo: 120, duration: 1, scoreXml: xml,
+    midiTempoMap: [{ seconds: 0, microsecondsPerQuarter: 500000 }, { seconds: .25, microsecondsPerQuarter: 1000000 }],
     notes: [{ id: "first", pitch: 60, start: 0, duration: 0.5, hand: "right", velocity: 0.7, finger: 2 },
       { id: "second", pitch: 62, start: 0.5, duration: 0.5, hand: "right", velocity: 0.7 }],
   }), id: "original", title, folderSource });
@@ -63,6 +64,7 @@ it.each([
   expect(passage.notes[0].finger).toBe(5);
   expect(passage.folderSource).toEqual(folderSource);
   expect(passage.scoreOrigin).toBe(kind === "measures" ? "musicxml" : undefined);
+  expect(passage.midiTempoMap).toEqual(kind === "measures" ? undefined : original.midiTempoMap);
   expect(passage.scoreXml).toEqual(kind === "measures" ? expect.stringContaining("<fingering>5</fingering>") : xml);
   click("Save");
   await waitFor(() => expect(saved()).toHaveLength(2));
@@ -97,6 +99,7 @@ it.each([
   expect(repeated.id).not.toBe(reimported.id);
   expect(repeated.notes).toEqual(passage.notes);
   expect(repeated.scoreOrigin).toBe(passage.scoreOrigin);
+  expect(repeated.midiTempoMap).toEqual(passage.midiTempoMap);
   expect(repeated.scoreXml).toEqual(kind === "measures" ? expect.stringContaining("<fingering>5</fingering>") : xml);
   click("Save");
   await waitFor(() => expect(saved()).toHaveLength(4));

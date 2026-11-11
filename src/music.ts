@@ -1,6 +1,9 @@
+import { MAX_MIDI_TEMPO_CHANGES, MIN_MIDI_MICROSECONDS, normalizeMidiTempoMap, trimMidiTempoMap, type MidiTempoChange } from './midiTempo'
+import { serializeProject } from './projectFormat'
+
 /** All times are seconds; velocity is normalized to [0, 1]. */
 export type Note = { id: string; pitch: number; start: number; duration: number; velocity: number; hand: 'left' | 'right'; finger?: number; sourceNoteIds?: string[] }
-export type Song = { id: string; title: string; notes: Note[]; tempo: number; scoreXml?: string; scoreOrigin?: 'musicxml'; duration?: number; folderSource?: import('./songFolder').FolderSource }
+export type Song = { id: string; title: string; notes: Note[]; tempo: number; midiTempoMap?: MidiTempoChange[]; scoreXml?: string; scoreOrigin?: 'musicxml'; duration?: number; folderSource?: import('./songFolder').FolderSource }
 
 /** Total playback length, including explicitly recorded trailing rests/silence. */
 export function songDuration(song: Song): number {
@@ -34,6 +37,8 @@ type Event = { tick: number; order: number; kind: 'on' | 'off' | 'sustain' | 'te
  * MIDI format 2 and SMPTE division are intentionally unsupported. Imports are
  * bounded to 8 MiB, 256 tracks, 200,000 events and 1,024 overlapping notes
  * per channel/pitch to keep malformed input from monopolizing the UI thread.
+ * Retained maps support at most 10,000 canonical changes, up to 10,000 BPM,
+ * within 24 hours and the 10 MiB project-backup bound.
  */
 export function parseMidi(buffer: ArrayBuffer): Song {
   if (buffer.byteLength > 8 * 1024 * 1024) throw new Error('MIDI file is too large (maximum 8 MiB).')
@@ -110,14 +115,28 @@ export function parseMidi(buffer: ArrayBuffer): Song {
   type Pending = { pitch: number; start: number; velocity: number; channel: number }
   const active = new Map<string, Pending[]>(), sustained = new Map<number, Pending[]>(), pedal = new Set<number>()
   const notes: Note[] = []
+  const midiTempoMap: MidiTempoChange[] = [{ seconds: 0, microsecondsPerQuarter: 500000 }]
   let previousTick = 0, seconds = 0, microseconds = 500000, tempo = 120
   const finish = (note: Pending, end: number) => {
     if (end <= note.start) return
     notes.push({ id: `n${notes.length}`, pitch: note.pitch, start: note.start, duration: end - note.start, velocity: note.velocity, hand: ownExport && note.channel <= 1 ? (note.channel === 1 ? 'left' : 'right') : note.pitch < 60 ? 'left' : 'right' })
   }
   for (const event of events) {
+    // A later same-tick event can replace/remove the last segment. Check only
+    // after that tick is complete, not against a transient overwritten change.
+    if (event.tick !== previousTick && midiTempoMap.length > MAX_MIDI_TEMPO_CHANGES)
+      fail('too many tempo changes (maximum 10,000)')
     seconds += (event.tick - previousTick) * microseconds / (division * 1000000); previousTick = event.tick
-    if (event.kind === 'tempo') { microseconds = event.value; if (event.tick === 0) tempo = 60000000 / microseconds; continue }
+    if (event.kind === 'tempo') {
+      if (event.value < MIN_MIDI_MICROSECONDS) fail('tempo exceeds the supported 10,000 BPM limit')
+      microseconds = event.value
+      if (event.tick === 0) tempo = 60000000 / microseconds
+      // Last event wins at the same tick, including changes split over tracks.
+      if (midiTempoMap.at(-1)!.seconds === seconds) midiTempoMap.pop()
+      if (midiTempoMap.at(-1)?.microsecondsPerQuarter !== microseconds)
+        midiTempoMap.push({ seconds, microsecondsPerQuarter: microseconds })
+      continue
+    }
     const channel = event.channel!, key = `${channel}:${event.pitch}`
     if (event.kind === 'on') {
       const queue = active.get(key) ?? []
@@ -139,10 +158,15 @@ export function parseMidi(buffer: ArrayBuffer): Song {
   if (!notes.length) throw new Error('This MIDI file contains no playable notes.')
   // Several files (or tabs) can finish within one wall-clock tick. Each manual
   // import is a separate piece; folder refresh supplies its own content identity.
-  return { id: `midi-${crypto.randomUUID()}`, title: title.trim() || 'Imported MIDI', tempo, notes, duration: seconds }
+  const song: Song = { id: `midi-${crypto.randomUUID()}`, title: title.trim() || 'Imported MIDI', tempo, notes, duration: seconds,
+    midiTempoMap: normalizeMidiTempoMap(midiTempoMap, tempo, seconds) }
+  serializeProject(song) // Never introduce a mapped import whose backup cannot be read.
+  return song
 }
 
-/** Export a format-0 piano MIDI, preserving seconds at a single tempo. */
+/** Export a format-0 piano MIDI, preserving seconds at a single tempo.
+ * Retained tempo changes are intentionally flattened; use a project to keep them.
+ */
 export function exportMidi(song: Song): Uint8Array {
   if (!Number.isFinite(song.tempo) || song.tempo <= 0) throw new Error('Tempo must be positive.')
   const ppqn = 480, microseconds = clamp(Math.round(60000000 / song.tempo), 1, 0xffffff)
@@ -173,7 +197,8 @@ export function exportMidi(song: Song): Uint8Array {
 /** Clip intersecting notes to [start, end), rebasing the result to zero. */
 export function trimSong(song: Song, start: number, end: number): Song {
   if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) throw new Error('Choose a valid trim range.')
-  return { ...song, duration: end - start, notes: song.notes.filter(note => note.start < end && note.start + note.duration > start).map(note => {
+  const midiTempoMap = trimMidiTempoMap(song, start, end)
+  return { ...song, ...(midiTempoMap ? { midiTempoMap, tempo: 60000000 / midiTempoMap[0].microsecondsPerQuarter } : {}), duration: end - start, notes: song.notes.filter(note => note.start < end && note.start + note.duration > start).map(note => {
     const from = Math.max(note.start, start), to = Math.min(note.start + note.duration, end)
     return { ...note, start: from - start, duration: to - from }
   }) }
