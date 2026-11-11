@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import type { Note, Song } from "./music";
 import { deleteNote, editNote, insertNote, NOTE_AUTHORING_LIMITS, noteAuthoringAvailability } from "./noteAuthoring";
 import "./studioNoteAuthoring.css";
+import { StudioScoreAuthoring } from "./StudioScoreAuthoring";
 
 export type NoteAuthoringChange = { action: "insert" | "edit" | "delete"; noteId: string | null };
 type Props = { song: Song; onChange: (song: Song, change: NoteAuthoringChange) => void; timingOnly?: boolean; selectedNoteId?: string; onSelectNote?: (id: string) => void };
@@ -24,6 +25,7 @@ function numeric(value: string, label: string): number {
 
 /** The parent applies onChange synchronously and resets playback before using the new song. */
 export function StudioNoteAuthoring(props: Props) {
+  if (props.song.scoreOrigin === "musicxml") return <StudioScoreAuthoring key={props.song.id} song={props.song} onChange={props.onChange} />;
   const availability = noteAuthoringAvailability(props.song);
   if (!availability.allowed) return (
     <section className="studio-note-authoring" aria-label="Note authoring">

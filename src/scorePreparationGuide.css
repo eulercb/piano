@@ -1,0 +1,16 @@
+.score-preparation-guide {
+  margin: .75rem 0;
+  padding: .65rem .8rem;
+  border: 1px solid currentColor;
+  border-radius: .5rem;
+  max-width: 65rem;
+  overflow-wrap: anywhere;
+}
+.score-preparation-guide summary { cursor: pointer; font-weight: 600; }
+.score-preparation-guide summary:focus-visible,
+.score-preparation-guide a:focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
+.score-preparation-guide p,
+.score-preparation-guide li { line-height: 1.55; }
+.score-preparation-guide ol { padding-inline-start: 1.5rem; }
+.score-preparation-guide li + li { margin-top: .5rem; }
+.score-preparation-guide a { color: inherit; text-decoration: underline; }

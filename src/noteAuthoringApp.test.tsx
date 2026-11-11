@@ -108,9 +108,9 @@ it('rejects invalid timing without touching playback and resets paused playback 
   expect(saved()[0]).toMatchObject({ notes: source.notes, duration: 5 });
 });
 
-it('keeps MusicXML structural authoring locked and preserves reference XML explicitly', async () => {
+it('offers written-slot MusicXML authoring and preserves reference XML explicitly', async () => {
   const view = render(<App />); await open(view.container, { ...source, scoreOrigin: 'musicxml', scoreXml: xml });
-  expect(screen.getByText(/Adding, deleting or retiming MusicXML/)).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Add, delete & resize written notes' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Add a note' })).toBeNull();
   expect(screen.getByRole('combobox', { name: 'Finger' })).toBeTruthy();
   await open(view.container, { ...source, title: 'Reference study', scoreXml: xml });

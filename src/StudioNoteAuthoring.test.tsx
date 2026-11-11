@@ -116,12 +116,11 @@ describe("Studio note authoring UI", () => {
     expect(changed).not.toHaveBeenCalled();
   });
 
-  it("blocks structural authoring for MusicXML and explains how to keep the score synchronized", () => {
+  it("blocks structural authoring for malformed MusicXML and explains the source error", () => {
     const changed = vi.fn();
     render(<StudioNoteAuthoring song={{ ...source(), scoreOrigin: "musicxml", scoreXml: "<score-partwise/>" }} onChange={changed} />);
-    expect(screen.getByText(/Adding, deleting or retiming MusicXML notes is not supported/)).toBeTruthy();
-    expect(screen.queryByRole("spinbutton")).toBeNull();
-    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByRole("alert").textContent).toContain("a score must have");
+    expect((screen.getByRole("button", { name: "Apply written duration" }).closest("fieldset") as HTMLFieldSetElement).disabled).toBe(true);
     expect(changed).not.toHaveBeenCalled();
   });
 
