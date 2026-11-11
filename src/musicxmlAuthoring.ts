@@ -109,17 +109,41 @@ function make(doc: Document, original: Element, beats: number, divisions: number
   if (one(original, 'staff')) add(result, 'staff', value(original, 'staff'));
   return result;
 }
+/** Resize in place semantically: keep each tone's spelling, display and fingering. */
+function resized(doc: Document, slot: Slot, beats: number): Element {
+  // make validates both notation and integral MusicXML duration units.
+  const generated = make(doc, slot.node, beats, slot.divisions);
+  const replacement = slot.node.cloneNode(true) as Element;
+  one(replacement, 'duration')!.textContent = value(generated, 'duration');
+  const generatedType = one(generated, 'type')!;
+  const originalType = one(replacement, 'type');
+  if (originalType) originalType.textContent = generatedType.textContent;
+  else {
+    const following = children(replacement).find(n => ['dot', 'accidental', 'stem', 'staff', 'notations'].includes(n.localName ?? ''));
+    replacement.insertBefore(generatedType, following ?? null);
+  }
+  const dots = children(replacement).filter(n => n.localName === 'dot');
+  const keepDot = one(generated, 'dot') ? dots[0] : undefined;
+  for (const dot of dots) if (dot !== keepDot) replacement.removeChild(dot);
+  if (one(generated, 'dot') && !keepDot) replacement.insertBefore(doc.createElementNS(replacement.namespaceURI, 'dot'), (originalType ?? generatedType).nextSibling);
+  return replacement;
+}
 export type ScoreSlotEdit = { action: 'insert'; pitch: number; beats: number } | { action: 'addChordTone'; pitch: number } | { action: 'delete' } | { action: 'duration'; beats: number };
-/** Preserve the exact timeline: exchange notes with rests or change tones at one chord onset. */
+/** Preserve the exact timeline: exchange notes/chords with rests or change tones at one onset. */
 export function editScoreSlot(song: Song, sourceId: string, edit: ScoreSlotEdit): Song {
   const doc = read(song), all = slots(doc), slot = all.find(s => s.sourceId === sourceId);
   if (!slot) throw Error('Select an existing written note or rest.');
   if (slot.reason) throw Error(slot.reason);
   if (edit.action === 'insert' && !slot.rest) throw Error('Choose an explicit rest to insert a note.');
   if (edit.action !== 'insert' && slot.rest) throw Error('Choose a sounding note.');
-  const mapped = song.notes.find(n => n.sourceNoteIds?.includes(sourceId));
-  if (!slot.rest && (!mapped || mapped.sourceNoteIds?.length !== 1)) throw Error('This note has no independent editable playback mapping.');
-  if (edit.action === 'duration' && slot.chordSize > 1) throw Error('Chord durations cannot be changed here. Add or remove a tone without changing its timing.');
+  const targets = edit.action === 'duration' ? slot.chord : [slot];
+  // read already verifies the complete, exact source mapping. Check every
+  // affected tone, not just the selection, without scanning the song per tone.
+  const mappings = new Map(song.notes.flatMap(n => (n.sourceNoteIds ?? []).map(id => [id, n] as const)));
+  for (const target of targets) {
+    const mapped = mappings.get(target.sourceId);
+    if (!target.rest && (!mapped || mapped.sourceNoteIds?.length !== 1)) throw Error('This note has no independent editable playback mapping.');
+  }
   if (edit.action === 'delete' && song.notes.length === 1) throw Error('Keep at least one sounding note in the score. All-rest scores are not supported.');
   if (edit.action === 'addChordTone') {
     const chordIds = new Set(slot.chord.map(s => s.sourceId));
@@ -161,38 +185,30 @@ export function editScoreSlot(song: Song, sourceId: string, edit: ScoreSlotEdit)
   let consumed: Slot | undefined;
   if (beats > capacity + 1e-8) {
     if (edit.action === 'insert') throw Error('The new note must fit within the selected rest.');
-    const siblings = children(slot.node.parentNode as Element);
-    const next = siblings[siblings.indexOf(slot.node) + 1];
+    // All tones share the leader's span; silence begins after the final tone,
+    // regardless of which tone the user selected.
+    const last = targets[targets.length - 1].node;
+    const siblings = children(last.parentNode as Element);
+    const next = siblings[siblings.indexOf(last) + 1];
     consumed = all.find(s => s.node === next);
     if (!consumed?.rest || consumed.reason || consumed.voice !== slot.voice || consumed.staff !== slot.staff || consumed.divisions !== slot.divisions)
       throw Error('Lengthening requires an immediately following plain rest in the same voice and staff.');
     capacity += consumed.beats;
     if (beats > capacity + 1e-8) throw Error('The duration exceeds the note and following rest.');
   }
-  let replacement = make(doc, slot.node, beats, slot.divisions, edit.action === 'delete' ? undefined : edit.action === 'insert' ? edit.pitch : mapped!.pitch);
-  // Resize the existing note rather than rebuilding its spelling/display/fingering.
-  if (edit.action === 'duration') {
-    replacement = slot.node.cloneNode(true) as Element;
-    one(replacement, 'duration')!.textContent = String(beats * slot.divisions);
-    const generatedType = one(make(doc, slot.node, beats, slot.divisions), 'type')!;
-    const originalType = one(replacement, 'type');
-    if (originalType) originalType.textContent = generatedType.textContent;
-    else {
-      const following = children(replacement).find(n => ['dot', 'accidental', 'stem', 'staff', 'notations'].includes(n.localName ?? ''));
-      replacement.insertBefore(generatedType, following ?? null);
-    }
-    const dots = children(replacement).filter(n => n.localName === 'dot');
-    const keepDot = notation(beats).dots ? dots[0] : undefined;
-    for (const dot of dots) if (dot !== keepDot) replacement.removeChild(dot);
-    if (notation(beats).dots && !keepDot) replacement.insertBefore(doc.createElementNS(replacement.namespaceURI, 'dot'), (originalType ?? generatedType).nextSibling);
-  }
-  // The replacement keeps the selected slot's coordinates. A newly split
-  // rest has no inherited coordinates; a surviving consumed rest keeps its own.
-  if (edit.action !== 'duration') copyPosition(slot.node, replacement);
+  const replacements = targets.map(target => {
+    if (edit.action === 'duration') return resized(doc, target, beats);
+    const replacement = make(doc, target.node, beats, target.divisions, edit.action === 'insert' ? edit.pitch : undefined);
+    copyPosition(target.node, replacement);
+    return replacement;
+  });
+  // A newly split rest has no inherited coordinates; a surviving consumed rest
+  // keeps its own. Use the leader as the rest template for every chord selection.
+  const restSource = consumed?.node ?? targets[0].node;
   const remaining = capacity - beats;
-  const rest = remaining > 1e-8 ? make(doc, consumed?.node ?? slot.node, remaining, slot.divisions) : undefined;
+  const rest = remaining > 1e-8 ? make(doc, restSource, remaining, slot.divisions) : undefined;
   if (rest && consumed) copyPosition(consumed.node, rest);
-  const sourceRest = one(consumed?.node ?? slot.node, 'rest');
+  const sourceRest = one(restSource, 'rest');
   if (rest && sourceRest) {
     const display = sourceRest.cloneNode(true) as Element;
     // A remainder is no longer a whole-measure rest, but its display position
@@ -201,10 +217,10 @@ export function editScoreSlot(song: Song, sourceId: string, edit: ScoreSlotEdit)
     rest.replaceChild(display, one(rest, 'rest')!);
   }
   const parent = slot.node.parentNode!;
-  parent.replaceChild(replacement, slot.node);
-  if (rest) parent.insertBefore(rest, replacement.nextSibling);
+  targets.forEach((target, i) => parent.replaceChild(replacements[i], target.node));
+  if (rest) parent.insertBefore(rest, replacements[replacements.length - 1].nextSibling);
   if (consumed) parent.removeChild(consumed.node);
-  return finish(song, doc, all, new Set(consumed ? [slot, consumed] : [slot]));
+  return finish(song, doc, all, new Set(consumed ? [...targets, consumed] : targets));
 }
 function finish(song: Song, doc: Document, all: Slot[], replaced: Set<Slot>): Song {
   const parsed = parseMusicXml(new XMLSerializer().serializeToString(doc));

@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useState } from 'react';
+import type { Song } from './music';
+import { editScoreSlot, scoreAuthoringSlots } from './musicxmlAuthoring';
 import { StudioScoreAuthoring } from './StudioScoreAuthoring';
 import { parseMusicXml } from './musicxml';
 afterEach(cleanup);
@@ -67,8 +70,9 @@ it('adds a chord tone without using the duration draft and exposes operation-spe
   const next = onChange.mock.calls[0][0];
   expect(next.notes.find((n: {pitch: number; start: number}) => n.pitch === 67 && n.start === 0)).toMatchObject({ duration: 1 });
   view.rerender(<StudioScoreAuthoring song={next} onChange={onChange} />);
-  expect((screen.getByLabelText('Duration (quarter-note beats)') as HTMLInputElement).disabled).toBe(true);
-  expect((screen.getByRole('button', { name: 'Apply written duration' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByLabelText('Duration (quarter-note beats)') as HTMLInputElement).disabled).toBe(false);
+  expect((screen.getByRole('button', { name: 'Apply chord duration' }) as HTMLButtonElement).disabled).toBe(false);
+  expect(screen.getByText(/Duration changes apply to all 2 tones/)).toBeTruthy();
   expect((screen.getByRole('button', { name: 'Add chord tone' }) as HTMLButtonElement).disabled).toBe(false);
   expect(screen.getByRole('combobox', { name: 'Written slot' }).textContent).toContain('MIDI 64 · 2-tone chord');
   expect(screen.getByRole('button', { name: 'Remove chord tone' })).toBeTruthy();
@@ -114,4 +118,90 @@ it('rejects a duplicate or blank chord pitch without issuing a change and permit
   fireEvent.change(screen.getByLabelText('New chord pitch (MIDI)'), { target: { value: '65' } });
   fireEvent.click(screen.getByRole('button', { name: 'Add chord tone' }));
   expect(onChange).toHaveBeenCalledTimes(1);
+});
+
+
+it.each(['0:0:0', '0:0:1'])('applies an explicit whole-chord duration from %s without inserting the new-pitch draft', selected => {
+  const input = editScoreSlot(score(), '0:0:0', { action: 'addChordTone', pitch: 67 });
+  const onChange = vi.fn();
+  const view = render(<StudioScoreAuthoring song={input} onChange={onChange} />);
+  fireEvent.change(screen.getByLabelText('Written slot'), { target: { value: selected } });
+  expect(screen.getByText(/Duration changes apply to all 2 tones/)).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('New chord pitch (MIDI)'), { target: { value: '72' } });
+  fireEvent.change(screen.getByLabelText('Duration (quarter-note beats)'), { target: { value: '3' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Apply chord duration' }));
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect(onChange.mock.calls[0][1]).toEqual({ action: 'edit', noteId: null });
+  const next: Song = onChange.mock.calls[0][0];
+  expect(next.notes.filter(n => n.start === 0).map(n => [n.pitch, n.duration])).toEqual([[64, 1.5], [67, 1.5]]);
+  expect(scoreAuthoringSlots(next).slice(0, 3).map(s => s.beats)).toEqual([3, 3, 1]);
+  view.rerender(<StudioScoreAuthoring song={next} onChange={onChange} />);
+  expect((screen.getByLabelText('Duration (quarter-note beats)') as HTMLInputElement).value).toBe('3');
+  fireEvent.change(screen.getByLabelText('Duration (quarter-note beats)'), { target: { value: '1' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Apply chord duration' }));
+  expect(onChange.mock.calls[1][0].notes.filter((n: {start: number}) => n.start === 0).map((n: {duration: number}) => n.duration)).toEqual([.5, .5]);
+});
+
+it('rejects invalid chord durations without changing the song and permits correction', () => {
+  const input = editScoreSlot(score(), '0:0:0', { action: 'addChordTone', pitch: 67 }), onChange = vi.fn();
+  render(<StudioScoreAuthoring song={input} onChange={onChange} />);
+  for (const value of ['', '1.25', '6']) {
+    fireEvent.change(screen.getByLabelText('Duration (quarter-note beats)'), { target: { value } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply chord duration' }));
+    expect(screen.getByRole('alert')).toBeTruthy();
+    expect(onChange).not.toHaveBeenCalled();
+  }
+  fireEvent.change(screen.getByLabelText('Duration (quarter-note beats)'), { target: { value: '1' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Apply chord duration' }));
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('resizes repeatedly without extra rests and keeps chord removal confirmed once', () => {
+  const input = editScoreSlot(score(), '0:0:0', { action: 'addChordTone', pitch: 67 });
+  const changes = vi.fn(); let latest = input;
+  function Harness() {
+    const [song, setSong] = useState(input); latest = song;
+    return <StudioScoreAuthoring song={song} onChange={next => { changes(next); setSong(next); }} />;
+  }
+  render(<Harness />);
+  fireEvent.change(screen.getByLabelText('Duration (quarter-note beats)'), { target: { value: '1' } });
+  const apply = screen.getByRole('button', { name: 'Apply chord duration' });
+  act(() => { fireEvent.click(apply); fireEvent.click(apply); });
+  expect(scoreAuthoringSlots(latest).map(s => s.beats)).toEqual([1, 1, 1, 2, 4]);
+  expect(changes.mock.calls.every(([next]) => JSON.stringify(next) === JSON.stringify(latest))).toBe(true);
+  // A later click at the same duration does not split another rest.
+  fireEvent.click(screen.getByRole('button', { name: 'Apply chord duration' }));
+  expect(scoreAuthoringSlots(latest).map(s => s.beats)).toEqual([1, 1, 1, 2, 4]);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove chord tone' }));
+  expect((apply.closest('fieldset') as HTMLFieldSetElement).disabled).toBe(true);
+  const pendingChanges = changes.mock.calls.length;
+  fireEvent.click(apply);
+  expect(changes).toHaveBeenCalledTimes(pendingChanges);
+  fireEvent.click(screen.getByRole('button', { name: 'Keep written note' }));
+  expect(latest.notes.filter(n => n.start === 0)).toHaveLength(2);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove chord tone' }));
+  const confirm = screen.getByRole('button', { name: 'Confirm remove chord tone' });
+  const before = changes.mock.calls.length;
+  act(() => { fireEvent.click(confirm); fireEvent.click(confirm); });
+  expect(changes).toHaveBeenCalledTimes(before + 1);
+  expect(latest.notes.filter(n => n.start === 0).map(n => [n.pitch, n.duration])).toEqual([[67, .5]]);
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Apply written duration' })).toBeTruthy();
+});
+
+it('invalidates chord duration drafts and confirmations when the source becomes stale or unsupported', () => {
+  const input = editScoreSlot(score(), '0:0:0', { action: 'addChordTone', pitch: 67 }), onChange = vi.fn();
+  const view = render(<StudioScoreAuthoring song={input} onChange={onChange} />);
+  fireEvent.change(screen.getByLabelText('Duration (quarter-note beats)'), { target: { value: '3' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Remove chord tone' }));
+  view.rerender(<StudioScoreAuthoring song={{ ...input, tempo: 77 }} onChange={onChange} />);
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+  expect(screen.getByRole('alert').textContent).toContain('out of date');
+  expect(onChange).not.toHaveBeenCalled();
+  const unsupported = parseMusicXml(input.scoreXml!.replace('<chord/>', '<chord/><beam>begin</beam>')).song;
+  view.rerender(<StudioScoreAuthoring song={unsupported} onChange={onChange} />);
+  expect((screen.getByRole('button', { name: 'Apply chord duration' }).closest('fieldset') as HTMLFieldSetElement).disabled).toBe(true);
+  expect((screen.getByLabelText('Duration (quarter-note beats)') as HTMLInputElement).value).toBe('2');
+  expect(screen.getByText(/This chord is not supported/)).toBeTruthy();
 });

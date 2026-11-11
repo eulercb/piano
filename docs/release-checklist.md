@@ -109,16 +109,18 @@ subpath hosting. Browser emulation is not Android/Casio hardware validation.
 | [#3 Practice engine](https://github.com/eulercb/piano/issues/3) | Listen, melody, rhythm, end-only recital, count-in, optional steady metronome and safe interruption handling | Real keyboard and audio onset behavior; pause/resume and interruption during every mode/count-in; recital completion/history and audible metronome phase; never infer calibrated timing. |
 | [#4 Connect instruments](https://github.com/eulercb/piano/issues/4) | Selected-input Web MIDI, disconnect/reconnect handling and touch/typing fallback | Physical Android + Casio + USB-C/OTG permission, notes/chords, unplug/replug, multiple devices and repeated reconnect; no automatic resume or wrong-device switch. |
 | [#5 History and adaptive feedback](https://github.com/eulercb/piano/issues/5) | Local history/backup/deletion, written-part timing counts, explicit gentle next-step choices and content-checked practice bookmarks | Completed versus interrupted passes, speed/hand accuracy after next-step choices, reload/multi-tab persistence, backup round trip and quota failure; bookmark backup plus song-project restore under changed IDs. Written-part counts do not identify physical hands. |
-| [#6 Score preparation](https://github.com/eulercb/piano/issues/6) | User-imported MusicXML/MXL, ties/fingers, score-linked edits, bounded fixed-slot and chord-tone authoring, measure trimming, reading cursor/size and experimental desktop recognition | Interactive notation rendering, supported edit/save/export/reimport with aligned hands and preserved silence, source-linked pitch/finger changes, pickup/ties/tuplets after trim, zoom/resize/follow scrolling and unsupported notation rejection. Desktop recognition has narrow synthetic evidence, not general-score or private/offline acceptance. Built-in browser OMR is not implemented. Use original fixtures. |
+| [#6 Score preparation](https://github.com/eulercb/piano/issues/6) | User-imported MusicXML/MXL, ties/fingers, score-linked edits, bounded fixed-slot, chord-tone and whole-chord-duration authoring, measure trimming, reading cursor/size and experimental desktop recognition | Interactive notation rendering, supported edit/save/export/reimport with aligned hands and preserved silence, source-linked pitch/finger changes, pickup/ties/tuplets after trim, zoom/resize/follow scrolling and unsupported notation rejection. Desktop recognition has narrow synthetic evidence, not general-score or private/offline acceptance. Built-in browser OMR is not implemented. Use original fixtures. |
 | [#7 PWA quality](https://github.com/eulercb/piano/issues/7) | Prompt-only updates, storage guards, responsive practice room, accessibility contracts and deferred preparation loading | Real cached offline reload, clean/dirty/temporary-history updates, install/update across two releases, browser eviction/quota and recovery, native failed-module retry/cache behavior, keyboard/screen-reader/touch checks, Android background/foreground behavior. |
 
 The separate Audiveris 5.11.0 baseline matched **16/16 quarter-note events** on
 one original clean two-bar image and rejected a blank control; see
 [the captured evidence](local-omr-evaluation.md). This is not a phone-photo
 accuracy estimate. Network isolation/observation were denied and not bypassed;
-private-score offline acceptance remains open. Written-note authoring still
-rejects ties, tuplets, beams, complex notation and chord-duration changes; import
-or playback support does not imply those structures can be authored safely.
+private-score offline acceptance remains open. Written-note authoring supports
+resizing a simple equal-duration chord as a group, using one immediately following
+same-voice/staff rest to lengthen or inserting one rest to shorten. Ties, tuplets,
+beams, unequal-duration/cross-staff chords and complex notation remain blocked;
+import or playback support does not imply those structures can be authored safely.
 
 Implementation and automated evidence in this table are not device acceptance.
 Reconcile the final commit and remaining checks before closing an issue. Desktop update evidence recorded in

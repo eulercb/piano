@@ -129,11 +129,10 @@ describe('bounded same-onset chord authoring', () => {
     expect(one.notes).toHaveLength(1);
     expect(() => editScoreSlot(one, '0:0:0', { action: 'delete' })).toThrow(/at least one/);
   });
-  it('rejects duplicate pitches, invalid pitches and chord duration changes atomically', () => {
+  it('rejects duplicate pitches and invalid pitches atomically', () => {
     const input = song(), original = JSON.stringify(input);
     for (const pitch of [60, 64, 67]) expect(() => editScoreSlot(input, '0:0:1', { action: 'addChordTone', pitch })).toThrow(/already contains/);
     for (const pitch of [NaN, Infinity, -.5, 128, 60.5]) expect(() => editScoreSlot(input, '0:0:1', { action: 'addChordTone', pitch })).toThrow(/Pitch/);
-    for (const id of ['0:0:0', '0:0:1', '0:0:2']) expect(() => editScoreSlot(input, id, { action: 'duration', beats: 2 })).toThrow(/Chord durations/);
     expect(() => editScoreSlot(input, '0:0:3', { action: 'addChordTone', pitch: 70 })).toThrow(/sounding note/);
     expect(JSON.stringify(input)).toBe(original);
   });
@@ -156,6 +155,7 @@ describe('bounded same-onset chord authoring', () => {
     for (const id of ['0:0:0', '0:0:1']) {
       expect(scoreAuthoringSlots(input).find(s => s.sourceId === id)?.reason).toMatch(/not supported/);
       expect(() => editScoreSlot(input, id, { action: 'delete' })).toThrow(/not supported/);
+      expect(() => editScoreSlot(input, id, { action: 'duration', beats: .5 })).toThrow(/not supported/);
       expect(() => editScoreSlot(input, id, { action: 'addChordTone', pitch: 70 })).toThrow(/not supported/);
     }
     expect(JSON.stringify(input)).toBe(original);
@@ -165,6 +165,7 @@ describe('bounded same-onset chord authoring', () => {
     for (const stale of [{ ...input, tempo: 123 }, { ...input, duration: 99 }, { ...input, notes: input.notes.map(n => ({ ...n, finger: 4 })) }, { ...input, notes: input.notes.map(n => ({ ...n, sourceNoteIds: ['0:0:0'] })) }]) {
       expect(() => editScoreSlot(stale, '0:0:0', { action: 'addChordTone', pitch: 70 })).toThrow(/out of date/);
       expect(() => editScoreSlot(stale, '0:0:0', { action: 'delete' })).toThrow(/out of date/);
+      expect(() => editScoreSlot(stale, '0:0:0', { action: 'duration', beats: .5 })).toThrow(/out of date/);
     }
   });
 });
