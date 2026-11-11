@@ -47,7 +47,17 @@ function strip(node: Element, name: string) {
 }
 function songFrom(doc: Document, original: Song) {
   const result = parseMusicXml(serialize(doc));
-  return { ...result.song, id: original.id, title: original.title };
+  // Provenance describes the imported source bytes, not the edited playback.
+  // Preserve it even for derived passages so refresh can recognize that source
+  // without replacing any saved edits or creating another unchanged import.
+  return {
+    ...result.song, id: original.id, title: original.title,
+    ...(original.folderSource ? { folderSource: {
+      folderId: original.folderSource.folderId,
+      name: original.folderSource.name,
+      digest: original.folderSource.digest,
+    } } : {}),
+  };
 }
 /** Edit the source and derive playback again, keeping score and performance together. */
 export function editScoreNote(

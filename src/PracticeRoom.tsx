@@ -40,7 +40,7 @@ export function PracticeRoom({ title, hand, mode, speed, guide, settings, result
   onConnection: () => void; onSetup: () => void;
 }) {
   const [panel, setPanel] = useState<"setup" | "results" | null>(null);
-  const modeLabel = mode === "melody" ? "Wait for notes" : mode === "rhythm" ? "Rhythm" : "Listen";
+  const modeLabel = mode === "melody" ? "Wait for notes" : mode === "rhythm" ? "Rhythm" : mode === "recital" ? "Recital" : "Listen";
   return <section className="practice-room" aria-label="Practice room">
     <div className="room-heading">
       <button className="room-button" aria-label="My library" onClick={() => onNavigate("library")}><Library size={18} /><span>Library</span></button>

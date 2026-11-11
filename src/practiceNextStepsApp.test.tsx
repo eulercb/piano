@@ -31,13 +31,13 @@ function results() {
 }
 const history = () => parsePracticeHistory(localStorage.getItem(HISTORY_KEY)!);
 const position = () => Number((screen.getByRole("slider", { name: "Playback position" }) as HTMLInputElement).value);
-function openStudy(mode: "listen" | "melody" | "rhythm" = "listen", hand = "Right") {
+function openStudy(mode: "listen" | "melody" | "rhythm" | "recital" = "listen", hand = "Right") {
   render(<App />); click("My library"); click(/Synthetic short study/); setup();
   click(hand);
-  click(mode === "listen" ? /^Listen & explore/ : mode === "melody" ? /^Melody practice/ : /^Rhythm practice/);
+  click(mode === "listen" ? /^Listen & explore/ : mode === "melody" ? /^Melody practice/ : mode === "recital" ? /^Recital practice/ : /^Rhythm practice/);
   fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" })); close();
 }
-function complete(mode: "listen" | "melody" | "rhythm") {
+function complete(mode: "listen" | "melody" | "rhythm" | "recital") {
   click("Play");
   if (mode !== "listen") click("Play C4");
   advance(2.2);
@@ -78,10 +78,10 @@ it("offers a gentle waiting pass after listening and requires deliberate Play wi
   click("Play"); advance(1); expect(position()).toBe(0);
   click("Play C4"); advance(.2); expect(position()).toBeGreaterThan(0);
 });
-it.each(["melody", "rhythm"] as const)("offers manual +5%% progress after %s while preserving the completed pass", mode => {
+it.each(["melody", "rhythm", "recital"] as const)("offers manual +5%% progress after %s while preserving the completed pass", mode => {
   openStudy(mode); complete(mode); const saved = localStorage.getItem(SONGS_KEY), oldHistory = localStorage.getItem(HISTORY_KEY);
   results(); click(/Try a small speed increase Right hand · 55%/);
-  expect(screen.getByText(`Right hand · 55% · ${mode === "melody" ? "Wait for notes" : "Rhythm"}`)).toBeTruthy();
+  expect(screen.getByText(`Right hand · 55% · ${mode === "melody" ? "Wait for notes" : mode === "recital" ? "Recital" : "Rhythm"}`)).toBeTruthy();
   expect(position()).toBe(0); advance(5); expect(position()).toBe(0);
   expect(localStorage.getItem(SONGS_KEY)).toBe(saved); expect(localStorage.getItem(HISTORY_KEY)).toBe(oldHistory);
   click("Play"); click("Play C4"); advance(2);
@@ -161,4 +161,69 @@ it("does not change anything when results are dismissed repeatedly or canceled",
     expect(document.activeElement).toBe(button("Results")); expect(button("Play")).toBeTruthy();
   }
   expect(position()).toBe(1); expect(localStorage.getItem(HISTORY_KEY)).toBe(saved);
+});
+
+
+it("keeps recital moving without live counts, then reveals only the completed result and saves it", () => {
+  openStudy("recital"); const saved = localStorage.getItem(SONGS_KEY);
+  expect(screen.getByText("Right hand · 50% · Recital")).toBeTruthy();
+  click("Play"); click("Play C4"); click("Play C♯4"); advance(.4);
+  expect(position()).toBeGreaterThan(0);
+  expect(screen.queryByText("On time")).toBeNull();
+  expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
+  const panel = results();
+  expect(within(panel).getByText(/Feedback appears after the pass/)).toBeTruthy();
+  expect(within(panel).queryByText("On time")).toBeNull();
+  close(); click("Play"); advance(2);
+  expect(history()[0]).toMatchObject({ mode: "recital", rhythm: { total: 1, onTime: 1, extra: 1, missed: 0 } });
+  const completed = results();
+  expect(within(completed).getByText("On time")).toBeTruthy();
+  expect(within(completed).getByText("1 / 1")).toBeTruthy();
+  expect(localStorage.getItem(SONGS_KEY)).toBe(saved);
+});
+it("offers recital after rhythm and returns to live feedback only on explicit choice", () => {
+  openStudy("rhythm"); complete("rhythm"); results();
+  click(/Try an uninterrupted pass Right hand · 50% · Recital/);
+  expect(button("Play")).toBeTruthy(); expect(position()).toBe(0);
+  advance(3); expect(position()).toBe(0);
+  complete("recital"); results();
+  click(/Return to live timing feedback Right hand · 50% · Rhythm/);
+  expect(button("Play")).toBeTruthy(); expect(position()).toBe(0);
+  expect(history().map(p => p.mode)).toEqual(["recital", "rhythm"]);
+});
+it("shows the finished recital loop without publishing partial counts for the new loop", () => {
+  openStudy("recital"); setup(); fireEvent.click(screen.getByRole("checkbox", { name: "Repeat this passage" })); close();
+  click("Play"); click("Play C4"); advance(2.2);
+  const panel = results();
+  expect(history()).toHaveLength(1);
+  expect(within(panel).getByText("Previous completed pass")).toBeTruthy();
+  expect(within(panel).getAllByText("On time")).toHaveLength(1);
+  expect(within(panel).getByText(/Feedback appears after the pass/)).toBeTruthy();
+  close(); click("Restart"); results();
+  expect(screen.queryByText("Previous completed pass")).toBeNull();
+  expect(history()).toHaveLength(1);
+});
+
+it("discards an abandoned recital recording on seek and keeps only the remaining targets", () => {
+  localStorage.setItem(SONGS_KEY, JSON.stringify([{ ...study, notes: [study.notes[1],
+    { ...study.notes[1], id: "later-right", start: .5, duration: .2, pitch: 62 }] }]));
+  openStudy("recital"); click("Play"); click("Play C4"); click("Play C♯4"); advance(.2);
+  fireEvent.change(screen.getByRole("slider", { name: "Playback position" }), { target: { value: ".5" } });
+  click("Play"); click("Play D4"); advance(1.2);
+  expect(history()).toHaveLength(1);
+  expect(history()[0]).toMatchObject({ mode: "recital", startSeconds: .5, noteCount: 1,
+    rhythm: { onTime: 1, extra: 0, missed: 0 } });
+  click("Restart"); complete("recital");
+  expect(history()[0]).toMatchObject({ mode: "recital", startSeconds: 0, noteCount: 2,
+    rhythm: { onTime: 1, extra: 0, missed: 1 } });
+});
+it("ignores recital count-in presses and preserves completed counts after a remount", () => {
+  openStudy("recital"); setup();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" })); close();
+  click("Play"); click("Play C♯4"); advance(4); click("Play C4"); advance(2.2);
+  expect(history()[0]).toMatchObject({ mode: "recital", rhythm: { onTime: 1, extra: 0, missed: 0 } });
+  const saved = localStorage.getItem(HISTORY_KEY);
+  cleanup(); render(<App />); setup(); click("Practice history");
+  expect(screen.getByText(/Recital/)).toBeTruthy();
+  expect(localStorage.getItem(HISTORY_KEY)).toBe(saved);
 });

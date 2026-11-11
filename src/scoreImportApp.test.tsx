@@ -50,6 +50,6 @@ it('reports rejected folder scores without claiming successful import', async ()
   render(<App />);
   fireEvent.click(screen.getByRole('button', {name: 'My library'}));
   fireEvent.click(screen.getByRole('button', {name: 'Open song folder'}));
-  await screen.findByText(/Imported 0 of 1 files.*1 rejected.*Invalid compressed score/);
+  await screen.findByText(/Folder refresh: 0 imported.*1 rejected.*Invalid compressed score/);
   expect(localStorage.getItem('piano-songs')).toBeNull();
 });

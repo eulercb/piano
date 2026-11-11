@@ -1,3 +1,4 @@
+import { validFolderSource } from "./songFolder";
 import type { Note, Song } from "./music";
 import { parseMusicXml } from "./musicxml";
 
@@ -39,6 +40,9 @@ export function normalizeSong(value: unknown): Song {
     return invalid("score must be a MusicXML string no larger than 5 MiB.");
   if (value.duration !== undefined && (!finite(value.duration) || value.duration < 0 || value.duration > MAX_SECONDS))
     return invalid("song duration must be between zero and 24 hours.");
+  if (value.folderSource !== undefined && !validFolderSource(value.folderSource))
+    return invalid("folder source metadata is damaged.");
+  const source = value.folderSource === undefined ? {} : { folderSource: { folderId: value.folderSource.folderId, name: value.folderSource.name, digest: value.folderSource.digest } };
   const ids = new Set<string>();
   const preserveIds = value.notes.every((note) => {
     if (!record(note) || !validId(note.id) || ids.has(note.id)) return false;
@@ -95,6 +99,7 @@ export function normalizeSong(value: unknown): Song {
     const parsed = parseMusicXml(value.scoreXml).song;
     return {
       ...parsed,
+      ...source,
       id: validId(value.id) ? value.id : crypto.randomUUID(),
       title: value.title.trim(),
     };
@@ -104,6 +109,7 @@ export function normalizeSong(value: unknown): Song {
     return invalid("song duration cannot end before its notes.");
   return {
     id: validId(value.id) ? value.id : crypto.randomUUID(),
+    ...source,
     title: value.title.trim(),
     tempo: value.tempo,
     notes,

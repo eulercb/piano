@@ -1,7 +1,9 @@
 import type { Note } from "./music";
 import { matchMelodyPitch, melodyPosition } from "./practice";
+import { SteadyMetronome } from "./metronome";
+import { RecitalAttempt } from "./recital";
 
-export type PracticeMode = "listen" | "melody" | "rhythm";
+export type PracticeMode = "listen" | "melody" | "rhythm" | "recital";
 export type PracticeHand = "left" | "right" | "both";
 export type TimingGrade = "on-time" | "early" | "late" | "missed";
 export type RhythmFeedback = {
@@ -24,6 +26,7 @@ export type SessionOptions = {
   hand: PracticeHand;
   mode: PracticeMode;
   countIn: boolean;
+  metronome?: boolean;
 };
 
 // Windows are in real seconds, not source-song time. Slower playback must not
@@ -57,15 +60,25 @@ export class PracticeSession {
   private countRemaining: number;
   private sentCountBeat = 0;
   private hasStarted = false;
+  private recital?: RecitalAttempt;
+  private readonly metronome: SteadyMetronome;
 
   constructor(options: SessionOptions, startAt = 0) {
     this.options = options;
+    this.metronome = new SteadyMetronome(options.tempo);
     this.notes = options.notes
       .filter((n) => options.hand === "both" || n.hand === options.hand)
       .sort((a, b) => a.start - b.start);
     this.position = this.startAt = Math.max(0, Math.min(options.duration, startAt));
     this.countRemaining = options.countIn ? this.beatLength * 4 : 0;
     this.skipEarlierNotes();
+    this.resetRecital();
+  }
+
+  private resetRecital() {
+    this.recital = this.options.mode === "recital"
+      ? new RecitalAttempt(this.notes, this.startAt, RHYTHM_WINDOW, ON_TIME_WINDOW)
+      : undefined;
   }
 
   private get beatLength() {
@@ -123,6 +136,7 @@ export class PracticeSession {
     this.position = this.startAt = Math.max(0, Math.min(this.options.duration, startAt));
     this.countRemaining = this.options.countIn ? this.beatLength * 4 : 0;
     this.sentCountBeat = 0;
+    this.metronome.reset();
     this.hasStarted = false;
     this.matched.clear();
     this.sounded.clear();
@@ -132,10 +146,15 @@ export class PracticeSession {
     this.pass = 1;
     this.previousResult = undefined;
     this.skipEarlierNotes();
+    this.resetRecital();
   }
 
   press(pitch: number, speed: number) {
     if (!this.running || this.countingIn || this.completed) return;
+    if (this.recital) {
+      this.recital.press(pitch);
+      return;
+    }
     if (this.options.mode === "melody") {
       for (const id of matchMelodyPitch(this.notes, this.matched, pitch, this.position))
         this.matched.add(id);
@@ -181,15 +200,15 @@ export class PracticeSession {
   advanceFrame(elapsedSeconds: number, speed: number, repeat: boolean) {
     if (this.running && elapsedSeconds > MAX_FRAME_GAP) {
       this.pause();
-      return { audioNotes: [] as Note[], countBeats: [] as number[], looped: false, interrupted: true };
+      return { audioNotes: [] as Note[], countBeats: [] as number[], looped: false, metronomeBeat: false, interrupted: true };
     }
     return { ...this.advance(elapsedSeconds, speed, repeat), interrupted: false };
   }
 
   /** Advance by actual elapsed time; pause time is never included by the caller. */
   advance(elapsedSeconds: number, speed: number, repeat: boolean) {
-    const result: { audioNotes: Note[]; countBeats: number[]; looped: boolean } = {
-      audioNotes: [], countBeats: [], looped: false,
+    const result: { audioNotes: Note[]; countBeats: number[]; looped: boolean; metronomeBeat: boolean } = {
+      audioNotes: [], countBeats: [], looped: false, metronomeBeat: false,
     };
     if (!this.running) return result;
     let delta = Math.max(0, elapsedSeconds) * speed / 100;
@@ -203,6 +222,7 @@ export class PracticeSession {
       this.countRemaining = 0;
     }
     this.position += delta;
+    this.recital?.advance(delta, speed / 100);
     if (this.options.mode === "melody")
       this.position = melodyPosition(this.notes, this.matched, this.position);
     if (this.options.mode === "rhythm") this.markMissed(speed);
@@ -216,16 +236,29 @@ export class PracticeSession {
     }
     // A very short final note still gets its full late-hit window.
     const lastOnset = this.notes.at(-1)?.start ?? 0;
-    const end = this.options.mode === "rhythm"
+    const end = this.recital
+      ? Math.max(this.options.duration, this.recital.endPosition(speed / 100))
+      : this.options.mode === "rhythm"
       ? Math.max(this.options.duration, lastOnset + RHYTHM_WINDOW * speed / 100 + EPSILON * 2)
       : this.options.duration;
     if (this.position >= end) {
       this.position = end;
+      // Recital has no live grades, misses, matches or feedback. Publish only
+      // the completed pass, before a repeat resets the per-pass recording.
+      if (this.recital) {
+        const result = this.recital.finish();
+        for (const [id, grade] of result.grades) {
+          this.grades.set(id, grade);
+          this.matched.add(id);
+        }
+        this.extra = result.extra;
+      }
       if (repeat) {
         const summary = this.summary, pass = this.pass;
         this.restart();
         this.pass = pass + 1;
-        this.previousResult = this.options.mode === "rhythm" ? summary : undefined;
+        this.previousResult = this.options.mode === "rhythm" || this.options.mode === "recital"
+          ? summary : undefined;
         this.start();
         result.looped = true;
       } else {
@@ -233,6 +266,11 @@ export class PracticeSession {
         this.completed = true;
       }
     }
+    // Use active elapsed time rather than song position: the steady beat keeps
+    // going while Melody waits. Count-in consumed its own time above. A repeat
+    // starts a fresh clock on its next frame, never a second click in this one.
+    if (this.running && !result.looped && this.options.metronome)
+      result.metronomeBeat = this.metronome.advance(delta);
     return result;
   }
 }

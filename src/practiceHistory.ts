@@ -47,7 +47,7 @@ export function normalizePracticePass(value: unknown): PracticePass {
     return invalid("a pass needs valid identifiers and a piece title.");
   if (!timestamp(value.startedAt) || !timestamp(value.completedAt) || value.startedAt > value.completedAt)
     return invalid("a pass needs valid, ordered dates.");
-  if (value.mode !== "listen" && value.mode !== "melody" && value.mode !== "rhythm")
+  if (value.mode !== "listen" && value.mode !== "melody" && value.mode !== "rhythm" && value.mode !== "recital")
     return invalid("unknown practice mode.");
   if (value.hand !== "left" && value.hand !== "right" && value.hand !== "both")
     return invalid("unknown hand selection.");
@@ -58,14 +58,14 @@ export function normalizePracticePass(value: unknown): PracticePass {
   if (!count(value.noteCount) || value.noteCount === 0)
     return invalid("a completed pass needs at least one selected note.");
   let rhythm: RhythmSummary | undefined;
-  if (value.mode === "rhythm") {
+  if (value.mode === "rhythm" || value.mode === "recital") {
     const r = value.rhythm;
     if (!isRecord(r) || !count(r.total) || r.total !== value.noteCount ||
       !count(r.onTime) || !count(r.early) || !count(r.late) || !count(r.missed) || !count(r.extra, Number.MAX_SAFE_INTEGER) ||
       r.onTime + r.early + r.late + r.missed !== r.total)
       return invalid("rhythm counts must describe a completed pass.");
     rhythm = { total: r.total, onTime: r.onTime, early: r.early, late: r.late, missed: r.missed, extra: r.extra };
-  } else if (value.rhythm !== undefined) return invalid("only rhythm passes have timing counts.");
+  } else if (value.rhythm !== undefined) return invalid("only rhythm or recital passes have timing counts.");
   return {
     id: value.id, pieceId: value.pieceId, pieceRevision: value.pieceRevision,
     pieceTitle: value.pieceTitle, startedAt: value.startedAt, completedAt: value.completedAt,
@@ -158,7 +158,7 @@ export class PracticePassRecorder {
               completedAt: [this.now(), pending.startedAt].sort().at(-1),
               mode: this.session.options.mode, hand: this.session.options.hand,
               tempo: this.song.tempo, endSeconds: this.session.options.duration, noteCount,
-              ...(this.session.options.mode === "rhythm"
+              ...((this.session.options.mode === "rhythm" || this.session.options.mode === "recital")
                 ? { rhythm: result.looped ? this.session.previousResult : this.session.summary } : {}),
             });
           } catch {
@@ -323,7 +323,7 @@ export function practiceSuggestion(passes: PracticePass[]) {
   const latest = passes.find((pass) => pass.mode !== "listen");
   if (!latest) return "When you feel ready, try a short melody passage with one hand at 25–50%. Listening is useful preparation too.";
   if (latest.mode === "melody") return "You reached the end in melody practice. Repeat until it feels comfortable, or try the same passage in rhythm mode at a relaxed speed.";
-  const comparable = passes.filter((pass) => pass.mode === "rhythm" && pass.pieceId === latest.pieceId &&
+  const comparable = passes.filter((pass) => pass.mode === latest.mode && pass.pieceId === latest.pieceId &&
     pass.pieceRevision === latest.pieceRevision && pass.hand === latest.hand && pass.startSeconds === latest.startSeconds &&
     pass.endSeconds === latest.endSeconds && pass.speedMin === latest.speedMin && pass.speedMax === latest.speedMax).slice(0, 3);
   const steady = comparable.length === 3 && comparable.every((pass) => pass.rhythm &&

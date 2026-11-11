@@ -36,6 +36,7 @@ import {
 } from "./music";
 import "./style.css";
 import { Score } from "./Score";
+import { StudioNoteAuthoring } from "./StudioNoteAuthoring";
 import { PracticeRoom, PracticePanel } from "./PracticeRoom";
 import { MidiConnection } from "./MidiConnection";
 import { initialMidiSnapshot, type MidiSnapshot } from "./midiInput";
@@ -44,7 +45,10 @@ import { PracticeHistoryStore, PracticePassRecorder, type PracticePass } from ".
 import { PracticeNextSteps } from "./PracticeNextSteps";
 import { practiceHandName, practiceModeName, type PracticeStep } from "./practiceNextSteps";
 import { parseProject } from "./project";
+import { storedFolder, fileDigest, contentDigest, readPermission, supportedSong, type FolderConnection, type FolderSource } from "./songFolder";
 import { SongLibrary } from "./songLibrary";
+import { PracticeBookmarks } from "./PracticeBookmarks";
+import { PracticeBookmarksStore, songRevision, type PracticeBookmark } from "./practiceBookmarks";
 import { importScoreFile } from "./scoreImport";
 import {
   scoreMeasures,
@@ -85,6 +89,8 @@ export function App() {
   const [lastCompletedPass, setLastCompletedPass] = useState<PracticePass>();
   const historySnapshot = useSyncExternalStore(history.subscribe, history.getSnapshot);
   useEffect(() => history.listen(), [history]);
+  const [bookmarks] = useState(() => new PracticeBookmarksStore());
+  useEffect(() => bookmarks.listen(), [bookmarks]);
   const [library] = useState(() => new SongLibrary());
   const librarySnapshot = useSyncExternalStore(library.subscribe, library.getSnapshot);
   const songs = librarySnapshot.songs;
@@ -93,6 +99,16 @@ export function App() {
   const savedVersion = useRef<Song | null>(null);
   const [saving, setSaving] = useState(false);
   const importGeneration = useRef(0);
+  const [folder, setFolder] = useState<FolderConnection>();
+  const folderRef = useRef<FolderConnection | undefined>(undefined);
+  const folderStorageHealthy = useRef(true);
+  useEffect(() => {
+    let live = true;
+    storedFolder().then(saved => {
+      if (live && !folderRef.current && saved) { folderRef.current = saved; setFolder(saved); }
+    }).catch(() => { folderStorageHealthy.current = false; });
+    return () => { live = false; };
+  }, []);
   const editingSession = useRef(0);
   const [song, setSong] = useState<Song>(demoSong),
     [page, setPage] = useState("practice"),
@@ -102,6 +118,7 @@ export function App() {
     [playing, setPlaying] = useState(false),
     [, refreshSession] = useState(0),
     [countIn, setCountIn] = useState(true),
+    [metronome, setMetronome] = useState(false),
     [notice, setNotice] = useState(""),
     [from, setFrom] = useState(0),
     [to, setTo] = useState(duration(demoSong)),
@@ -115,6 +132,9 @@ export function App() {
     [firstMeasure, setFirstMeasure] = useState(0),
     [lastMeasure, setLastMeasure] = useState(0),
     [repeatPassage, setRepeatPassage] = useState(false);
+  const bookmarkSettings = JSON.stringify({ hand, mode, speed, countIn, repeatPassage });
+  const currentBookmarkSettings = useRef(bookmarkSettings);
+  currentBookmarkSettings.current = bookmarkSettings;
   const currentSong = useRef(song);
   currentSong.current = song;
   const dirty = song !== cleanSong;
@@ -151,8 +171,8 @@ export function App() {
   }, [song]);
   const session = useMemo(() => new PracticeSession({
     notes: song.notes, duration: duration(song), tempo: song.tempo,
-    hand, mode, countIn,
-  }), [song, hand, mode, countIn]);
+    hand, mode, countIn, metronome,
+  }), [song, hand, mode, countIn, metronome]);
   const recorder = useMemo(() => new PracticePassRecorder(session, song), [session, song]);
   const notes = session.notes, total = duration(song),
     time = Math.min(total, session.position);
@@ -201,7 +221,7 @@ export function App() {
     if (result.looped) silence();
     if (!muted) {
       // A delayed frame should not produce a burst of old count-in clicks.
-      if (result.countBeats.length && session.countingIn)
+      if ((result.countBeats.length && session.countingIn) || result.metronomeBeat)
         sound(84, 0.045, 0.5);
       if (!result.looped)
         for (const n of result.audioNotes)
@@ -209,7 +229,7 @@ export function App() {
     }
     if (wasRunning && session.completed) {
       setPlaying(false);
-      setNotice(mode === "rhythm"
+      setNotice((mode === "rhythm" || mode === "recital")
         ? "Pass complete. Open Results to review your timing, then try another pass."
         : mode === "melody"
           ? "Beautiful work. You completed this passage. Open Results to choose a small next step."
@@ -292,6 +312,69 @@ export function App() {
     setFirstMeasure(0);
     setLastMeasure(0);
     setNotice("");
+  }
+  function savedBookmarkSong(id: string) {
+    library.refresh();
+    const fresh = library.getSnapshot();
+    if (fresh.message) throw Error("The saved library could not be read. Bookmark was not opened.");
+    return id === demoSong.id ? demoSong : fresh.songs.find(item => item.id === id);
+  }
+  async function saveBookmark(name: string) {
+    const generation = importGeneration.current, playback = playbackGeneration.current;
+    const current = () => generation === importGeneration.current && playback === playbackGeneration.current && currentSong.current === song && currentBookmarkSettings.current === bookmarkSettings;
+    try {
+      const saved = savedBookmarkSong(song.id);
+      if (dirty || !saved) throw Error("Save this piece in Studio before bookmarking it. Your draft is unchanged.");
+      const revision = await songRevision(saved), draftRevision = await songRevision(song);
+      if (!current()) return false;
+      if (revision !== draftRevision) throw Error("Reopen the current library revision before bookmarking it. Your draft is unchanged.");
+      const ok = await bookmarks.change([{ id: crypto.randomUUID(), name, songId: saved.id, title: saved.title,
+        revision, hand, mode, speed, countIn, repeat: repeatPassage }], undefined, () => {
+        if (!current()) return false;
+        const latest = savedBookmarkSong(saved.id);
+        if (!latest || JSON.stringify(latest) !== JSON.stringify(saved))
+          throw Error("This saved piece changed while saving the bookmark. Reopen its current library revision before bookmarking it.");
+        return true;
+      });
+      if (ok && current()) setNotice("Practice bookmark saved on this device.");
+      return ok;
+    } catch (error) { if (current()) setNotice(error instanceof Error ? error.message : "Bookmark could not be saved."); return false; }
+  }
+  async function restoreBookmark(bookmark: PracticeBookmark) {
+    const generation = ++importGeneration.current, playback = playbackGeneration.current;
+    const current = () => generation === importGeneration.current && playback === playbackGeneration.current && currentSong.current === song && currentBookmarkSettings.current === bookmarkSettings;
+    try {
+      bookmarks.refresh();
+      const fresh = bookmarks.getSnapshot();
+      if (fresh.blocked || !fresh.bookmarks.some(item => JSON.stringify(item) === JSON.stringify(bookmark)))
+        throw Error("This bookmark changed or was deleted in another tab. Choose it again from the refreshed list.");
+      let saved = savedBookmarkSong(bookmark.songId);
+      if (!saved) {
+        const matches: Song[] = [];
+        for (const candidate of library.getSnapshot().songs) {
+          if (await songRevision(candidate) === bookmark.revision) matches.push(candidate);
+          if (!current()) return;
+        }
+        if (matches.length > 1) throw Error("Several saved pieces match this missing bookmark exactly. Open your chosen piece from Library and save a new bookmark; no piece was chosen automatically.");
+        if (!matches.length) throw Error("This bookmark’s saved piece is missing. Import its original Piano project backup first, then open the bookmark again to confirm the matching piece. No music was substituted.");
+        saved = matches[0];
+        if (!window.confirm(`The original library entry is missing. Open matching saved piece “${saved.title}” for bookmark “${bookmark.name}”? Its notes, score, fingers and source tempo match exactly. This does not change the bookmark.`)) return;
+      }
+      const revision = await songRevision(saved);
+      if (!current()) return;
+      if (revision !== bookmark.revision) throw Error("This saved piece has changed since the bookmark was made. Open it from Library and create a new bookmark, or restore its original project backup. No music was substituted.");
+      if (!mayReplaceCurrent()) return;
+      // Re-read after the asynchronous digest and any native confirmation.
+      const confirmed = savedBookmarkSong(saved.id);
+      if (!confirmed || JSON.stringify(confirmed) !== JSON.stringify(saved)) throw Error("The saved piece changed while confirming. Bookmark was not opened.");
+      bookmarks.refresh();
+      if (bookmarks.getSnapshot().blocked || !bookmarks.getSnapshot().bookmarks.some(item => JSON.stringify(item) === JSON.stringify(bookmark)))
+        throw Error("The bookmark changed while opening. Choose it again.");
+      select(confirmed, true);
+      setHand(bookmark.hand); setMode(bookmark.mode); setSpeed(bookmark.speed);
+      setCountIn(bookmark.countIn); setRepeatPassage(bookmark.repeat); setPage("practice");
+      setNotice("Bookmark opened at the beginning, paused. Close Setup if open, then press Play when ready.");
+    } catch (error) { if (current()) setNotice(error instanceof Error ? error.message : "Bookmark could not be opened."); }
   }
   function input(p: number) {
     if (!muted) {
@@ -412,47 +495,76 @@ export function App() {
     if (!mayReplaceCurrent()) return;
     return ++importGeneration.current;
   }
-  async function chooseFolder() {
+  async function chooseFolder(reconnect = false) {
     const picker = (window as any).showDirectoryPicker;
-    if (!picker) {
+    if (!picker && !folderRef.current) {
       setNotice("Folder access is unavailable in this browser. Use Import song to select one or more files.");
       file.current?.click();
       return;
     }
     const generation = startImport();
     if (generation === undefined) return;
+    const current = () => generation === importGeneration.current;
     try {
-      const dir = await picker({ mode: "read" });
-      let count = 0;
-      let attempted = 0;
-      const failures: string[] = [];
-      for await (const entry of dir.values()) {
-        if (generation !== importGeneration.current) return;
-        if (entry.kind === "file" && /\.(mid|midi|json|xml|musicxml|mxl)$/i.test(entry.name)) {
-          attempted++;
-          try {
-            const result = await importFile(await entry.getFile(), generation);
-            if (generation !== importGeneration.current) return;
-            if (result.ok) count++;
-            else {
-              failures.push(entry.name + ": " + result.error);
-              // Do not replace the only exportable copy of an unsaved import.
-              if (result.stop) return;
-            }
-          } catch { failures.push(entry.name + ": Could not read this file."); }
-          if (attempted >= 50) break;
-        }
+      let connection = reconnect ? folderRef.current : undefined;
+      if (!connection) {
+        const handle = await picker({ mode: "read" });
+        if (!current()) return;
+        const previous = folderRef.current;
+        let same = false;
+        try { same = !!previous && !!handle.isSameEntry && await handle.isSameEntry(previous.handle); } catch { /* Reconnect as a new folder; exact-file deduplication still applies. */ }
+        if (!current()) return;
+        connection = { id: same ? previous!.id : crypto.randomUUID(), handle };
       }
-      if (generation !== importGeneration.current) return;
+      if (!await readPermission(connection.handle, current)) {
+        if (current()) setNotice("Folder permission was not granted. Your saved songs are unchanged. Reconnect the folder or use Import song.");
+        return;
+      }
+      if (!current()) return;
+      folderRef.current = connection; setFolder(connection);
+      let persistence = "Folder access lasts for this session; choose it again next time.";
+      if (typeof indexedDB !== "undefined" && connection.handle.queryPermission && folderStorageHealthy.current) {
+        try { await storedFolder(connection, current); persistence = "A folder shortcut is saved; browser permission may need reconnecting."; }
+        catch { persistence = "Folder shortcut could not be saved; choose it again next time."; }
+      }
+      if (!current()) return;
+      let count = 0, attempted = 0, unchanged = 0, kept = 0;
+      const failures: string[] = [];
+      for await (const entry of connection.handle.values()) {
+        if (!current()) return;
+        if (entry.kind !== "file" || !supportedSong(entry.name)) continue;
+        if (attempted >= 50) break;
+        attempted++;
+        try {
+          const f = await entry.getFile();
+          if (!current()) return;
+          const digest = await fileDigest(f);
+          if (!current()) return;
+          library.refresh();
+          const known = library.getSnapshot().songs.filter(s => s.folderSource?.name === entry.name);
+          if (known.some(s => s.folderSource!.digest === digest)) { unchanged++; continue; }
+          // A session-only reconnect may have lost folder identity. Same-name
+          // source changes must still be reviewed rather than silently duplicated.
+          const changed = known.length > 0;
+          if (changed && !window.confirm(`${entry.name} differs from a previously imported file with this name. Import the updated file as a separate copy? Your existing saved piece and edits will be kept. Cancel to keep only the existing piece; you can refresh again later.`)) {
+            kept++; continue;
+          }
+          const result = await importFile(f, generation, { folderId: connection.id, name: entry.name, digest });
+          if (!current()) return;
+          if (result.ok) count++;
+          else { failures.push(`${entry.name}: ${result.error}`); if (result.stop) return; }
+        } catch (error) { failures.push(`${entry.name}: ${error instanceof Error ? error.message : "Could not read file."}`); }
+      }
+      if (!current()) return;
       setNotice(attempted
-        ? `Imported ${count} of ${attempted} files from your chosen folder (up to 50). ${failures.length ? `${failures.length} rejected. ${failures.slice(0, 3).join(" ")} ` : ""}Re-open the folder to refresh; background scanning is not enabled.`
+        ? `Folder refresh: ${count} imported, ${unchanged} unchanged, ${kept} kept existing. Checked up to 50 supported files in this folder only. ${failures.length ? `${failures.length} rejected. ${failures.slice(0, 3).join(" ")} ` : ""}${persistence} Refresh is manual; missing files never remove saved songs.`
         : "No MIDI, MusicXML or Piano project files found in this folder.");
     } catch (e) {
-      if (generation === importGeneration.current && (e as Error).name !== "AbortError")
-        setNotice("Could not open that folder. Try Import song instead.");
+      if (current() && (e as Error).name !== "AbortError")
+        setNotice("Could not read that folder. Your saved songs are unchanged. Choose the folder again or use Import song.");
     }
   }
-  async function importFile(f: File, generation: number): Promise<{ ok: true } | { ok: false; error: string; stop?: boolean }> {
+  async function importFile(f: File, generation: number, folderSource?: FolderSource): Promise<{ ok: true } | { ok: false; error: string; stop?: boolean }> {
     const current = () => generation === importGeneration.current;
     try {
       if (!current()) return { ok: false, error: "Import canceled.", stop: true };
@@ -472,6 +584,12 @@ export function App() {
         message = "MIDI imported. Hands are estimated by pitch; check the split before practising.";
       }
       if (!current()) return { ok: false, error: "Import canceled.", stop: true };
+      delete s.folderSource;
+      if (folderSource) {
+        s.folderSource = folderSource;
+        // Stable import identity prevents concurrent tabs from making duplicate copies.
+        s.id = "folder-" + await contentDigest(new TextEncoder().encode(folderSource.name + "\n" + folderSource.digest).buffer);
+      }
       const result = await library.save(s, null, current);
       if (!current()) return { ok: false, error: "Import canceled.", stop: true };
       select(result.ok ? result.song : s, result.ok, true);
@@ -588,7 +706,7 @@ export function App() {
         <div className="roll-label">
           {mode === "melody"
             ? "PLAY THE HIGHLIGHTED NOTES"
-            : mode === "rhythm"
+            : (mode === "rhythm" || mode === "recital")
               ? "PLAY AS NOTES REACH THE LINE"
               : "LISTEN • LEARN • REPEAT"}
         </div>
@@ -775,6 +893,11 @@ export function App() {
           "Rhythm practice",
           "Practice note starts. Get early, on-time or late feedback.",
         ],
+        [
+          "recital",
+          "Recital practice",
+          "Keep going. Review pitch and note starts after the pass.",
+        ],
       ].map(([id, title, desc]) => (
         <button
           key={id}
@@ -807,6 +930,21 @@ export function App() {
       <label className="repeat-control">
         <input
           type="checkbox"
+          checked={metronome}
+          aria-describedby="steady-metronome-help"
+          onChange={(e) => { reset(); setMetronome(e.target.checked); }}
+        />
+        Steady metronome
+      </label>
+      <p className="coming" id="steady-metronome-help">
+        Quarter-note clicks at the piece’s starting tempo × practice speed,
+        after any count-in. Keeps ticking while Melody waits for notes.
+        Does not follow meter or tempo changes. Mute silences the clicks.
+        Changing this setting starts a fresh attempt.
+      </p>
+      <label className="repeat-control">
+        <input
+          type="checkbox"
           checked={repeatPassage}
           onChange={(e) => setRepeatPassage(e.target.checked)}
         />
@@ -817,8 +955,19 @@ export function App() {
         comfortably before speeding up.
       </p>
       <p className="coming">
-        Completed passes appear in Practice history. Coming next: recital mode.
+        Completed passes appear in Practice history. Recital saves feedback for the end so you can keep going.
       </p>
+      <PracticeBookmarks store={bookmarks} onSave={saveBookmark} onRestore={restoreBookmark}
+        canSave={!dirty && (song.id === demoSong.id || songs.some(item => item.id === song.id))} />
+    </section>
+  );
+  const recitalPanel = (
+    <section className="rhythm-panel" aria-label="Recital feedback">
+      <h3>Recital · keep the music moving</h3>
+      {session.completed ? <TimingSummary summary={session.summary} /> :
+        <p>Feedback appears after the pass. Keep going at your comfortable pace; you can pause whenever needed.</p>}
+      {session.previousResult && <div className="previous-pass"><b>Previous completed pass</b><TimingSummary summary={session.previousResult} /></div>}
+      <p className="rhythm-help">Only the selected hand’s pitch and note starts are assessed. Correct pitches within 100 ms count as on time; up to 300 ms early or late gets timing feedback. Note lengths, touch, fingering, pedal and expression are not graded. Device/audio latency is not calibrated.</p>
     </section>
   );
   const rhythmPanel = (
@@ -1018,18 +1167,22 @@ export function App() {
                 {lastCompletedPass ? <PracticeNextSteps pass={lastCompletedPass} song={song} speed={speed}
                   onChoose={step => { chooseNextStep(step); close(); }}
                   onPrepare={() => { close(); navigate("prepare"); }} />
-                  : mode !== "rhythm" && <p>Complete a listening or wait-for-notes pass to see gentle next-step choices here. Pauses and unfinished attempts are not failures.</p>}
+                  : mode !== "rhythm" && mode !== "recital" && <p>Complete a listening or wait-for-notes pass to see gentle next-step choices here. Pauses and unfinished attempts are not failures.</p>}
                 {mode === "rhythm" && rhythmPanel}
+                {mode === "recital" && recitalPanel}
               </>} />
           ) : page === "history" ? <PracticeHistory store={history} /> : page === "library" ? (
             <>
               <div className="section-title">
                 <h2>On your music stand</h2>
-                <button className="button light" onClick={chooseFolder}>
+                <button className="button light" onClick={() => chooseFolder()}>
                   Open song folder
                 </button>
+                {folder && <button className="button light" onClick={() => chooseFolder(true)}>Refresh / reconnect folder</button>}
                 <span>{songs.length + 1} pieces</span>
               </div>
+              {folder && <p role="status">Folder: {folder.handle.name || "Selected folder"}. Read-only, manual refresh. Changed sources are offered as separate copies; saved edits are never overwritten.</p>}
+              <PracticeBookmarks store={bookmarks} onRestore={restoreBookmark} />
               <div className="song-grid">
                 {[demoSong, ...songs].map((s, i) => (
                   <button
@@ -1294,6 +1447,23 @@ export function App() {
                 />
               )}
               {page === "prepare" && (
+                <StudioNoteAuthoring
+                  song={song}
+                  timingOnly
+                  selectedNoteId={song.notes[Math.min(editIndex, song.notes.length - 1)]?.id}
+                  onSelectNote={id => setEditIndex(Math.max(0, song.notes.findIndex(note => note.id === id)))}
+                  onChange={(updated, change) => {
+                    importGeneration.current++;
+                    reset();
+                    setSong(updated);
+                    setEditIndex(Math.max(0, updated.notes.findIndex(note => note.id === change.noteId)));
+                    // Keep a full-piece trim selection inclusive after extending playback.
+                    setTo(previous => previous === total ? duration(updated) : Math.min(previous, duration(updated)));
+                    setFrom(previous => Math.min(previous, duration(updated)));
+                  }}
+                />
+              )}
+              {page === "prepare" && (
                 <div className="note-editor">
                   <div>
                     <h3>Notes & fingerings</h3>
@@ -1390,6 +1560,7 @@ export function App() {
               )}
               <div className="practice-grid">{practiceStage}{practiceSettings}</div>
               {mode === "rhythm" && rhythmPanel}
+              {mode === "recital" && recitalPanel}
               <div className="below-stage">
                 <div>
                   <span className="tip-icon">✦</span>

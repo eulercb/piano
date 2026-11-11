@@ -1,5 +1,17 @@
 # Validation
 
+## Roadmap implementation and release gates
+
+- Integrates end-only Recital assessment/history, MIDI/project note insertion/deletion/timing, explicit read-only folder reconnect/refresh, named practice bookmarks, optional steady metronome, and emitted PWA release gates. Existing songs, source tempo, MusicXML correspondence and private-score boundaries remain protected.
+- Final aggregate gate: **770 tests pass across 49 files** with `npm test -- --maxWorkers=2`; TypeScript/Vite/PWA production build and all **7 emitted-artifact contracts** pass. Whitespace checks pass. The first combined tree passed 754 tests before final independent regressions and fixes; the final 770-test result includes them.
+- Independent review covered transport speed/pause/seek/loop timing, end-only results, original/reference-score preservation, source metadata, async cancellation, storage/permission races, backup recovery under changed song IDs, and PWA registration. Confirmed folder and bookmark race findings were fixed before publication and retained as regressions.
+- Earlier parallel full-suite runs hit existing five-second Studio/next-step test timeouts under concurrent CPU load. Focused reruns passed; the combined gate limits test workers to two. No checks were removed or relaxed. Dependencies are unchanged, and the existing large lazy notation chunk warning remains.
+- Recital and metronome tests use synthetic clocks, MIDI and audio. Bookmarks/folder tests use synthetic storage, permissions, dialogs and IndexedDB callbacks. Real MusicXML parsing is exercised for provenance through edits/transposition/trim. Artifact tests inspect the actual emitted worker and local precache, and mutation tests prove broken assets/activation/navigation registration are rejected; they do not establish offline browser operation.
+- Actual browser validation could not start: installed Chromium was blocked at process-singleton socket creation (`Operation not permitted`) before any page loaded. No restriction was bypassed. The optional disposable-localhost browser harness was syntax checked only; its browser scenarios are unrun.
+- Remaining acceptance is explicit in [the release checklist](docs/release-checklist.md): rendered portrait/landscape and native dialogs, interactive notation, real folder permissions/persisted handles, offline/installed PWA/update cycles, actual Android/Casio USB-C and real audio/latency. No private scores were uploaded or added, and no device acceptance is inferred from mocks.
+- Scope limits: structural MusicXML insertion/deletion/retiming and OMR are not implemented. The metronome is a steady starting-BPM beat rather than score-meter/tempo-map following. Bookmarks restore the beginning and saved hand/mode/speed/count-in/repeat, leaving the current metronome preference unchanged.
+
+
 ## Gentle next steps after completed practice
 
 - Final aggregate gate: all **568 tests pass** across 33 files. TypeScript and the Vite/PWA production build pass; whitespace checks pass. No dependencies or private scores were added. The existing large lazy notation chunk warning remains.

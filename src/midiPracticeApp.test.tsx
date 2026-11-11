@@ -271,7 +271,7 @@ it("freezes rhythm immediately on selected-input loss, retaining grades without 
   expect(passes()[0]).toMatchObject({ mode: "rhythm", rhythm: { total: 3, onTime: 3, missed: 0, extra: 0 } });
 });
 
-it.each(["Melody practice · wait for notes", "Rhythm practice"])("keeps a partial count-in across unplug, delayed reopen and manual resume in %s", async (mode) => {
+it.each(["Melody practice · wait for notes", "Rhythm practice", "Recital practice"])("keeps a partial count-in across unplug, delayed reopen and manual resume in %s", async (mode) => {
   const piano = new FakeInput("piano");
   const access = await connectPiano(piano);
   click("Practice setup"); fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${mode}`) }));
@@ -291,7 +291,7 @@ it.each(["Melody practice · wait for notes", "Rhythm practice"])("keeps a parti
   advance(.1); expect(screen.queryByText(/Get ready ·/)).toBeNull();
   act(() => replacement.emit(60)); advance(1); act(() => replacement.emit(62)); advance(1); act(() => replacement.emit(64)); advance(.5);
   expect(passes()).toHaveLength(1);
-  if (mode === "Rhythm practice") expect(passes()[0].rhythm).toMatchObject({ onTime: 3, missed: 0, extra: 0 });
+  if (mode === "Rhythm practice" || mode === "Recital practice") expect(passes()[0].rhythm).toMatchObject({ onTime: 3, missed: 0, extra: 0 });
 });
 
 it.each(["closed", "pending"] as const)("pauses when the selected port becomes %s and retains the attempt through failed reconnect and explicit input switch", async (connection) => {
@@ -387,7 +387,7 @@ it("keeps saved songs, existing history and a dirty Studio draft intact through 
   window.dispatchEvent(closing); expect(closing.defaultPrevented).toBe(true);
 });
 
-it.each(["Melody practice · wait for notes", "Rhythm practice"])("preserves partial chord through reconnect in %s", async (mode) => {
+it.each(["Melody practice · wait for notes", "Rhythm practice", "Recital practice"])("preserves partial chord through reconnect in %s", async (mode) => {
   const chordSong: Song = { ...song, notes: [
     ...[60, 64, 67].map((pitch, i) => ({ id: `chord-${i}`, pitch, start: 0, duration: .5, velocity: .7, hand: "right" as const })),
     { id: "next", pitch: 62, start: 1, duration: .5, velocity: .7, hand: "right" },
@@ -405,7 +405,7 @@ it.each(["Melody practice · wait for notes", "Rhythm practice"])("preserves par
   click("Play"); act(() => { replacement.emit(64); replacement.emit(67); });
   advance(1); act(() => replacement.emit(62)); advance(.5);
   expect(passes()).toHaveLength(1);
-  if (mode === "Rhythm practice") expect(passes()[0].rhythm).toMatchObject({ onTime: 4, missed: 0, extra: 0 });
+  if (mode === "Rhythm practice" || mode === "Recital practice") expect(passes()[0].rhythm).toMatchObject({ onTime: 4, missed: 0, extra: 0 });
 });
 
 it("replacement of selected input object pauses before a delayed reopen and repeats safely", async () => {
