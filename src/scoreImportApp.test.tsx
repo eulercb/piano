@@ -7,7 +7,7 @@ vi.mock('virtual:pwa-register/react', () => ({ useRegisterSW: () => ({ needRefre
 vi.mock('./Score', () => ({ Score: () => null }));
 vi.mock('./MidiConnection', () => ({ MidiConnection: () => null }));
 vi.mock('./scoreImport', () => ({ importScoreFile: vi.fn() }));
-const result = { format: 'mxl' as const, scoreTimeline: { entries: [], measures: [], duration: 1 }, warnings: [], measureStartTempos: [120], song: { id: 'fixture', title: 'Imported synthetic score', tempo: 120, notes: [{ id: 'n', pitch: 60, start: 0, duration: 1, velocity: .7, hand: 'right' as const, finger: 2 }] } };
+const result = { format: 'mxl' as const, scoreTimeline: { entries: [], measures: [], duration: 1 }, warnings: [], measureStartTempos: [120], tempoMap: [{ beat: 0, seconds: 0, bpm: 120 }], song: { id: 'fixture', title: 'Imported synthetic score', tempo: 120, notes: [{ id: 'n', pitch: 60, start: 0, duration: 1, velocity: .7, hand: 'right' as const, finger: 2 }] } };
 beforeEach(() => { localStorage.clear(); vi.mocked(importScoreFile).mockReset(); vi.mocked(importScoreFile).mockResolvedValue(result as Awaited<ReturnType<typeof importScoreFile>>); });
 afterEach(() => { cleanup(); localStorage.clear(); vi.unstubAllGlobals(); });
 it('offers .mxl and routes a chosen compressed score through the bounded reader', async () => {

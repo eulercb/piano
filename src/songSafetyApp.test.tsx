@@ -17,7 +17,7 @@ vi.mock("./MidiConnection", () => ({ MidiConnection: () => null }));
 vi.mock("./scoreImport", () => ({ importScoreFile: vi.fn() }));
 const song = (id: string): Song => ({ id, title: id, tempo: 120,
   notes: [{ id: "note", start: 0, duration: 1, pitch: 60, hand: "right", velocity: .7, finger: 2 }] });
-function imported(title: string) { return { song: song(title), warnings: [], format: "mxl", scoreTimeline: { entries: [], measures: [], duration: 1 }, measureStartTempos: [120] } as Awaited<ReturnType<typeof importScoreFile>>; }
+function imported(title: string) { return { song: song(title), warnings: [], format: "mxl", scoreTimeline: { entries: [], measures: [], duration: 1 }, measureStartTempos: [120], tempoMap: [{ beat: 0, seconds: 0, bpm: 120 }] } as Awaited<ReturnType<typeof importScoreFile>>; }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
 function chooseFiles(container: HTMLElement, ...names: string[]) {
   fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: names.map(name => new File(["synthetic"], name)) } });

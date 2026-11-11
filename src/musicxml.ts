@@ -2,6 +2,7 @@ import { safeDocument } from './scoreSource'
 import { type Element } from '@xmldom/xmldom'
 import type { Note, Song } from './music'
 import type { ScoreTimeline, ScoreTimingEntry } from './scoreCursor'
+import type { TempoSegment } from './metronome'
 
 type BeatNote = Omit<Note, 'start' | 'duration'> & { start: number; duration: number; part: number; voice: string; staff: number; tieStart: boolean; tieStop: boolean; grace: boolean }
 type Tempo = { beat: number; bpm: number }
@@ -28,7 +29,7 @@ const EPS = 1e-7
  * counting rests/cues/graces. Tied notes retain every constituent source ID.
  * Original XML is preserved. Unwritten expressive performance is not inferred.
  */
-export function parseMusicXml(xml: string): { song: Song; warnings: string[]; measureStartTempos: number[]; scoreTimeline: ScoreTimeline } {
+export function parseMusicXml(xml: string): { song: Song; warnings: string[]; measureStartTempos: number[]; scoreTimeline: ScoreTimeline; tempoMap: TempoSegment[] } {
   const root = safeDocument(xml)
   if (root.localName === 'score-timewise') fail('timewise scores are not supported; export a partwise MusicXML score.')
   if (root.localName !== 'score-partwise') fail('choose a score-partwise MusicXML file.')
@@ -200,7 +201,7 @@ export function parseMusicXml(xml: string): { song: Song; warnings: string[]; me
   if (tied.size) fail('a tie runs beyond this score; include its continuation or remove the dangling tie.')
   if (!combined.length) fail('score contains no playable pitched notes.')
   tempoEvents.sort((a,b) => a.beat - b.beat)
-  const segments: { beat: number; seconds: number; bpm: number }[] = [{ beat: 0, seconds: 0, bpm: 120 }]
+  const segments: TempoSegment[] = [{ beat: 0, seconds: 0, bpm: 120 }]
   let lastExplicit: Tempo | undefined
   for (const tempo of tempoEvents) {
     if (lastExplicit && Math.abs(tempo.beat - lastExplicit.beat) < EPS && Math.abs(tempo.bpm - lastExplicit.bpm) > EPS) fail('conflicting tempo marks occur at the same position.')
@@ -231,5 +232,5 @@ export function parseMusicXml(xml: string): { song: Song; warnings: string[]; me
     duration: secondsAt(measureStart),
   }
   const title = descendants(root, 'work-title')[0]?.textContent?.trim() || text(root, 'movement-title') || 'Imported score'
-  return { song: { id: crypto.randomUUID(), title: title.slice(0, 500), tempo: segments[0].bpm, notes, scoreXml: xml, scoreOrigin: 'musicxml', duration: secondsAt(measureStart) }, warnings: [...warningSet], measureStartTempos: measureStarts.map(beat => segmentAt(beat).bpm), scoreTimeline }
+  return { song: { id: crypto.randomUUID(), title: title.slice(0, 500), tempo: segments[0].bpm, notes, scoreXml: xml, scoreOrigin: 'musicxml', duration: secondsAt(measureStart) }, warnings: [...warningSet], measureStartTempos: measureStarts.map(beat => segmentAt(beat).bpm), scoreTimeline, tempoMap: segments }
 }

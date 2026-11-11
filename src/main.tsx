@@ -52,6 +52,7 @@ import { SongLibrary } from "./songLibrary";
 import { PracticeBookmarks } from "./PracticeBookmarks";
 import { PracticeBookmarksStore, songRevision, type PracticeBookmark } from "./practiceBookmarks";
 import { loadScoreImporter } from "./preparationModules";
+import { scoreTempoMap } from "./scoreTempo";
 import {
   scoreMeasures,
   editScoreNote,
@@ -171,10 +172,11 @@ export function App() {
       return [];
     }
   }, [song]);
+  const tempoMap = useMemo(() => scoreTempoMap(song), [song]);
   const session = useMemo(() => new PracticeSession({
     notes: song.notes, duration: duration(song), tempo: song.tempo,
-    hand, mode, countIn, metronome,
-  }), [song, hand, mode, countIn, metronome]);
+    hand, mode, countIn, metronome, tempoMap,
+  }), [song, hand, mode, countIn, metronome, tempoMap]);
   const recorder = useMemo(() => new PracticePassRecorder(session, song), [session, song]);
   const notes = session.notes, total = duration(song),
     time = Math.min(total, session.position);
@@ -945,15 +947,16 @@ export function App() {
         <input
           type="checkbox"
           checked={metronome}
-          aria-describedby="steady-metronome-help"
+          aria-describedby="metronome-help"
           onChange={(e) => { reset(); setMetronome(e.target.checked); }}
         />
-        Steady metronome
+        Metronome
       </label>
-      <p className="coming" id="steady-metronome-help">
-        Quarter-note clicks at the piece’s starting tempo × practice speed,
-        after any count-in. Keeps ticking while Melody waits for notes.
-        Does not follow meter or tempo changes. Mute silences the clicks.
+      <p className="coming" id="metronome-help">
+        {tempoMap
+          ? "Quarter-note clicks follow numeric tempo changes in this piece’s source MusicXML × practice speed. While Melody waits, clicks keep the tempo at that score position."
+          : "Quarter-note clicks use the piece’s starting tempo × practice speed and keep ticking while Melody waits. This piece has no verified source tempo map; an attached reference-only score does not change playback."}
+        {" "}Begins after any count-in. No meter accents. Mute silences the clicks.
         Changing this setting starts a fresh attempt.
       </p>
       <label className="repeat-control">
