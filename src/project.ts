@@ -3,6 +3,8 @@ import { safeDocument } from "./scoreSource";
 import type { Note, Song } from "./music";
 import { parseMusicXml } from "./musicxml";
 import { MAX_SONG_TITLE_LENGTH } from "./songTitle";
+import { normalizeMidiTempoMap } from "./midiTempo";
+import { MAX_PROJECT_BYTES, serializeProject } from "./projectFormat";
 
 const MAX_NOTES = 100000;
 const MAX_SECONDS = 24 * 60 * 60;
@@ -42,6 +44,10 @@ export function normalizeSong(value: unknown, options: { preserveUnsafeScore?: b
     return invalid("score must be a MusicXML string no larger than 5 MiB.");
   if (value.duration !== undefined && (!finite(value.duration) || value.duration < 0 || value.duration > MAX_SECONDS))
     return invalid("song duration must be between zero and 24 hours.");
+  if (value.midiTempoMap !== undefined && value.scoreOrigin === "musicxml")
+    return invalid("source-linked MusicXML cannot also provide a MIDI tempo map.");
+  const midiTempoMap = value.midiTempoMap === undefined ? undefined
+    : normalizeMidiTempoMap(value.midiTempoMap, value.tempo, value.duration);
   if (value.folderSource !== undefined && !validFolderSource(value.folderSource))
     return invalid("folder source metadata is damaged.");
   const source = value.folderSource === undefined ? {} : { folderSource: { folderId: value.folderSource.folderId, name: value.folderSource.name, digest: value.folderSource.digest } };
@@ -120,22 +126,25 @@ export function normalizeSong(value: unknown, options: { preserveUnsafeScore?: b
   const noteEnd = notes.reduce((end, note) => Math.max(end, note.start + note.duration), 0);
   if (finite(value.duration) && value.duration + 1e-7 < noteEnd)
     return invalid("song duration cannot end before its notes.");
-  return {
+  const song: Song = {
     id: validId(value.id) ? value.id : crypto.randomUUID(),
     ...source,
     title: value.title.trim(),
     tempo: value.tempo,
     notes,
+    ...(midiTempoMap === undefined ? {} : { midiTempoMap }),
     ...(value.duration === undefined ? {} : { duration: value.duration as number }),
     ...(value.scoreXml === undefined
       ? {}
       : { scoreXml: value.scoreXml as string }),
   };
+  if (midiTempoMap !== undefined) serializeProject(song);
+  return song;
 }
 
 /** Parse a version-1 .piano.json string; does not mutate library or playback state. */
 export function parseProject(text: string): Song {
-  if (new TextEncoder().encode(text).byteLength > 10 * 1024 * 1024)
+  if (new TextEncoder().encode(text).byteLength > MAX_PROJECT_BYTES)
     return invalid("project must be smaller than 10 MiB.");
   let value: unknown;
   try {

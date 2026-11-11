@@ -6,6 +6,8 @@ import { webcrypto } from "node:crypto";
 import { App } from "./main";
 import { exportMidi, parseMidi, type Song } from "./music";
 import { SONGS_KEY } from "./songLibrary";
+import { fileDigest } from "./songFolder";
+import { stubDialogs } from "./testDialog";
 
 // Real MIDI parsing and library persistence, with a coarse/frozen wall clock.
 // No browser file access, device input, or private music is exercised.
@@ -27,6 +29,7 @@ function choose(container: HTMLElement, ...files: File[]) {
 }
 function saved(): Song[] { return JSON.parse(localStorage.getItem(SONGS_KEY) ?? "[]"); }
 beforeEach(() => {
+  stubDialogs();
   localStorage.clear();
   vi.spyOn(Date, "now").mockReturnValue(1700000000000);
   localStorage.setItem(SONGS_KEY, JSON.stringify([original]));
@@ -106,4 +109,38 @@ it("keeps folder content identities stable across refresh, preserving saved MIDI
   await screen.findByText(/Folder refresh: 0 imported, 1 unchanged/);
   expect(localStorage.getItem(SONGS_KEY)).toBe(before);
   expect(saved()[1]).toEqual(original);
+});
+
+it("retains an imported changing tempo schedule when saved and reopened", async () => {
+  const track = [0,144,60,100,129,112,255,81,3,15,66,64,131,96,128,60,0,129,112,255,47,0];
+  const bytes = new Uint8Array([77,84,104,100,0,0,0,6,0,0,0,1,1,224,77,84,114,107,0,0,0,track.length,...track]);
+  const file = Object.assign(new File([bytes], "Changing tempo.mid"), { arrayBuffer: async () => bytes.buffer });
+  let view = render(<App />); choose(view.container, file);
+  await screen.findByRole("heading", { name: "Changing tempo" });
+  expect(saved()[0]).toMatchObject({ duration: 1.75, midiTempoMap: [
+    { seconds: 0, microsecondsPerQuarter: 500000 }, { seconds: .25, microsecondsPerQuarter: 1000000 },
+  ] });
+  const before = localStorage.getItem(SONGS_KEY);
+  view.unmount(); view = render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  fireEvent.click(screen.getByRole("button", { name: /YOUR COLLECTION Changing tempo/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
+  expect(screen.getByText(/follow retained MIDI tempo changes/)).toBeTruthy();
+  expect(localStorage.getItem(SONGS_KEY)).toBe(before);
+});
+
+it("does not backfill tempo metadata into an unchanged legacy folder import", async () => {
+  vi.stubGlobal("crypto", webcrypto);
+  const file = midiFile("Legacy folder MIDI"), digest = await fileDigest(file);
+  const legacy = { ...song("Legacy folder MIDI"), folderSource: { folderId: "old-folder", name: file.name, digest } };
+  localStorage.setItem(SONGS_KEY, JSON.stringify([legacy, original]));
+  const before = localStorage.getItem(SONGS_KEY);
+  vi.stubGlobal("showDirectoryPicker", vi.fn().mockResolvedValue({
+    kind: "directory", name: "Synthetic folder", queryPermission: async () => "granted",
+    async *values() { yield { kind: "file", name: file.name, getFile: async () => file }; },
+  }));
+  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
+  await screen.findByText(/Folder refresh: 0 imported, 1 unchanged/);
+  expect(localStorage.getItem(SONGS_KEY)).toBe(before); expect(saved()[0]).not.toHaveProperty("midiTempoMap");
 });

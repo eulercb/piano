@@ -435,3 +435,19 @@ it("records the same single completed listening pass with ongoing clicks, then s
   const count = clicks(); expect(count).toBeGreaterThan(1);
   advance(10); expect(clicks()).toBe(count); expect(passes()).toHaveLength(1);
 });
+
+it.each([false, true])("uses retained MIDI changes after library reload, never reference XML (mapped=%s)", mapped => {
+  const saved: Song = { ...song, duration: 3, scoreXml: "<score-partwise/>", ...(mapped ? { midiTempoMap: [
+    { seconds: 0, microsecondsPerQuarter: 1000000 }, { seconds: .5, microsecondsPerQuarter: 500000 },
+  ] } : {}) };
+  const bytes = JSON.stringify([saved]); localStorage.setItem("piano-songs", bytes);
+  prepare("Listen"); enableMetronome();
+  click("Practice setup");
+  expect(screen.getByText(mapped ? /follow retained MIDI tempo changes/ : /no verified source tempo map/)).toBeTruthy();
+  if (mapped) expect(screen.getByText(/MIDI export flattens them while preserving note seconds/)).toBeTruthy();
+  click("Done"); click("Play"); advance(.9);
+  expect(clicks()).toBe(mapped ? 2 : 1);
+  advance(.5); expect(clicks()).toBe(mapped ? 3 : 2);
+  expect(position()).toBeCloseTo(1.4);
+  expect(localStorage.getItem("piano-songs")).toBe(bytes);
+});

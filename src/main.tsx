@@ -53,7 +53,8 @@ import { SongLibrary } from "./songLibrary";
 import { PracticeBookmarks } from "./PracticeBookmarks";
 import { PracticeBookmarksStore, songRevision, type PracticeBookmark } from "./practiceBookmarks";
 import { loadScoreImporter } from "./preparationModules";
-import { scoreTempoMap } from "./scoreTempo";
+import { songTempoMap } from "./songTempo";
+import { serializeProject } from "./projectFormat";
 import {
   scoreMeasures,
   editScoreNote,
@@ -173,7 +174,7 @@ export function App() {
       return [];
     }
   }, [song]);
-  const tempoMap = useMemo(() => scoreTempoMap(song), [song]);
+  const tempoMap = useMemo(() => songTempoMap(song), [song]);
   const session = useMemo(() => new PracticeSession({
     notes: song.notes, duration: duration(song), tempo: song.tempo,
     hand, mode, countIn, metronome, tempoMap,
@@ -643,8 +644,11 @@ export function App() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   function downloadProject() {
+    let text: string;
+    try { text = serializeProject(song); }
+    catch (error) { setNotice((error as Error).message); return; }
     const url = URL.createObjectURL(
-      new Blob([JSON.stringify({ version: 1, song })], {
+      new Blob([text], {
         type: "application/json",
       }),
     );
@@ -955,7 +959,9 @@ export function App() {
       </label>
       <p className="coming" id="metronome-help">
         {tempoMap
-          ? "Quarter-note clicks follow numeric tempo changes in this piece’s source MusicXML × practice speed. While Melody waits, clicks keep the tempo at that score position."
+          ? song.scoreOrigin === "musicxml"
+            ? "Quarter-note clicks follow numeric tempo changes in this piece’s source MusicXML × practice speed. While Melody waits, clicks keep the tempo at that score position."
+            : "Quarter-note clicks follow retained MIDI tempo changes × practice speed. While Melody waits, clicks keep the tempo at that playback position. Export a Piano project to retain these changes; MIDI export flattens them while preserving note seconds."
           : "Quarter-note clicks use the piece’s starting tempo × practice speed and keep ticking while Melody waits. This piece has no verified source tempo map; an attached reference-only score does not change playback."}
         {" "}Begins after any count-in. No meter accents. Mute silences the clicks.
         Changing this setting starts a fresh attempt.
