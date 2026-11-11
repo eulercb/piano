@@ -14,7 +14,7 @@ from unittest.mock import patch
 import zipfile
 import xml.etree.ElementTree as ET
 
-from recognize import check_png, read_export, run, publish
+from recognize import check_png, read_export, run, publish, java_path_option
 from compare import compare
 from evaluate_matrix import CASES, accepted, evaluate, sha256
 from render_matrix import originals
@@ -79,12 +79,68 @@ class Boundaries(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             run(engine, FIXTURE, target, log_destination=link)
 
+    def test_java_path_options_reject_double_quotes_before_launch(self):
+        with self.assertRaisesRegex(ValueError, 'double quotes'):
+            java_path_option('java.io.tmpdir', Path('/tmp/"ambiguous'))
+        temporary_parent = self.root / 'temp"parent'
+        temporary_parent.mkdir()
+        with patch('tempfile.tempdir', str(temporary_parent)), patch('recognize.subprocess.Popen') as launch:
+            with self.assertRaisesRegex(ValueError, 'double quotes'):
+                run('/usr/bin/true', FIXTURE, self.root / 'no.musicxml')
+        launch.assert_not_called()
+        self.assertEqual(list(temporary_parent.iterdir()), [])
+
+    def test_job_local_temporary_state_cleaned_on_success_and_failure(self):
+        # A cooperative native engine uses tempfile; Java is configured separately.
+        # This fake executable does not establish Audiveris or sandbox acceptance.
+        gold = ROOT / 'fixtures/omr/piano-quarter-notes.musicxml'
+        temporary_parent = self.root / "temp parent with spaces and apostrophe's"
+        temporary_parent.mkdir()
+        for succeeds in (True, False):
+            with self.subTest(succeeds=succeeds):
+                marker = self.root / 'temporary-state.json'
+                engine = self.engine(
+                    'import json, os, pathlib, sys, tempfile, zipfile\n'
+                    'temporary = pathlib.Path(tempfile.mkdtemp())\n'
+                    '(temporary / "score-intermediate").write_text("synthetic score")\n'
+                    'state = {key: os.environ.get(key) for key in '
+                    '("TMPDIR", "TMP", "TEMP", "JAVA_TOOL_OPTIONS", "HOME", "OMR_TEST_SECRET")}\n'
+                    'state.update(temporary=str(temporary), work=os.getcwd())\n'
+                    f'pathlib.Path({str(marker)!r}).write_text(json.dumps(state))\n'
+                    + ('' if succeeds else 'sys.exit(7)\n') +
+                    'output = pathlib.Path(sys.argv[sys.argv.index("-output") + 1])\n'
+                    'with zipfile.ZipFile(output / "score.mxl", "w") as z:\n'
+                    f'    z.writestr("score.xml", pathlib.Path({str(gold)!r}).read_bytes())\n')
+                target = self.root / f'{succeeds}.musicxml'
+                with patch('tempfile.tempdir', str(temporary_parent)), patch.dict(os.environ, {'TMPDIR': str(self.root), 'TMP': str(self.root),
+                                             'TEMP': str(self.root), 'OMR_TEST_SECRET': 'not inherited'}):
+                    if succeeds:
+                        run(engine, FIXTURE, target)
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, 'exit 7'):
+                            run(engine, FIXTURE, target)
+                state = json.loads(marker.read_text())
+                expected = str(Path(state['work']) / 'tmp')
+                for key in ('TMPDIR', 'TMP', 'TEMP'):
+                    self.assertEqual(state[key], expected)
+                self.assertEqual(Path(state['temporary']).parent, Path(expected))
+                self.assertIn(f'"-Djava.io.tmpdir={expected}"', state['JAVA_TOOL_OPTIONS'])
+                self.assertIn(f'"-Duser.home={state["HOME"]}"', state['JAVA_TOOL_OPTIONS'])
+                self.assertIsNone(state['OMR_TEST_SECRET'])
+                self.assertFalse(Path(state['work']).exists())
+                self.assertFalse(Path(state['temporary']).exists())
+                self.assertEqual(target.exists(), succeeds)
+
     def test_timeout_log_retained(self):
-        engine = self.engine('import time\nprint("WARN before timeout", flush=True)\ntime.sleep(20)\n')
+        engine = self.engine('import tempfile,time\nprint("WARN before timeout", flush=True)\nprint(tempfile.mkdtemp(), flush=True)\ntime.sleep(20)\n')
         target, log = self.root / 'new.musicxml', self.root / 'engine.log'
         with self.assertRaises(subprocess.TimeoutExpired):
             run(engine, FIXTURE, target, 1, log)
-        self.assertEqual(log.read_text(), 'WARN before timeout\n')
+        lines = log.read_text().splitlines()
+        self.assertEqual(lines[0], 'WARN before timeout')
+        self.assertEqual(Path(lines[1]).parent.name, 'tmp')
+        self.assertFalse(Path(lines[1]).exists())
+        self.assertFalse(Path(lines[1]).parent.parent.exists())
         self.assertFalse(target.exists())
 
     def test_matrix_keeps_failures_without_substituting_gold(self):
@@ -112,7 +168,8 @@ class Boundaries(unittest.TestCase):
 
     def test_sigterm_kills_job(self):
         pidfile = self.root / 'pid'
-        engine = self.engine(f'import os,time\nopen({str(pidfile)!r}, "w").write(str(os.getpid()))\ntime.sleep(20)\n')
+        temporary_marker = self.root / 'temporary-path'
+        engine = self.engine(f'import os,tempfile,time\nopen({str(temporary_marker)!r}, "w").write(tempfile.mkdtemp())\nopen({str(pidfile)!r}, "w").write(str(os.getpid()))\ntime.sleep(20)\n')
         target = self.root / 'new.musicxml'
         process = subprocess.Popen([sys.executable, str(ROOT / 'scripts/omr/recognize.py'), '--audiveris', str(engine), '--input', str(FIXTURE), '--output', str(target)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
@@ -125,6 +182,10 @@ class Boundaries(unittest.TestCase):
             process.send_signal(signal.SIGTERM)
             process.communicate(timeout=5)
             self.assertEqual(process.returncode, 130)
+            temporary = Path(temporary_marker.read_text())
+            self.assertEqual(temporary.parent.name, 'tmp')
+            self.assertFalse(temporary.exists())
+            self.assertFalse(temporary.parent.parent.exists())
             with self.assertRaises(ProcessLookupError):
                 os.kill(pid, 0)
             self.assertFalse(target.exists())

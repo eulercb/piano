@@ -115,3 +115,156 @@ it("does not let a late saved shortcut replace a newly selected folder", async (
   expect(screen.getByText(/Folder: My songs/)).toBeTruthy();
   expect(screen.queryByText(/Folder: Old folder/)).toBeNull();
 });
+
+it("calls the picker synchronously with Window and read-only options", async () => {
+  const handle = folderFiles([]);
+  let inClick = false;
+  const picker = vi.fn(function (this: Window, options: { mode: string }) {
+    // A receiver-sensitive host implementation, not a claim that every Window
+    // Web IDL binding rejects an undefined receiver.
+    if (this !== window) throw new TypeError("Illegal invocation");
+    expect(inClick).toBe(true);
+    expect(options).toEqual({ mode: "read" });
+    return Promise.resolve(handle);
+  });
+  vi.stubGlobal("showDirectoryPicker", picker);
+  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  inClick = true;
+  fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
+  inClick = false;
+  await screen.findByText(/No MIDI, MusicXML or Piano project/);
+  expect(picker).toHaveBeenCalledTimes(1);
+});
+
+it.each([undefined, {}])("falls back to file import with a restored shortcut and non-callable picker (%s)", async picker => {
+  const handle = folderFiles([]), values = vi.spyOn(handle, "values");
+  vi.spyOn(folderModule, "storedFolder").mockResolvedValue({ id: "saved", handle });
+  vi.stubGlobal("showDirectoryPicker", picker);
+  const click = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+  vi.mocked(importScoreFile).mockResolvedValue(imported("Fallback original"));
+  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  await screen.findByRole("button", { name: "Refresh / reconnect folder" });
+  fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
+  await screen.findByText(/Folder access is unavailable/);
+  expect(click).toHaveBeenCalledTimes(1);
+  expect(values).not.toHaveBeenCalled();
+  expect(handle.requestPermission).not.toHaveBeenCalled();
+  fireEvent.change(document.querySelector('input[type="file"]')!, { target: { files: [new File(["original"], "fallback.mxl")] } });
+  await screen.findByText("Score imported with playable notes, hands and printed fingerings.");
+  expect(saved()).toHaveLength(1);
+});
+
+it("reconnects a restored shortcut even when the native picker is unavailable", async () => {
+  const handle = folderFiles([]), values = vi.spyOn(handle, "values");
+  vi.spyOn(folderModule, "storedFolder").mockResolvedValue({ id: "saved", handle });
+  vi.stubGlobal("showDirectoryPicker", undefined);
+  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  await screen.findByRole("button", { name: "Refresh / reconnect folder" });
+  expect(values).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Refresh / reconnect folder" }));
+  await screen.findByText(/No MIDI, MusicXML or Piano project/);
+  expect(values).toHaveBeenCalledTimes(1);
+  expect(handle.queryPermission).toHaveBeenCalledWith({ mode: "read" });
+});
+
+it.each([
+  ["AbortError", /Folder selection or access was not completed/],
+  ["SecurityError", /The browser blocked folder access/],
+  ["NotAllowedError", /Folder permission was not granted/],
+  ["TypeError", /The folder chooser could not open/],
+])("explains %s without exposing native paths and allows a fresh retry", async (name, message) => {
+  const handle = folderFiles([]);
+  const picker = vi.fn().mockRejectedValueOnce(new DOMException("/private/synthetic-secret", name as string)).mockResolvedValue(handle);
+  vi.stubGlobal("showDirectoryPicker", picker);
+  localStorage.setItem(SONGS_KEY, JSON.stringify([song("Saved original")]));
+  const before = localStorage.getItem(SONGS_KEY);
+  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
+  await screen.findByText(message);
+  expect(document.body.textContent).not.toContain("synthetic-secret");
+  expect(localStorage.getItem(SONGS_KEY)).toBe(before);
+  expect(handle.queryPermission).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
+  await screen.findByText(/No MIDI, MusicXML or Piano project/);
+  expect(picker).toHaveBeenCalledTimes(2);
+});
+
+it("reports a vanished saved directory without claiming the chooser failed", async () => {
+  const handle = folderFiles([]);
+  vi.spyOn(handle, "values").mockImplementation(async function* () { throw new DOMException("/private/synthetic-secret", "NotFoundError"); });
+  vi.spyOn(folderModule, "storedFolder").mockResolvedValue({ id: "saved", handle });
+  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  await screen.findByRole("button", { name: "Refresh / reconnect folder" });
+  fireEvent.click(screen.getByRole("button", { name: "Refresh / reconnect folder" }));
+  await screen.findByText(/Folder refresh stopped before finishing/);
+  expect(document.body.textContent).not.toContain("synthetic-secret");
+  expect(saved()).toHaveLength(0);
+});
+
+it("keeps an unsaved finger draft when folder selection is not completed", async () => {
+  folderFiles([{ name: "original.mxl", content: "original" }]);
+  vi.mocked(importScoreFile).mockResolvedValue(imported("Draft keeper"));
+  render(<App />); await openFolder(); finger("5");
+  const before = localStorage.getItem(SONGS_KEY);
+  const picker = vi.fn().mockRejectedValue(new DOMException("Canceled", "AbortError"));
+  vi.stubGlobal("showDirectoryPicker", picker);
+  fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
+  expect(picker).not.toHaveBeenCalled(); // Declining draft replacement stops here.
+  vi.mocked(window.confirm).mockReturnValue(true);
+  fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
+  await screen.findByText(/Folder selection or access was not completed/);
+  fireEvent.click(screen.getByRole("button", { name: "Prepare a song" }));
+  expect((screen.getByRole("combobox", { name: "Finger" }) as HTMLSelectElement).value).toBe("5");
+  expect(localStorage.getItem(SONGS_KEY)).toBe(before);
+});
+
+it("ignores a picker rejection after navigation instead of replacing the latest notice", async () => {
+  let reject!: (reason: unknown) => void;
+  vi.stubGlobal("showDirectoryPicker", vi.fn(() => new Promise((_, fail) => { reject = fail; })));
+  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
+  fireEvent.click(screen.getByRole("button", { name: "Practice room" }));
+  await act(async () => reject(new DOMException("blocked", "SecurityError")));
+  expect(screen.queryByText(/The browser blocked folder access/)).toBeNull();
+  expect(saved()).toHaveLength(0);
+});
+
+it("keeps earlier imports when folder enumeration later fails", async () => {
+  const handle = folderFiles([]);
+  vi.spyOn(handle, "values").mockImplementation(async function* () {
+    yield { kind: "file", name: "first.mxl", getFile: async () => new File(["first"], "first.mxl") };
+    throw new DOMException("/private/synthetic-secret", "NotReadableError");
+  });
+  vi.mocked(importScoreFile).mockResolvedValue(imported("Imported before interruption"));
+  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
+  await screen.findByText(/Folder refresh stopped before finishing. Already saved songs are kept/);
+  expect(saved()).toHaveLength(1);
+  expect(saved()[0].title).toBe("Imported before interruption");
+  expect(document.body.textContent).not.toContain("synthetic-secret");
+});
+
+it("suppresses native per-file paths while retaining parser guidance and successful imports", async () => {
+  const handle = folderFiles([]);
+  localStorage.setItem(SONGS_KEY, JSON.stringify([song("Existing saved piece")]));
+  const original = saved()[0];
+  vi.spyOn(handle, "values").mockImplementation(async function* () {
+    yield { kind: "file", name: "good.mxl", getFile: async () => new File(["good"], "good.mxl") };
+    yield { kind: "file", name: "unreadable.mxl", getFile: async () => {
+      throw Object.assign(new Error("/private/synthetic-read-secret"), { name: "NotReadableError" });
+    } };
+    yield { kind: "file", name: "unsupported.mxl", getFile: async () => new File(["unsupported"], "unsupported.mxl") };
+  });
+  vi.mocked(importScoreFile).mockResolvedValueOnce(imported("Good partial import"))
+    .mockRejectedValueOnce(new Error("Unsupported synthetic notation. Choose a supported score."));
+  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
+  await screen.findByText(/Folder refresh: 1 imported, 0 unchanged, 0 kept existing/);
+  expect(document.body.textContent).toContain("unreadable.mxl: Could not read this file.");
+  expect(document.body.textContent).toContain("unsupported.mxl: Unsupported synthetic notation.");
+  expect(document.body.textContent).not.toContain("synthetic-read-secret");
+  expect(saved()).toHaveLength(2);
+  expect(saved().find(s => s.id === original.id)).toEqual(original);
+  expect(saved().some(s => s.title === "Good partial import")).toBe(true);
+});

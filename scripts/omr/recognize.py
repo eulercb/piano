@@ -73,6 +73,16 @@ def publish(data, destination):
         staged.unlink(missing_ok=True)
 
 
+def java_path_option(name, path):
+    """Quote one JVM option, not a shell argument; refuse ambiguous quotes."""
+    value = str(path)
+    # JAVA_TOOL_OPTIONS uses JVM whitespace/quote parsing, not shell escaping.
+    # Fail before launching rather than split a path into unintended JVM options.
+    if '"' in value:
+        raise ValueError('Temporary directory path must not contain double quotes')
+    return f'"-D{name}={value}"'
+
+
 def run(engine, source, destination, timeout=180, log_destination=None):
     if os.name != 'posix':
         raise ValueError('This experimental adapter currently requires Linux/POSIX')
@@ -100,12 +110,16 @@ def run(engine, source, destination, timeout=180, log_destination=None):
         check_png(image)
         home = work / 'home'
         home.mkdir()
+        temporary = work / 'tmp'
+        temporary.mkdir(mode=0o700)
         output = work / 'output'
         output.mkdir()
         # Fresh per-job state, rather than personal config or inherited Java args.
         env = {k: v for k, v in os.environ.items() if k in ('PATH', 'LANG', 'LC_ALL', 'TESSDATA_PREFIX')}
-        env.update(HOME=str(home), XDG_CONFIG_HOME=str(home / 'config'), XDG_DATA_HOME=str(home / 'data'), XDG_CACHE_HOME=str(home / 'cache'),
-                   JAVA_TOOL_OPTIONS=f'-Xmx1536m -XX:ActiveProcessorCount=2 -Djava.awt.headless=true -Duser.home={home}')
+        env.update(TMPDIR=str(temporary), TMP=str(temporary), TEMP=str(temporary),
+                   HOME=str(home), XDG_CONFIG_HOME=str(home / 'config'), XDG_DATA_HOME=str(home / 'data'), XDG_CACHE_HOME=str(home / 'cache'),
+                   JAVA_TOOL_OPTIONS=' '.join(('-Xmx1536m', '-XX:ActiveProcessorCount=2', '-Djava.awt.headless=true',
+                                              java_path_option('user.home', home), java_path_option('java.io.tmpdir', temporary))))
         def limits():
             resource.setrlimit(resource.RLIMIT_FSIZE, (64 * 1024 * 1024,) * 2)
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))

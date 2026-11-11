@@ -511,7 +511,7 @@ export function App() {
   }
   async function chooseFolder(reconnect = false) {
     const picker = (window as any).showDirectoryPicker;
-    if (!picker && !folderRef.current) {
+    if (typeof picker !== "function" && !(reconnect && folderRef.current)) {
       setNotice("Folder access is unavailable in this browser. Use Import song to select one or more files.");
       file.current?.click();
       return;
@@ -519,10 +519,12 @@ export function App() {
     const generation = startImport();
     if (generation === undefined) return;
     const current = () => generation === importGeneration.current;
+    let stage: "picker" | "permission" | "read" = reconnect && folderRef.current ? "permission" : "picker";
     try {
       let connection = reconnect ? folderRef.current : undefined;
       if (!connection) {
-        const handle = await picker({ mode: "read" });
+        // Invoke immediately from the click and preserve the Window receiver.
+        const handle = await picker.call(window, { mode: "read" });
         if (!current()) return;
         const previous = folderRef.current;
         let same = false;
@@ -530,11 +532,13 @@ export function App() {
         if (!current()) return;
         connection = { id: same ? previous!.id : crypto.randomUUID(), handle };
       }
+      stage = "permission";
       if (!await readPermission(connection.handle, current)) {
         if (current()) setNotice("Folder permission was not granted. Your saved songs are unchanged. Reconnect the folder or use Import song.");
         return;
       }
       if (!current()) return;
+      stage = "read";
       folderRef.current = connection; setFolder(connection);
       let persistence = "Folder access lasts for this session; choose it again next time.";
       if (typeof indexedDB !== "undefined" && connection.handle.queryPermission && folderStorageHealthy.current) {
@@ -567,15 +571,42 @@ export function App() {
           if (!current()) return;
           if (result.ok) count++;
           else { failures.push(`${entry.name}: ${result.error}`); if (result.stop) return; }
-        } catch (error) { failures.push(`${entry.name}: ${error instanceof Error ? error.message : "Could not read file."}`); }
+        } catch (error) {
+          // Native reads may include private paths in their exception messages.
+          // Keep only our fixed digest precondition guidance; parser rejections
+          // remain available through importFile's explicit result above.
+          const safeReadMessages = [
+            "Please choose a song file smaller than 10 MB.",
+            "Safe folder refresh needs a secure browser connection. Use Import song instead.",
+          ];
+          const message = error instanceof Error && safeReadMessages.includes(error.message)
+            ? error.message
+            : "Could not read this file. Check folder permission and refresh again, or use Import song.";
+          failures.push(`${entry.name}: ${message}`);
+        }
       }
       if (!current()) return;
       setNotice(attempted
         ? `Folder refresh: ${count} imported, ${unchanged} unchanged, ${kept} kept existing. Checked up to 50 supported files in this folder only. ${failures.length ? `${failures.length} rejected. ${failures.slice(0, 3).join(" ")} ` : ""}${persistence} Refresh is manual; missing files never remove saved songs.`
         : "No MIDI, MusicXML or Piano project files found in this folder.");
     } catch (e) {
-      if (current() && (e as Error).name !== "AbortError")
-        setNotice("Could not read that folder. Your saved songs are unchanged. Choose the folder again or use Import song.");
+      if (!current()) return;
+      const name = e && typeof e === "object" && "name" in e ? e.name : undefined;
+      // Never display native exception messages: they can contain local paths.
+      if (stage === "read") {
+        setNotice("Folder refresh stopped before finishing. Already saved songs are kept. Reconnect the folder or use Import song.");
+      } else if (name === "AbortError") {
+        // AbortError can also mean a sensitive directory or permission refusal.
+        setNotice("Folder selection or access was not completed. Your saved songs are unchanged. Try again or use Import song.");
+      } else if (name === "SecurityError") {
+        setNotice("The browser blocked folder access. Click Open song folder again directly in the app, or use Import song. Your saved songs are unchanged.");
+      } else if (name === "NotAllowedError") {
+        setNotice("Folder permission was not granted. Your saved songs are unchanged. Reconnect the folder or use Import song.");
+      } else {
+        setNotice(stage === "picker"
+          ? "The folder chooser could not open. Your saved songs are unchanged. Try again or use Import song."
+          : "Could not reconnect to that folder. Your saved songs are unchanged. Choose the folder again or use Import song.");
+      }
     }
   }
   async function importFile(f: File, generation: number, folderSource?: FolderSource): Promise<{ ok: true } | { ok: false; error: string; stop?: boolean }> {

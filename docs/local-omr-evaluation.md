@@ -246,6 +246,17 @@ it neither corrects musical recognition nor publishes raw logs.
 
 - Single explicit PNG, at most 20 MiB / 20 million pixels; no PDF/multipage support.
 - Fresh temporary input copy, home, cache and output per job. No persistent daemon.
+  Native `TMPDIR`/`TMP`/`TEMP` and Java `java.io.tmpdir` point to a private
+  per-job `tmp` directory, removed along with the job on success, engine failure,
+  timeout or cancellation. Previously these defaults were not redirected and
+  could leave cooperative engine intermediates outside the cleanup directory.
+  Fake-engine tests verify native temporary-file placement and cleanup for all
+  four outcomes, plus the Java option supplied to the child. JVM path options
+  are double-quoted so spaces and apostrophes do not split them. Temporary
+  parents containing double quotes are rejected before launch rather than
+  applying unverified escaping. These fake-engine tests do not verify
+  actual Java/Audiveris temporary writes or prevent a program from choosing a
+  different path. This is cleanup configuration, not filesystem isolation.
 - `--log` is opt-in and creates a new owner-only `.log` file exclusively, refusing existing
   files and symlinks. It retains raw stdout/stderr on success, failure, timeout or
   cancellation. Logs can contain local paths and score-derived details; keep
@@ -306,3 +317,22 @@ thresholds in advance and report failures and correction effort. Verify
 cancellation with the actual engine on each target
 platform, resource limits, bad images, missing models, repeated runs, and current
 licenses. Desktop workflow acceptance does not establish browser/mobile support.
+
+## Temporary-state regression check
+
+On 2026-11-11, the job-local temporary-directory change passed all 24 Python OMR
+boundary/fixture tests (`python -m unittest discover -s scripts/omr -p 'test_*.py' -v`).
+No actual recognizer, private score, network observation or isolation operation
+was run for this check. The original captured recognition results above are
+unchanged. Actual-engine temporary writes and cleanup still require verification
+in the authorized, outbound-blocked target environment before private-score use.
+
+A separate locally authored Java probe, using the same sanitized environment and
+JVM options with a synthetic temporary parent containing spaces and an apostrophe,
+verified the exact `user.home` and `java.io.tmpdir` properties and that
+`Files.createTempFile` created its file in the job's `tmp` directory. The file and
+whole probe directory were removed. This used the already-installed OpenJDK
+21.0.13, build `21.0.13+9-1-deb13u2-Debian`, not the pinned Audiveris Java 25.0.3.
+It proves this quoting/default-temp behavior for that system JVM only. It does
+not test Audiveris dependencies, arbitrary path choices, actual-engine
+cancellation, filesystem confinement or network access.
