@@ -18,6 +18,7 @@ export function Score({
   sourceSong,
   playbackTime = 0,
   playing = false,
+  compact = false,
 }: {
   xml?: string;
   editable?: boolean;
@@ -26,6 +27,8 @@ export function Score({
   /** Position in the source song in seconds, already accounting for playback speed. */
   playbackTime?: number;
   playing?: boolean;
+  /** Viewport-contained practice guide; Studio keeps the full explanation. */
+  compact?: boolean;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const renderer = useRef<OpenSheetMusicDisplay | undefined>(undefined);
@@ -106,7 +109,7 @@ export function Score({
         osmd = new OpenSheetMusicDisplay(container, {
           // Do not let resize events render a score while its load is pending.
           autoResize: false,
-          drawTitle: true,
+          drawTitle: !compact,
           drawingParameters: "compacttight",
           // Cursor visibility is explicit. Never let OSMD scroll the outer page.
           disableCursor: false,
@@ -148,7 +151,7 @@ export function Score({
       release();
       container.remove();
     };
-  }, [xml, attempt]);
+  }, [xml, attempt, compact]);
 
   useEffect(() => {
     setCursorReady(false);
@@ -191,8 +194,8 @@ export function Score({
   const synchronized = !!timeline && cursorReady && phase === "ready";
 
   return (
-    <section className="score-panel">
-      <div>
+    <section className={compact ? "score-panel compact-score" : "score-panel"}>
+      {!compact && <div>
         <h3>Your reading score</h3>
         <p>
           {editable
@@ -200,6 +203,7 @@ export function Score({
             : "Original score reference. Playback edits do not rewrite this attached score. Import MusicXML directly for score-linked editing."}
         </p>
       </div>
+      }
       {xml && sourceSong && phase === "ready" && (
         <div className="score-follow-controls">
           {synchronized ? <>
@@ -208,9 +212,9 @@ export function Score({
               <input type="checkbox" checked={follow} onChange={event => setFollow(event.target.checked)} />
               Follow score while playing
             </label>
-            <p className="score-follow-hint">The blue cursor follows written positions. Scrolling is off until you enable it.
+            {!compact && <p className="score-follow-hint">The blue cursor follows written positions. Scrolling is off until you enable it.
               {hasGraces && " Grace notes share their principal written position; their playback timing is approximate."}
-            </p>
+            </p>}
           </> : <p className="score-follow-hint">Playback cursor unavailable for this score. Direct MusicXML imports with matching playback support synchronized reading.</p>}
         </div>
       )}

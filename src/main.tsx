@@ -1,3 +1,4 @@
+import { pianoShortcutPitch, isPianoVirtualClick } from "./pianoKeyboard";
 import { PracticeSession, frameTime, type PracticeHand, type PracticeMode, type RhythmSummary } from "./session";
 import React, { useState, useRef, useEffect, useMemo, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
@@ -33,6 +34,7 @@ import {
 } from "./music";
 import "./style.css";
 import { Score } from "./Score";
+import { PracticeRoom, PracticePanel } from "./PracticeRoom";
 import { MidiConnection } from "./MidiConnection";
 import { PracticeHistory } from "./PracticeHistory";
 import { PracticeHistoryStore, PracticePassRecorder } from "./practiceHistory";
@@ -128,6 +130,9 @@ export function App() {
     [pressed, setPressed] = useState<number[]>([]),
     [muted, setMuted] = useState(false),
     [showScore, setShowScore] = useState(true),
+    [practiceScore, setPracticeScore] = useState(false),
+    [showFingers, setShowFingers] = useState(true),
+    [connectionOpen, setConnectionOpen] = useState(false),
     [editIndex, setEditIndex] = useState(0),
     [firstMeasure, setFirstMeasure] = useState(0),
     [lastMeasure, setLastMeasure] = useState(0),
@@ -189,7 +194,7 @@ export function App() {
     if (wasRunning && session.completed) {
       setPlaying(false);
       setNotice(mode === "rhythm"
-        ? "Pass complete. Review your timing below, then try another pass."
+        ? "Pass complete. Open Results to review your timing, then try another pass."
         : mode === "melody"
           ? "Beautiful work. You completed this passage."
           : "Playback complete. Make another pass, or prepare a smaller passage.");
@@ -220,6 +225,7 @@ export function App() {
   function select(s: Song) {
     reset();
     setSong(s);
+    setPracticeScore(false);
     setFrom(0);
     setTo(duration(s));
     setFirstMeasure(0);
@@ -242,17 +248,10 @@ export function App() {
   inputRef.current = input;
   useEffect(() => {
     const f = (e: KeyboardEvent) => {
-      if (
-        e.repeat ||
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLSelectElement ||
-        e.target instanceof HTMLTextAreaElement
-      )
-        return;
-      const i = "awsedftgyhujkolp;".indexOf(e.key.toLowerCase());
-      if (i >= 0) {
+      const pitch = pianoShortcutPitch(e);
+      if (pitch !== undefined) {
         e.preventDefault();
-        inputRef.current(60 + i);
+        inputRef.current(pitch);
       }
     };
     window.addEventListener("keydown", f);
@@ -426,9 +425,313 @@ export function App() {
     mode === "melody" && playing && !session.countingIn
       ? notes.find((n) => !session.matched.has(n.id) && n.start <= time + 0.02)
       : undefined;
+  function pauseForPanel() {
+    if (session.running) {
+      step(performance.now());
+      session.pause();
+      silence();
+      setPlaying(false);
+      redraw();
+    }
+  }
+  function navigate(next: string) { reset(); setPage(next); }
+  const practiceStage = (
+    <section className="stage-card">
+      <div className="stage-top">
+        <span role={page === "practice" ? "status" : undefined} aria-live={page === "practice" ? "polite" : undefined} aria-atomic={page === "practice" ? true : undefined}>
+          <span className="live-dot" />
+          {playing && session.countingIn
+            ? `Get ready · ${session.countBeat} of 4 beats`
+            : waiting
+            ? "Your turn · " + noteName(waiting.pitch)
+            : mode === "rhythm" && session.feedback
+              ? `${session.feedback.kind === "on-time" ? "On time" : session.feedback.kind === "extra" ? "No matching note" : session.feedback.kind} · ${noteName(session.feedback.pitch)}`
+              : playing
+              ? "Follow the music"
+              : "Ready when you are"}
+        </span>
+        <div>
+          <span className="legend left" />
+          Left hand <span className="legend right" />
+          Right hand
+        </div>
+      </div>
+      <div className="guide-surface">
+        {session.countingIn && playing && (
+          <div className="count-in" role={page === "practice" ? undefined : "status"} aria-live={page === "practice" ? undefined : "polite"} aria-hidden={page === "practice" ? true : undefined}>
+            <span>Get ready</span>
+            <strong>{session.countBeat}</strong>
+            <span>of 4 beats · then play</span>
+          </div>
+        )}
+        {page === "practice" && practiceScore ? (
+          <Score xml={song.scoreXml} editable={song.scoreOrigin === "musicxml"}
+            sourceSong={song} playbackTime={time} playing={playing && !session.countingIn} compact />
+        ) : <div className="roll" aria-label="Falling notes">
+        <div className="roll-label">
+          {mode === "melody"
+            ? "PLAY THE HIGHLIGHTED NOTES"
+            : mode === "rhythm"
+              ? "PLAY AS NOTES REACH THE LINE"
+              : "LISTEN • LEARN • REPEAT"}
+        </div>
+        {keys.map((p) => (
+          <div
+            className="lane"
+            key={p}
+            style={{
+              left: (p - low) * width + "%",
+              width: width + "%",
+              background: [1, 3, 6, 8, 10].includes(p % 12)
+                ? "#ffffff02"
+                : "transparent",
+            }}
+          />
+        ))}
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            className="beat-line"
+            key={i}
+            style={{ bottom: `calc(${i * 25}% + 20px)` }}
+          />
+        ))}
+        {notes
+          .filter(
+            (n) =>
+              n.start - time < 4.1 &&
+              n.start + n.duration - time > -0.1,
+          )
+          .map((n) => (
+            <div
+              title={noteName(n.pitch)}
+              key={n.id}
+              className={"fall-note " + n.hand}
+              style={{
+                left: (n.pitch - low) * width + 0.15 + "%",
+                width: Math.max(0.4, width - 0.3) + "%",
+                bottom: `calc(${(n.start - time) / 4.1 * 100}% + ${20 - (n.start - time) / 4.1 * 32}px)`,
+                height: `max(8px, calc(${n.duration / 4.1 * 100}% - ${n.duration / 4.1 * 32}px))`,
+              }}
+            >
+              {(page !== "practice" || showFingers) && n.finger
+                ? String(n.finger)
+                : width > 2.3
+                  ? noteName(n.pitch).replace(/\d/g, "")
+                  : ""}
+            </div>
+          ))}
+        <div className="strike-line" />
+        </div>}
+
+      </div>
+      <div className="keyboard">
+        {keys.map((p) => (
+          <button
+            aria-label={"Play " + noteName(p)}
+            key={p}
+            onPointerDown={(e) => { if (e.button === 0) input(p); }}
+            onClick={(e) => { if (isPianoVirtualClick(e)) input(p); }}
+            className={
+              ([1, 3, 6, 8, 10].includes(p % 12)
+                ? "black"
+                : "white") + (pressed.includes(p) ? " pressed" : "")
+            }
+            style={{ width: width + "%" }}
+          >
+            {p % 12 === 0 ? <span>{noteName(p)}</span> : null}
+          </button>
+        ))}
+      </div>
+      <div className="transport">
+        <button
+          className="icon-button"
+          aria-label="Restart"
+          onClick={() => reset()}
+        >
+          <RotateCcw size={18} />
+        </button>
+        <button
+          className="play-button"
+          aria-label={playing ? "Pause" : "Play"}
+          onClick={togglePlayback}
+        >
+          {playing ? <Pause size={20} /> : <Play size={20} />}
+        </button>
+        <span className="time">{formatTime(time)}</span>
+        <input
+          aria-label="Playback position"
+          type="range"
+          min="0"
+          max={total}
+          step=".01"
+          value={time}
+          onChange={(e) => reset(Number(e.target.value))}
+        />
+        <span className="time">{formatTime(total)}</span>
+        <button
+          className={"icon-button " + (muted ? "muted" : "")}
+          aria-label={muted ? "Unmute" : "Mute"}
+          aria-pressed={muted}
+          onClick={() => { silence(); setMuted(!muted); }}
+        >
+          <Volume2 size={19} />
+        </button>
+      </div>
+    </section>
+  );
+  const practiceSettings = (
+    <section className="settings">
+      <h3>Your practice, your pace</h3>
+      <label className="control-label">
+        01 <span>Choose your hands</span>
+      </label>
+      <div className="hand-options">
+        {[
+          ["left", "Left"],
+          ["both", "Both"],
+          ["right", "Right"],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            className={hand === id ? "selected" : ""}
+            aria-pressed={hand === id}
+            onClick={() => {
+              reset();
+              setHand(id as PracticeHand);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <label className="control-label">
+        02 <span>Find your tempo</span>
+        <b>{speed}%</b>
+      </label>
+      <input
+        aria-label="Tempo percentage"
+        type="range"
+        min="25"
+        max="125"
+        step="5"
+        value={speed}
+        onChange={(e) => setSpeed(Number(e.target.value))}
+      />
+      <div className="speed-presets">
+        {[25, 50, 75, 100].map((v) => (
+          <button
+            key={v}
+            className={speed === v ? "chosen" : ""}
+            aria-pressed={speed === v}
+            onClick={() => setSpeed(v)}
+          >
+            {v}%
+          </button>
+        ))}
+      </div>
+      <div className="range-ends">
+        <span>Take it slow</span>
+        <span>{Math.round((song.tempo * speed) / 100)} BPM</span>
+      </div>
+      <label className="control-label">
+        03 <span>Pick your approach</span>
+      </label>
+      {[
+        [
+          "listen",
+          "Listen & explore",
+          "Hear the piece. Get to know the notes.",
+        ],
+        [
+          "melody",
+          "Melody practice · wait for notes",
+          "The music waits for your next note.",
+        ],
+        [
+          "rhythm",
+          "Rhythm practice",
+          "Practice note starts. Get early, on-time or late feedback.",
+        ],
+      ].map(([id, title, desc]) => (
+        <button
+          key={id}
+          className={"mode " + (mode === id ? "selected" : "")}
+          aria-pressed={mode === id}
+          onClick={() => {
+            reset();
+            setMode(id as PracticeMode);
+          }}
+        >
+          <span className="radio" />
+          <span>
+            <b>{title}</b>
+            <small>{desc}</small>
+          </span>
+        </button>
+      ))}
+      <label className="repeat-control">
+        <input
+          type="checkbox"
+          checked={countIn}
+          onChange={(e) => { reset(); setCountIn(e.target.checked); }}
+        />
+        Count in 4 beats
+      </label>
+      <p className="coming">
+        Four quarter-note beats at the starting tempo and selected speed,
+        before each pass. This is a beat count, not a measure.
+      </p>
+      <label className="repeat-control">
+        <input
+          type="checkbox"
+          checked={repeatPassage}
+          onChange={(e) => setRepeatPassage(e.target.checked)}
+        />
+        Repeat this passage
+      </label>
+      <p className="coming">
+        Tip: choose one hand at 25–50%. Repeat a few notes
+        comfortably before speeding up.
+      </p>
+      <p className="coming">
+        Completed passes appear in Practice history. Coming next: recital mode.
+      </p>
+    </section>
+  );
+  const rhythmPanel = (
+    <section className="rhythm-panel" aria-label="Rhythm feedback">
+      <div className="rhythm-heading">
+        <div>
+          <h3>Note-onset timing · pass {session.pass}</h3>
+          <p>{hand === "both" ? "Both hands" : `${hand === "left" ? "Left" : "Right"} hand`} · {speed}% speed</p>
+        </div>
+        <div className="timing-feedback" role="status" aria-live="polite" aria-atomic="true">
+          {session.countingIn && playing ? "Get ready. Notes are not graded yet."
+            : session.feedback ? `${session.feedback.kind === "on-time" ? "On time" : session.feedback.kind === "extra" ? "No matching note" : session.feedback.kind[0].toUpperCase() + session.feedback.kind.slice(1)} · ${noteName(session.feedback.pitch)}${session.feedback.offsetMs !== undefined && session.feedback.kind !== "on-time" ? ` · ${Math.abs(session.feedback.offsetMs)} ms` : ""}`
+              : "Play the shown notes as they reach the line."}
+        </div>
+      </div>
+      <TimingSummary summary={session.summary} />
+      {session.previousResult && (
+        <div className="previous-pass">
+          <b>Previous pass</b>
+          <TimingSummary summary={session.previousResult} />
+        </div>
+      )}
+      <p className="rhythm-help">
+        Note-onset feedback only. Correct pitches within 100 ms count as on time. Up to 300 ms early
+        or late gets timing feedback; unmatched notes are missed.
+        Only the selected hand’s notes are targets. Note length and pedal
+        are not graded. Device/audio latency is not calibrated.
+      </p>
+    </section>
+  );
   return (
-    <div className="shell">
-      <aside>
+    <div className={page === "practice" ? "shell practice-shell" : "shell"}>
+      <PracticePanel open={connectionOpen} title="Piano connection" onClose={() => setConnectionOpen(false)}>
+        <MidiConnection onNote={(pitch) => inputRef.current(pitch)} />
+      </PracticePanel>
+      <aside hidden={page === "practice"}>
         <a className="brand" href="#" onClick={(e) => e.preventDefault()}>
           <span className="brand-icon">
             <Piano size={23} />
@@ -446,6 +749,7 @@ export function App() {
             <button
               key={id}
               className={page === id ? "nav active" : "nav"}
+              aria-current={page === id ? "page" : undefined}
               onClick={() => {
                 reset();
                 setPage(id);
@@ -471,7 +775,7 @@ export function App() {
         </div>
       </aside>
       <main>
-        <header>
+        <header hidden={page === "practice"}>
           <div className="breadcrumb">
             Your workspace <ChevronRight size={14} />{" "}
             <span>
@@ -482,7 +786,7 @@ export function App() {
                   : page === "history" ? "Practice history" : "My library"}
             </span>
           </div>
-          <MidiConnection onNote={(pitch) => inputRef.current(pitch)} />
+          <button className="button light" onClick={() => { pauseForPanel(); setConnectionOpen(true); }}>Piano connection</button>
         </header>
         <input
           ref={file}
@@ -500,7 +804,7 @@ export function App() {
           }}
         />
         <div className="content">
-          <div className="heading">
+          {page !== "practice" && <div className="heading">
             <div>
               <div className="eyebrow">MAKE ROOM FOR MUSIC</div>
               <h1>
@@ -526,6 +830,8 @@ export function App() {
               Import song
             </button>
           </div>
+          }
+          <div className="app-messages">
           {needRefresh && (
             <div role="status" className="update-notice">
               <div>
@@ -555,7 +861,16 @@ export function App() {
           {page !== "history" && historySnapshot.message && (
             <div className="notice" role="status">{historySnapshot.message}</div>
           )}
-          {page === "history" ? <PracticeHistory store={history} /> : page === "library" ? (
+          </div>
+          {page === "practice" ? (
+            <PracticeRoom title={song.title} hand={hand} mode={mode} speed={speed}
+              showScore={practiceScore} hasScore={!!song.scoreXml} showFingers={showFingers}
+              onScore={() => setPracticeScore(value => !value)}
+              onFingers={() => setShowFingers(value => !value)}
+              onNavigate={navigate} onConnection={() => { pauseForPanel(); setConnectionOpen(true); }}
+              onSetup={pauseForPanel} settings={practiceSettings} guide={practiceStage}
+              results={mode === "rhythm" ? rhythmPanel : undefined} />
+          ) : page === "history" ? <PracticeHistory store={history} /> : page === "library" ? (
             <>
               <div className="section-title">
                 <h2>On your music stand</h2>
@@ -808,6 +1123,7 @@ export function App() {
                 <button
                   className="text-button"
                   onClick={() => setShowScore(!showScore)}
+                  aria-expanded={showScore}
                 >
                   {showScore ? "Hide reading score" : "Show reading score"}
                 </button>
@@ -918,283 +1234,8 @@ export function App() {
                   })()}
                 </div>
               )}
-              <div className="practice-grid">
-                <section className="stage-card">
-                  <div className="stage-top">
-                    <span>
-                      <span className="live-dot" />
-                      {playing && session.countingIn
-                        ? `Get ready · ${session.countBeat} of 4 beats`
-                        : waiting
-                        ? "Your turn · " + noteName(waiting.pitch)
-                        : playing
-                          ? "Follow the music"
-                          : "Ready when you are"}
-                    </span>
-                    <div>
-                      <span className="legend left" />
-                      Left hand <span className="legend right" />
-                      Right hand
-                    </div>
-                  </div>
-                  <div className="roll" style={{ height: 310 }}>
-                    {session.countingIn && playing && (
-                      <div className="count-in" role="status" aria-live="polite">
-                        <span>Get ready</span>
-                        <strong>{session.countBeat}</strong>
-                        <span>of 4 beats · then play</span>
-                      </div>
-                    )}
-                    <div className="roll-label">
-                      {mode === "melody"
-                        ? "PLAY THE HIGHLIGHTED NOTES"
-                        : mode === "rhythm"
-                          ? "PLAY AS NOTES REACH THE LINE"
-                          : "LISTEN • LEARN • REPEAT"}
-                    </div>
-                    {keys.map((p) => (
-                      <div
-                        className="lane"
-                        key={p}
-                        style={{
-                          left: (p - low) * width + "%",
-                          width: width + "%",
-                          background: [1, 3, 6, 8, 10].includes(p % 12)
-                            ? "#ffffff02"
-                            : "transparent",
-                        }}
-                      />
-                    ))}
-                    {[0, 1, 2, 3].map((i) => (
-                      <div
-                        className="beat-line"
-                        key={i}
-                        style={{ bottom: i * 75 + 20 }}
-                      />
-                    ))}
-                    {notes
-                      .filter(
-                        (n) =>
-                          n.start - time < 4.1 &&
-                          n.start + n.duration - time > -0.1,
-                      )
-                      .map((n) => (
-                        <div
-                          title={noteName(n.pitch)}
-                          key={n.id}
-                          className={"fall-note " + n.hand}
-                          style={{
-                            left: (n.pitch - low) * width + 0.15 + "%",
-                            width: Math.max(0.4, width - 0.3) + "%",
-                            bottom: (n.start - time) * 70 + 20,
-                            height: Math.max(8, n.duration * 70),
-                          }}
-                        >
-                          {n.finger
-                            ? String(n.finger)
-                            : width > 2.3
-                              ? noteName(n.pitch).replace(/\d/g, "")
-                              : ""}
-                        </div>
-                      ))}
-                    <div className="strike-line" />
-                  </div>
-                  <div className="keyboard">
-                    {keys.map((p) => (
-                      <button
-                        aria-label={"Play " + noteName(p)}
-                        key={p}
-                        onPointerDown={() => input(p)}
-                        className={
-                          ([1, 3, 6, 8, 10].includes(p % 12)
-                            ? "black"
-                            : "white") + (pressed.includes(p) ? " pressed" : "")
-                        }
-                        style={{ width: width + "%" }}
-                      >
-                        {p % 12 === 0 ? <span>{noteName(p)}</span> : null}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="transport">
-                    <button
-                      className="icon-button"
-                      aria-label="Restart"
-                      onClick={() => reset()}
-                    >
-                      <RotateCcw size={18} />
-                    </button>
-                    <button
-                      className="play-button"
-                      aria-label={playing ? "Pause" : "Play"}
-                      onClick={togglePlayback}
-                    >
-                      {playing ? <Pause size={20} /> : <Play size={20} />}
-                    </button>
-                    <span className="time">{formatTime(time)}</span>
-                    <input
-                      aria-label="Playback position"
-                      type="range"
-                      min="0"
-                      max={total}
-                      step=".01"
-                      value={time}
-                      onChange={(e) => reset(Number(e.target.value))}
-                    />
-                    <span className="time">{formatTime(total)}</span>
-                    <button
-                      className={"icon-button " + (muted ? "muted" : "")}
-                      aria-label={muted ? "Unmute" : "Mute"}
-                      aria-pressed={muted}
-                      onClick={() => { silence(); setMuted(!muted); }}
-                    >
-                      <Volume2 size={19} />
-                    </button>
-                  </div>
-                </section>
-                <section className="settings">
-                  <h3>Your practice, your pace</h3>
-                  <label className="control-label">
-                    01 <span>Choose your hands</span>
-                  </label>
-                  <div className="hand-options">
-                    {[
-                      ["left", "Left"],
-                      ["both", "Both"],
-                      ["right", "Right"],
-                    ].map(([id, label]) => (
-                      <button
-                        key={id}
-                        className={hand === id ? "selected" : ""}
-                        onClick={() => {
-                          reset();
-                          setHand(id as PracticeHand);
-                        }}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                  <label className="control-label">
-                    02 <span>Find your tempo</span>
-                    <b>{speed}%</b>
-                  </label>
-                  <input
-                    aria-label="Tempo percentage"
-                    type="range"
-                    min="25"
-                    max="125"
-                    step="5"
-                    value={speed}
-                    onChange={(e) => setSpeed(Number(e.target.value))}
-                  />
-                  <div className="speed-presets">
-                    {[25, 50, 75, 100].map((v) => (
-                      <button
-                        key={v}
-                        className={speed === v ? "chosen" : ""}
-                        onClick={() => setSpeed(v)}
-                      >
-                        {v}%
-                      </button>
-                    ))}
-                  </div>
-                  <div className="range-ends">
-                    <span>Take it slow</span>
-                    <span>{Math.round((song.tempo * speed) / 100)} BPM</span>
-                  </div>
-                  <label className="control-label">
-                    03 <span>Pick your approach</span>
-                  </label>
-                  {[
-                    [
-                      "listen",
-                      "Listen & explore",
-                      "Hear the piece. Get to know the notes.",
-                    ],
-                    [
-                      "melody",
-                      "Melody practice",
-                      "The music waits for your next note.",
-                    ],
-                    [
-                      "rhythm",
-                      "Rhythm practice",
-                      "Practice note starts. Get early, on-time or late feedback.",
-                    ],
-                  ].map(([id, title, desc]) => (
-                    <button
-                      key={id}
-                      className={"mode " + (mode === id ? "selected" : "")}
-                      onClick={() => {
-                        reset();
-                        setMode(id as PracticeMode);
-                      }}
-                    >
-                      <span className="radio" />
-                      <span>
-                        <b>{title}</b>
-                        <small>{desc}</small>
-                      </span>
-                    </button>
-                  ))}
-                  <label className="repeat-control">
-                    <input
-                      type="checkbox"
-                      checked={countIn}
-                      onChange={(e) => { reset(); setCountIn(e.target.checked); }}
-                    />
-                    Count in 4 beats
-                  </label>
-                  <p className="coming">
-                    Four quarter-note beats at the starting tempo and selected speed,
-                    before each pass. This is a beat count, not a measure.
-                  </p>
-                  <label className="repeat-control">
-                    <input
-                      type="checkbox"
-                      checked={repeatPassage}
-                      onChange={(e) => setRepeatPassage(e.target.checked)}
-                    />
-                    Repeat this passage
-                  </label>
-                  <p className="coming">
-                    Tip: choose one hand at 25–50%. Repeat a few notes
-                    comfortably before speeding up.
-                  </p>
-                  <p className="coming">
-                    Completed passes appear in Practice history. Coming next: recital mode.
-                  </p>
-                </section>
-              </div>
-              {mode === "rhythm" && (
-                <section className="rhythm-panel" aria-label="Rhythm feedback">
-                  <div className="rhythm-heading">
-                    <div>
-                      <h3>Note-onset timing · pass {session.pass}</h3>
-                      <p>{hand === "both" ? "Both hands" : `${hand === "left" ? "Left" : "Right"} hand`} · {speed}% speed</p>
-                    </div>
-                    <div className="timing-feedback" role="status" aria-live="polite" aria-atomic="true">
-                      {session.countingIn && playing ? "Get ready. Notes are not graded yet."
-                        : session.feedback ? `${session.feedback.kind === "on-time" ? "On time" : session.feedback.kind === "extra" ? "No matching note" : session.feedback.kind[0].toUpperCase() + session.feedback.kind.slice(1)} · ${noteName(session.feedback.pitch)}${session.feedback.offsetMs !== undefined && session.feedback.kind !== "on-time" ? ` · ${Math.abs(session.feedback.offsetMs)} ms` : ""}`
-                          : "Play the shown notes as they reach the line."}
-                    </div>
-                  </div>
-                  <TimingSummary summary={session.summary} />
-                  {session.previousResult && (
-                    <div className="previous-pass">
-                      <b>Previous pass</b>
-                      <TimingSummary summary={session.previousResult} />
-                    </div>
-                  )}
-                  <p className="rhythm-help">
-                    Note-onset feedback only. Correct pitches within 100 ms count as on time. Up to 300 ms early
-                    or late gets timing feedback; unmatched notes are missed.
-                    Only the selected hand’s notes are targets. Note length and pedal
-                    are not graded. Device/audio latency is not calibrated.
-                  </p>
-                </section>
-              )}
+              <div className="practice-grid">{practiceStage}{practiceSettings}</div>
+              {mode === "rhythm" && rhythmPanel}
               <div className="below-stage">
                 <div>
                   <span className="tip-icon">✦</span>
@@ -1233,13 +1274,13 @@ export function App() {
               </div>
             </>
           )}
-          <footer>
+          {page !== "practice" && <footer>
             <span>
               Piano studio <span className="footer-dot">•</span> Made for the
               joy of learning
             </span>
             <span>Your music stays on this device</span>
-          </footer>
+          </footer>}
         </div>
       </main>
     </div>
