@@ -22,6 +22,14 @@ The app supports MIDI preparation, a local song library, listening, wait-for-not
 - Synthesized triangle tones are a lightweight preview, not a sampled grand piano. Physical MIDI and mobile installation require real-device verification.
 - Local browser storage may be cleared by the browser. Export a project backup.
 
+## Keeping edits safe
+
+Studio changes remain open when moving between Practice, Studio, Library and History. Switching pieces, importing a replacement or trimming an unsaved full-piece draft asks before discarding edits. Save or export the full piece before trimming if you want to retain edits outside the passage. Saving the built-in demo creates a separate library copy and resets its playback.
+
+Library saves reread current storage and reject conflicting edits from another tab. Unreadable library data is not automatically replaced. If storage is full or unavailable, an imported piece stays open for project export and remaining files in that batch stop importing. Navigating, editing or starting another import cancels older pending imports. Web Locks coordinate saves on supported browsers; use one app tab where that API is unavailable.
+
+Reload update also asks before discarding unsaved song changes or temporary practice history. A browser close warning is requested for these cases, but browsers, especially mobile app termination, may not show it. Export backups rather than relying on a close warning.
+
 ## GitHub Pages
 
 The workflow tests and builds PRs, then deploys successful main pushes through GitHub Pages. Set repository Settings → Pages → Source to **GitHub Actions**, custom domain `piano.zen.dev.br`, and enable HTTPS when GitHub provisions its certificate. The custom domain is included in `public/CNAME`. DNS must point to this repository's GitHub Pages host. Workflow configuration alone is not proof of a live deployment. When a new version is waiting, the app offers **Reload update** with a save/export warning. It never reloads automatically to apply an update; existing local library data is not cleared. A deployed desktop browser update cycle preserved saved songs and fingerings; Android installed-PWA behavior remains unverified.

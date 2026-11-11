@@ -132,6 +132,7 @@ function advance(seconds: number) {
 }
 beforeEach(() => {
   stubDialogs();
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
   localStorage.clear(); frames.clear(); downloads.length = 0; clickedDownloads = [];
   now = 0; frameId = 0;
   vi.mocked(loadScoreRenderer).mockReset().mockResolvedValue({ OpenSheetMusicDisplay: DrawingRenderer } as unknown as Awaited<ReturnType<typeof loadScoreRenderer>>);

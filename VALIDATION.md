@@ -1,5 +1,15 @@
 # Validation
 
+## Library and Studio data safety
+
+- Five additional real-app synthetic MIDI tests cover delayed permission, cancellation/retry, selected-device unplug/replug, stale events, repeated panels/reconnect and error recovery. No production MIDI changes were needed; physical hardware remains untested.
+- Live desktop Chromium smoke of merged #15 verified the app-update prompt, focused guide, right-hand wrong/correct-note waiting, setup pause/focus and retained history. This does not validate the new data-safety code or Android/Casio.
+
+- All 442 automated tests pass; TypeScript and Vite/PWA production build pass. Dependencies are unchanged. The existing lazy notation chunk remains large (about 398 KiB gzip).
+- Thirty new synthetic regressions cover stale-tab saves, same-piece conflicts, corrupt/ambiguous storage preservation, quota/lock failures, storage-event refresh, delayed file/folder imports, canceled replacement, batch-import stopping, pending saves and edits, dirty trimming, built-in demo copies, and temporary-history reload/close protection.
+- Existing real parser/import/edit/trim/save/reload/export integration tests still pass. The dirty trim path now explicitly confirms replacing the full-piece draft. Independent review prompted additional regressions for reopened drafts during pending saves, saved-demo identity, and playback reset on demo-copy saves.
+- These are automated storage and DOM checks, with file readers, browser dialogs, Web Locks, animation/audio and download dispatch simulated where needed. Native browser close/confirmation behavior, simultaneous real tabs, actual browser file upload, Android/Casio MIDI and installed-PWA behavior are not device-verified by this change. No private music, publication or deployment is included.
+
 ## Focused mounted-phone practice
 
 - All 407 automated tests pass; TypeScript and Vite/PWA production build pass. The existing lazy notation chunk remains large (about 398 KiB gzip). Dependencies are unchanged.
