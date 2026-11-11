@@ -1,6 +1,7 @@
 import { MAX_MIDI_TEMPO_CHANGES, MIN_MIDI_MICROSECONDS, normalizeMidiTempoMap, trimMidiTempoMap, type MidiTempoChange } from './midiTempo'
 import { serializeProject } from './projectFormat'
 import { exportMappedMidi } from './midiExport'
+import { guardLegacyMidiEvents, type LegacyMidiEvent } from './legacyMidiExport'
 
 /** All times are seconds; velocity is normalized to [0, 1]. */
 export type Note = { id: string; pitch: number; start: number; duration: number; velocity: number; hand: 'left' | 'right'; finger?: number; sourceNoteIds?: string[] }
@@ -170,6 +171,7 @@ export function parseMidi(buffer: ArrayBuffer): Song {
 export function exportMidi(song: Song): Uint8Array {
   if (song.midiTempoMap !== undefined) return exportMappedMidi(song)
   if (!Number.isFinite(song.tempo) || song.tempo <= 0) throw new Error('Tempo must be positive.')
+  if (2 * song.notes.length + 4 > 200000) throw new Error('Cannot export MIDI: the file would exceed the 200,000-event import limit. Export a Piano project instead.')
   const ppqn = 480, microseconds = clamp(Math.round(60000000 / song.tempo), 1, 0xffffff)
   const ticksPerSecond = ppqn * 1000000 / microseconds
   const variable = (value: number): number[] => {
@@ -180,13 +182,14 @@ export function exportMidi(song: Song): Uint8Array {
   }
   const encodeText = (type: number, value: string) => { const data = [...new TextEncoder().encode(value)]; return [0, 255, type, ...variable(data.length), ...data] }
   const track = [...encodeText(3, song.title), ...encodeText(1, 'PianoPractice:Hands:v1'), 0, 255, 81, 3, (microseconds >> 16) & 255, (microseconds >> 8) & 255, microseconds & 255]
-  const events: { tick: number; off: boolean; data: number[] }[] = []
+  const events: LegacyMidiEvent[] = []
   for (const note of song.notes) {
     if (![note.start, note.duration, note.pitch, note.velocity].every(Number.isFinite) || note.start < 0 || note.duration <= 0 || !Number.isInteger(note.pitch) || note.pitch < 0 || note.pitch > 127) throw new Error('Song contains an invalid note.')
     const channel = note.hand === 'left' ? 1 : 0, start = Math.round(note.start * ticksPerSecond), end = Math.max(start + 1, Math.round((note.start + note.duration) * ticksPerSecond))
-    events.push({ tick: start, off: false, data: [144 | channel, note.pitch, clamp(Math.round(note.velocity * 127), 1, 127)] }, { tick: end, off: true, data: [128 | channel, note.pitch, 0] })
+    events.push({ tick: start, end, off: false, data: [144 | channel, note.pitch, clamp(Math.round(note.velocity * 127), 1, 127)] }, { tick: end, end, off: true, data: [128 | channel, note.pitch, 0] })
   }
   events.sort((a, b) => a.tick - b.tick || Number(b.off) - Number(a.off))
+  guardLegacyMidiEvents(events)
   let previous = 0
   for (const event of events) { track.push(...variable(event.tick - previous), ...event.data); previous = event.tick }
   const endTick = Math.max(previous, Math.round(songDuration(song) * ticksPerSecond))

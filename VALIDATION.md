@@ -5,6 +5,13 @@ bundle sizes and limitations describe the named tree at that time. For merged
 scope and remaining acceptance at current main, see the
 [release checklist](docs/release-checklist.md#merged-implementation-status).
 
+## Bounded legacy MIDI pairing safety
+
+- Stacked on guarded tempo export `e869419`. Map-less export checks its existing quantized MIDI events against FIFO reimport using a multiset of hand, pitch, start tick, end tick and encoded velocity, not source note identities. Already faithful streams retain their bytes. Only an unfaithful stream retries simultaneous note-ons in ending order; incompatible nested intervals fail with project/available MusicXML recovery guidance.
+- Rejects more than 1,024 simultaneous notes at one hand/pitch and more than 200,000 events before producing bytes. Legacy metadata/end overhead is four events: 99,998 notes fit the event-count budget; 99,999 do not. Other import limits can still be tighter. This bounded change does not promise lossless legacy seconds, alter the clock or one-tick minimum, add channels, or comprehensively guard legacy backup-size/timing limits. Mapped export and App error handling are unchanged.
+- Focused verification: **60 tests across three files**, TypeScript and whitespace checks pass. Historical byte fixtures cover faithful same-onset/equal-velocity overlaps with reversed endings and equal-ending overlaps. Synthetic App tests check repeated failed exports, unchanged saved originals and retained draft/project/fingering recovery with and without an attached reference score; available reference MusicXML is exported unchanged. The additional ten cross-feature integration tests cover chord resizing/source tempo/metronome alignment, title-boundary passage persistence and mapped MIDI re-export. Final combined gates at `45ba96b` pass **1,246 tests across 81 files** (two workers), all **22 Python safeguards**, the TypeScript/Vite/PWA production build and all **7 emitted-artifact contracts**. Existing large notation-chunk warnings remain; these checks are not browser/device acceptance.
+- Original synthetic inputs only; simulated DOM/downloads. No network calls, private scores, recognition engine or browser/device acceptance. No publication or merge.
+
 ## Whole-chord duration authoring
 
 - Extends main `821679c` with an explicit **Apply chord duration** operation. Selecting any tone of a supported simple chord changes all tones together. Shortening inserts one rest after the final tone; lengthening consumes only the immediately following supported rest in the same voice/staff/divisions, preserving any representable remainder. Chords keep their original leader, spelling, accidental, fingering, positions, source metadata and onset.
