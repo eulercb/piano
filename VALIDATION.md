@@ -13,13 +13,6 @@
 - Scope limits: structural MusicXML insertion/deletion/retiming and OMR are not implemented. The metronome is a steady starting-BPM beat rather than score-meter/tempo-map following. Bookmarks restore the beginning and saved hand/mode/speed/count-in/repeat, leaving the current metronome preference unchanged.
 
 
-## Written-part timing history
-
-- Completed both-hand Rhythm/Recital passes retain separate written-left/right note-start counts, using saved note assignments and the existing per-note grades. Doubled unisons count as separate written notes; extra presses remain global. Single-hand history and end-only Recital feedback are unchanged. Optional counts extend the version-1 backup without inventing data for older passes.
-- Final gate: **808 tests pass across 49 files** with `npm test -- --maxWorkers=2`; TypeScript/Vite/PWA production build, all **7 emitted-artifact contracts**, and whitespace checks pass. The existing large lazy notation chunk warning remains.
-- Thirty-five new regressions cover crossed pitches, doubled unisons, all onset grades, pause/interruption, seek/restart, repeat capture before reset, empty written parts, single-hand compatibility, old backups, strict new count validation, confirmation-before-import, and saved-song preservation through completion and remount.
-- Checks use synthetic clocks, storage, audio, dialogs and DOM. Rendered browser/screen-reader acceptance and actual Android/Casio MIDI remain unverified. No dependencies, private scores, publication, merge or deployment are included in this change.
-
 ## Gentle next steps after completed practice
 
 - Final aggregate gate: all **568 tests pass** across 33 files. TypeScript and the Vite/PWA production build pass; whitespace checks pass. No dependencies or private scores were added. The existing large lazy notation chunk warning remains.
@@ -27,6 +20,13 @@
 - Independent review found no actionable correctness issue. Five retained adversarial tests exercise corrupt stored history, temporary-history close protection, mode/count-in/seek changes, and a 50–75% pass followed by a deliberately selected 80% step. Quota failures and a seeked partial pass are also covered in app regressions.
 - Validation uses synthetic DOM, clocks, audio, modal and storage behavior plus authored CSS contracts. Actual portrait/landscape rendering, native modal focus, Android/Casio USB-C, real audio and installed/offline PWA acceptance remain unverified. No browser upload, merge or deployment was performed.
 - Device acceptance when available: finish a short listening pass, open Results and choose one-hand wait-for-notes; confirm the panel closes and playback waits for Play. Finish a melody/rhythm pass, try a five-point speed change or both hands, and check displayed hand/mode/speed, count-in, touch targets and paused transport. Export private project backups before device testing.
+
+## Written-part timing history
+
+- Completed both-hand Rhythm/Recital passes retain separate written-left/right note-start counts, using saved note assignments and the existing per-note grades. Doubled unisons count as separate written notes; extra presses remain global. Single-hand history and end-only Recital feedback are unchanged. Optional counts extend the version-1 backup without inventing data for older passes.
+- Final gate: **808 tests pass across 49 files** with `npm test -- --maxWorkers=2`; TypeScript/Vite/PWA production build, all **7 emitted-artifact contracts**, and whitespace checks pass. The existing large lazy notation chunk warning remains.
+- Thirty-five new regressions cover crossed pitches, doubled unisons, all onset grades, pause/interruption, seek/restart, repeat capture before reset, empty written parts, single-hand compatibility, old backups, strict new count validation, confirmation-before-import, and saved-song preservation through completion and remount.
+- Checks use synthetic clocks, storage, audio, dialogs and DOM. Rendered browser/screen-reader acceptance and actual Android/Casio MIDI remain unverified. No dependencies, private scores, publication, merge or deployment are included in this change.
 
 ## Landscape keyboard and falling-note geometry
 
