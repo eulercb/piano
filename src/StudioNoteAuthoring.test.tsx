@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { StrictMode, useState } from "react";
+import { StrictMode, useLayoutEffect, useState } from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Note, Song } from "./music";
@@ -136,4 +136,33 @@ describe("Studio note authoring UI", () => {
     expect(screen.getByRole("alert").textContent).toBe("Could not apply this change.");
     expect(screen.queryByRole("status")).toBeNull();
   });
+});
+
+
+// The layout effect deterministically delivers input after the controls commit
+// but before passive effects run. No sleeps or React scheduler mocks are needed.
+it.each(["mount", "song replacement", "note selection"])("keeps immediate input after %s instead of overwriting it in a passive reset", scenario => {
+  function Harness({ song, selectedNoteId, enter }: { song: Song; selectedNoteId?: string; enter: boolean }) {
+    useLayoutEffect(() => {
+      if (!enter) return;
+      const input = field("Duration") as HTMLInputElement;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "3");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }, [song, selectedNoteId, enter]);
+    return <StudioNoteAuthoring song={song} selectedNoteId={selectedNoteId} onChange={changed} />;
+  }
+  const changed = vi.fn();
+  const original = source();
+  const replacement = { ...original, notes: [{ ...note(), duration: 1.25 }, note("b", 1)] };
+  const view = render(<Harness song={original} selectedNoteId="a" enter={scenario === "mount"} />);
+  if (scenario === "song replacement") view.rerender(<Harness song={replacement} selectedNoteId="a" enter />);
+  if (scenario === "note selection") view.rerender(<Harness song={original} selectedNoteId="b" enter />);
+  expect((field("Duration") as HTMLInputElement).value).toBe("3");
+  expect(changed).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Apply note changes" }));
+  expect(changed).toHaveBeenCalledTimes(1);
+  const selectedId = scenario === "note selection" ? "b" : "a";
+  expect(changed.mock.calls[0][0].notes.find((note: Note) => note.id === selectedId).duration).toBe(3);
+  expect(changed.mock.calls[0][1]).toEqual({ action: "edit", noteId: selectedId });
+  expect(original.notes[0].duration).toBe(.5);
 });

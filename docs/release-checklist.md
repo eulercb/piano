@@ -44,7 +44,7 @@ cover touchscreen feel, screen readers, native install UX, real audio or MIDI.
 - Full baseline app tests: final rerun passed all **568 tests in 33 files**. An
   initial run hit a Studio timeout under concurrent load and a harness filename
   discovery error (fixed by keeping Node contracts outside Vitest test patterns).
-  The final integrated tree passes **770 tests across 49 files**, production build
+  The final integrated tree passes **773 tests across 49 files**, production build
   and all seven gate contracts; see [VALIDATION.md](../VALIDATION.md).
 - The optional Python browser harness parses/compiles, but its scenarios are
   **unrun**. A preliminary launch using installed `/usr/bin/chromium` and Python

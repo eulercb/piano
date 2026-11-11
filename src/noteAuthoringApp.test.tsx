@@ -125,13 +125,22 @@ it('invalidates a pending import when structural edits apply and keeps the newer
   const view = render(<App />); await open(view.container);
   let resolve!: (value: string) => void;
   const pending = new Promise<string>(r => { resolve = r; });
-  const delayed = file('', 'late.json'); delayed.text = () => pending;
+  const delayed = file('', 'late.json'); delayed.text = vi.fn(() => pending);
+  const original = saved()[0];
   choose(view.container, delayed);
+  expect(delayed.text).toHaveBeenCalledTimes(1);
   change('Duration', '3'); fireEvent.click(button('Apply note changes'));
+  expect(value('Duration')).toBe('3');
+  expect(value('Note number')).toBe('1');
   await act(async () => resolve(JSON.stringify({ version: 1, song: { ...source, title: 'Late replacement' } })));
   expect(screen.queryByRole('heading', { name: 'Late replacement' })).toBeNull();
   expect(value('Duration')).toBe('3');
-  expect(saved()).toHaveLength(1);
+  expect(value('Note number')).toBe('1');
+  expect(saved()).toEqual([original]);
+  const draft = parseProject(await exportProject());
+  expect(draft.notes[0]).toEqual({ ...original.notes[0], duration: 3 });
+  expect(draft.notes[1]).toEqual(original.notes[1]);
+  expect(draft.id).toBe(original.id);
 });
 
 it('preserves a structural draft and external data when saving meets a stale-tab conflict', async () => {

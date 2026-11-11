@@ -48,12 +48,16 @@ function Editor({ song, onChange, warning, timingOnly = false, selectedNoteId, o
   const helpId = useId(), errorId = useId(), deleteId = useId();
   const confirming = pendingDelete?.song === song && pendingDelete.noteId === selected?.id;
 
-  useEffect(() => {
+  // Reset against the rendered source before committing interactive controls. A
+  // passive effect can run after the first input event and erase the newer draft.
+  const [draftSource, setDraftSource] = useState({ song, selected });
+  if (draftSource.song !== song || draftSource.selected !== selected) {
+    setDraftSource({ song, selected });
     setAdding(false);
     setDraft(selected ? draftFor(selected) : newDraft(song));
     setPendingDelete(null);
     setError("");
-  }, [song, selected]);
+  }
   useEffect(() => { if (confirming) cancelDelete.current?.focus(); }, [confirming]);
 
   function choose(index: number) {
