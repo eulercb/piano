@@ -13,10 +13,12 @@
 .practice-shell .content {
   height: 100%; max-width: none; margin: 0;
   display: flex; flex-direction: column; gap: 6px; min-height: 0;
-  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  padding: max(8px, env(safe-area-inset-top)) env(safe-area-inset-right, 0px) max(8px, env(safe-area-inset-bottom)) env(safe-area-inset-left, 0px);
   overflow: hidden;
 }
 .practice-room { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+/* The guide fills the usable width; only controls/notices keep a reading gutter. */
+.room-heading, .room-tools, .room-score-hint, .practice-shell .app-messages { margin-inline: 8px; }
 .room-heading { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 0 0 auto; }
 .room-piece { flex: 1; min-width: 0; }
 .room-piece h1 { margin: 0 0 3px; font-size: 19px; letter-spacing: -.3px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -38,6 +40,7 @@
 .practice-room .stage-card {
   display: grid; grid-template-rows: auto minmax(0, 1fr) 48px auto;
   flex: 1; min-height: 0; min-width: 0;
+  border-radius: 0;
 }
 .practice-room .stage-top {
   height: auto; min-height: 30px; padding: 5px 10px; gap: 6px;

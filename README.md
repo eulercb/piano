@@ -39,6 +39,8 @@ The workflow tests and builds PRs, then deploys successful main pushes through G
 
 The Practice room is a viewport-contained piano guide, with a compact piece/hand/speed/mode header and permanent play, pause, restart, position and mute controls. Falling notes scale to the available height in portrait and landscape. Library, Studio preparation and history keep their own pages.
 
+The keyboard and falling-note guide fill the usable screen width between safe-area insets. White keys are contiguous, with black keys overlaid at their boundaries; note lanes use the same pitch geometry. Falling notes reach the keyboard's top edge at their playback onset, and their travel and duration scale with the available guide height. This removes layout offsets; it does not calibrate browser, speaker or MIDI latency.
+
 - Open **Setup** for hands, tempo, count-in, repeat and **Melody practice · wait for notes**. Opening Setup, Results or Piano pauses at the current position. Closing a panel does not resume automatically: press Play when ready.
 - **Reading score** replaces the falling-note surface rather than stacking a long score above it. Matching MusicXML has the existing cursor and opt-in **Follow score while playing**. A project without notation explains how to add a score. Return with **Falling notes**; the transport stays in place.
 - **Fingers** toggles saved/printed finger hints on falling notes. These are suggestions, not fingers detected or graded by MIDI. Printed notation fingerings remain visible in score view.

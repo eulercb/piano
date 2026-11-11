@@ -363,46 +363,46 @@ h2 {
   color: #243d32;
   border: 1px solid #ffffff25;
   box-shadow: 0 1px 8px #0002;
-  min-width: 4px;
+  min-height: 8px;
 }
+.fall-note.accidental { z-index: 1; }
 .fall-note.left {
   color: #49371f;
 }
 .strike-line {
   position: absolute;
-  bottom: 20px;
+  bottom: 0;
   height: 2px;
   width: 100%;
   background: #accca57a;
   box-shadow: 0 0 15px #a4cfa060;
+  z-index: 2;
+  pointer-events: none;
 }
 .keyboard {
+  position: relative;
   height: 78px;
-  display: flex;
   background: #102d25;
-  padding: 0 5px 5px;
-  gap: 1px;
+  padding: 0;
 }
 .keyboard button {
-  position: relative;
+  position: absolute;
+  top: 0;
   padding: 0;
   border-radius: 0 0 3px 3px;
   font-size: 8px;
-  flex-shrink: 0;
 }
 .keyboard .white {
   height: 73px;
   background: #f3f2e8;
   border-bottom: 4px solid #c5cbbf;
+  box-shadow: inset -1px 0 #a4afa0;
 }
 .keyboard .black {
   height: 47px;
   background: #172b25;
   border-bottom: 4px solid #091b17;
-  margin-left: -0.65%;
-  margin-right: -0.65%;
-  z-index: 1;
-  transform: scaleX(0.8);
+  z-index: 3;
 }
 .keyboard button span {
   position: absolute;
@@ -1206,6 +1206,7 @@ header { height: auto; min-height: 84px; padding-top: 16px; padding-bottom: 16px
   outline-offset: -4px;
 }
 .keyboard .black:focus-visible {
+  z-index: 4;
   outline-color: #ffe1a1;
 }
 

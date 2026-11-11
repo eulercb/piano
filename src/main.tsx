@@ -1,5 +1,6 @@
 import { PianoAudio } from "./audio";
 import { pianoShortcutPitch, isPianoVirtualClick } from "./pianoKeyboard";
+import { pianoKeyGeometry, fallingNoteGeometry, ROLL_LOOKAHEAD_SECONDS } from "./pianoGeometry";
 import { PracticeSession, frameTime, type PracticeHand, type PracticeMode, type RhythmSummary } from "./session";
 import React, { useState, useRef, useEffect, useMemo, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
@@ -510,10 +511,15 @@ export function App() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  const low = Math.min(48, ...notes.map((n) => n.pitch)),
-    high = Math.max(83, ...notes.map((n) => n.pitch)),
-    keys = Array.from({ length: high - low + 1 }, (_, i) => low + i),
-    width = 100 / keys.length;
+  const keys = useMemo(() => {
+    let low = 48, high = 83;
+    for (const note of notes) {
+      low = Math.min(low, note.pitch);
+      high = Math.max(high, note.pitch);
+    }
+    return pianoKeyGeometry(low, high);
+  }, [notes]);
+  const keysByPitch = useMemo(() => new Map(keys.map(key => [key.pitch, key])), [keys]);
   const waiting =
     mode === "melody" && playing && !session.countingIn
       ? notes.find((n) => !session.matched.has(n.id) && n.start <= time + 0.02)
@@ -571,14 +577,15 @@ export function App() {
               ? "PLAY AS NOTES REACH THE LINE"
               : "LISTEN • LEARN • REPEAT"}
         </div>
-        {keys.map((p) => (
+        {keys.map((key) => (
           <div
             className="lane"
-            key={p}
+            key={key.pitch}
+            data-pitch={key.pitch}
             style={{
-              left: (p - low) * width + "%",
-              width: width + "%",
-              background: [1, 3, 6, 8, 10].includes(p % 12)
+              left: key.left + "%",
+              width: key.width + "%",
+              background: key.black
                 ? "#ffffff02"
                 : "transparent",
             }}
@@ -588,53 +595,57 @@ export function App() {
           <div
             className="beat-line"
             key={i}
-            style={{ bottom: `calc(${i * 25}% + 20px)` }}
+            style={{ bottom: `${i * 25}%` }}
           />
         ))}
         {notes
           .filter(
             (n) =>
-              n.start - time < 4.1 &&
+              n.start - time < ROLL_LOOKAHEAD_SECONDS &&
               n.start + n.duration - time > -0.1,
           )
-          .map((n) => (
-            <div
-              title={noteName(n.pitch)}
-              key={n.id}
-              className={"fall-note " + n.hand}
-              style={{
-                left: (n.pitch - low) * width + 0.15 + "%",
-                width: Math.max(0.4, width - 0.3) + "%",
-                bottom: `calc(${(n.start - time) / 4.1 * 100}% + ${20 - (n.start - time) / 4.1 * 32}px)`,
-                height: `max(8px, calc(${n.duration / 4.1 * 100}% - ${n.duration / 4.1 * 32}px))`,
-              }}
-            >
-              {(page !== "practice" || showFingers) && n.finger
-                ? String(n.finger)
-                : width > 2.3
-                  ? noteName(n.pitch).replace(/\d/g, "")
-                  : ""}
-            </div>
-          ))}
+          .map((n) => {
+            const key = keysByPitch.get(n.pitch)!;
+            const vertical = fallingNoteGeometry(n, time);
+            return (
+              <div
+                title={noteName(n.pitch)}
+                key={n.id}
+                data-pitch={n.pitch}
+                className={"fall-note " + n.hand + (key.black ? " accidental" : "")}
+                style={{
+                  left: key.left + "%",
+                  width: key.width + "%",
+                  bottom: vertical.bottom + "%",
+                  height: vertical.height + "%",
+                }}
+              >
+                {(page !== "practice" || showFingers) && n.finger
+                  ? String(n.finger)
+                  : key.width > 2.3
+                    ? noteName(n.pitch).replace(/\d/g, "")
+                    : ""}
+              </div>
+            );
+          })}
         <div className="strike-line" />
         </div>}
 
       </div>
       <div className="keyboard">
-        {keys.map((p) => (
+        {keys.map((key) => (
           <button
-            aria-label={"Play " + noteName(p)}
-            key={p}
-            onPointerDown={(e) => { if (e.button === 0) input(p); }}
-            onClick={(e) => { if (isPianoVirtualClick(e)) input(p); }}
+            aria-label={"Play " + noteName(key.pitch)}
+            key={key.pitch}
+            data-pitch={key.pitch}
+            onPointerDown={(e) => { if (e.button === 0) input(key.pitch); }}
+            onClick={(e) => { if (isPianoVirtualClick(e)) input(key.pitch); }}
             className={
-              ([1, 3, 6, 8, 10].includes(p % 12)
-                ? "black"
-                : "white") + (pressed.includes(p) ? " pressed" : "")
+              (key.black ? "black" : "white") + (pressed.includes(key.pitch) ? " pressed" : "")
             }
-            style={{ width: width + "%" }}
+            style={{ left: key.left + "%", width: key.width + "%" }}
           >
-            {p % 12 === 0 ? <span>{noteName(p)}</span> : null}
+            {key.pitch % 12 === 0 ? <span>{noteName(key.pitch)}</span> : null}
           </button>
         ))}
       </div>
