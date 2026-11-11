@@ -2,6 +2,8 @@
 
 A local-first browser piano practice workspace. Roadmap: [issue #8](https://github.com/eulercb/piano/issues/8).
 
+See the [2026-11-11 desktop browser acceptance record](docs/browser-acceptance-2026-11-11.md) for observed flows, the tested asset set and remaining release gates.
+
 ## Develop
 
 Node 22+; `npm ci`, `npm run dev`. Validate with `npm test`, `npm run build` and `npm run check:release`. The release gate inspects emitted PWA artifacts; it is not browser or hardware acceptance. See [the support matrix and release checklist](docs/release-checklist.md).
