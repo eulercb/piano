@@ -82,9 +82,9 @@ describe('fixed-time MusicXML authoring', () => {
     const s = score(`${attrs}${note().replace('</note>', `<${tag}/></note>`)}${rest(12)}`);
     expect(() => editScoreSlot(s, '0:0:0', { action: 'delete' })).toThrow('not supported');
   });
-  it('refuses chord leaders and followers', () => {
+  it('refuses resizing chord leaders and followers', () => {
     const s = score(`${attrs}${note()}${note('E', 4, 1, '<chord/>')}${rest(12)}`);
-    for (const id of ['0:0:0', '0:0:1']) expect(() => editScoreSlot(s, id, { action: 'delete' })).toThrow('not supported');
+    for (const id of ['0:0:0', '0:0:1']) expect(() => editScoreSlot(s, id, { action: 'duration', beats: 2 })).toThrow('Chord durations');
   });
   it('refuses tied notes while allowing unrelated slots', () => {
     const s = score(`${attrs}${note().replace('</duration>', '</duration><tie type="start"/>')}${note().replace('</duration>', '</duration><tie type="stop"/>')}${rest(8)}`);

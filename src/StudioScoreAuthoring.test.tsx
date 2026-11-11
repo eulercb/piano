@@ -55,3 +55,63 @@ describe('MusicXML authoring controls', () => {
     expect((screen.getByLabelText('Duration (quarter-note beats)') as HTMLInputElement).value).toBe('2');
   });
 });
+
+it('adds a chord tone without using the duration draft and exposes operation-specific controls', () => {
+  const onChange = vi.fn(), input = score();
+  const view = render(<StudioScoreAuthoring song={input} onChange={onChange} />);
+  fireEvent.change(screen.getByLabelText('Duration (quarter-note beats)'), { target: { value: '.5' } });
+  fireEvent.change(screen.getByLabelText('New chord pitch (MIDI)'), { target: { value: '67' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add chord tone' }));
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect(onChange.mock.calls[0][1]).toEqual({ action: 'insert', noteId: null });
+  const next = onChange.mock.calls[0][0];
+  expect(next.notes.find((n: {pitch: number; start: number}) => n.pitch === 67 && n.start === 0)).toMatchObject({ duration: 1 });
+  view.rerender(<StudioScoreAuthoring song={next} onChange={onChange} />);
+  expect((screen.getByLabelText('Duration (quarter-note beats)') as HTMLInputElement).disabled).toBe(true);
+  expect((screen.getByRole('button', { name: 'Apply written duration' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole('button', { name: 'Add chord tone' }) as HTMLButtonElement).disabled).toBe(false);
+  expect(screen.getByRole('combobox', { name: 'Written slot' }).textContent).toContain('MIDI 64 · 2-tone chord');
+  expect(screen.getByRole('button', { name: 'Remove chord tone' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Replace note with rest' })).toBeNull();
+});
+
+it('requires chord-tone confirmation, supports cancel and invalidates it on selection or source replacement', () => {
+  const onChange = vi.fn(), input = score();
+  // An independent real callback constructs the initial chord as the UI does.
+  const initial = render(<StudioScoreAuthoring song={input} onChange={onChange} />);
+  fireEvent.change(screen.getByLabelText('New chord pitch (MIDI)'), { target: { value: '67' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add chord tone' }));
+  const chord = onChange.mock.calls[0][0]; onChange.mockClear();
+  initial.rerender(<StudioScoreAuthoring song={chord} onChange={onChange} />);
+  const remove = () => fireEvent.click(screen.getByRole('button', { name: 'Remove chord tone' }));
+  remove();
+  expect(screen.getByRole('alertdialog', { name: 'Remove chord tone confirmation' }).textContent).toContain('Remove MIDI 64');
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Keep written note' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Keep written note' }));
+  expect(onChange).not.toHaveBeenCalled();
+  remove();
+  fireEvent.change(screen.getByLabelText('Written slot'), { target: { value: '0:0:1' } });
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+  remove();
+  initial.rerender(<StudioScoreAuthoring song={{ ...chord }} onChange={onChange} />);
+  expect(screen.queryByRole('alertdialog')).toBeNull();
+  remove();
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm remove chord tone' }));
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect(onChange.mock.calls[0][1]).toEqual({ action: 'delete', noteId: null });
+  expect(onChange.mock.calls[0][0].notes).toHaveLength(input.notes.length);
+});
+
+it('rejects a duplicate or blank chord pitch without issuing a change and permits correction', () => {
+  const onChange = vi.fn();
+  render(<StudioScoreAuthoring song={score()} onChange={onChange} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Add chord tone' }));
+  expect(screen.getByRole('alert').textContent).toContain('already contains');
+  fireEvent.change(screen.getByLabelText('New chord pitch (MIDI)'), { target: { value: '' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add chord tone' }));
+  expect(screen.getByRole('alert').textContent).toContain('Pitch');
+  expect(onChange).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText('New chord pitch (MIDI)'), { target: { value: '65' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Add chord tone' }));
+  expect(onChange).toHaveBeenCalledTimes(1);
+});
