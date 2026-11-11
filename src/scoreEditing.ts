@@ -194,6 +194,18 @@ export function trimScoreMeasures(
       const dir = doc.createElementNS(firstMeasure.namespaceURI, "direction"),
         sound = doc.createElementNS(firstMeasure.namespaceURI, "sound");
       sound.setAttribute("tempo", String(tempo));
+      const directionType = doc.createElementNS(firstMeasure.namespaceURI, "direction-type"),
+        metronome = doc.createElementNS(firstMeasure.namespaceURI, "metronome"),
+        beatUnit = doc.createElementNS(firstMeasure.namespaceURI, "beat-unit"),
+        perMinute = doc.createElementNS(firstMeasure.namespaceURI, "per-minute");
+      // Carry playback tempo without duplicating the source's visible marking.
+      metronome.setAttribute("print-object", "no");
+      beatUnit.textContent = "quarter";
+      perMinute.textContent = String(tempo);
+      metronome.appendChild(beatUnit);
+      metronome.appendChild(perMinute);
+      directionType.appendChild(metronome);
+      dir.appendChild(directionType);
       dir.appendChild(sound);
       // OSMD needs the initial divisions/staves/clefs before a direction.
       // Keep inherited tempo ahead of original directions (which may override
