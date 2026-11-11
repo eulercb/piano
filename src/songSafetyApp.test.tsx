@@ -37,7 +37,9 @@ function playbackClock() {
   vi.spyOn(performance, "now").mockImplementation(() => now);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frames.set(++frame, callback); return frame; });
   vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
-  vi.stubGlobal("AudioContext", class {
+  vi.stubGlobal("AudioContext", class extends EventTarget {
+    state = "running";
+    close() { return Promise.resolve(); }
     currentTime = 0; destination = {}; resume() { return Promise.resolve(); }
     createOscillator() { return { frequency: { value: 0 }, connect() {}, disconnect() {}, start() {}, stop() {}, onended: null }; }
     createGain() { return { connect() {}, disconnect() {}, gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} } }; }
@@ -59,7 +61,7 @@ it("preserves unreadable saved bytes and keeps a failed import open for export",
   const view = render(<App />); await importOne(view.container);
   expect(localStorage.getItem(SONGS_KEY)).toBe(source);
   expect(screen.getByText(/Import is open but not saved/)).toBeTruthy();
-  expect(beforeUnload()).toBe(true);
+  await waitFor(() => expect(beforeUnload()).toBe(true));
   fireEvent.click(screen.getByRole("button", { name: "Export project + fingers" }));
   expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled();
 });
@@ -101,7 +103,7 @@ it("merges another tab's new piece and rejects its conflicting edit while preser
   await screen.findByText(/This piece changed in another tab/);
   expect(saved()[0].notes[0].finger).toBe(3);
   expect((screen.getByRole("combobox", { name: "Finger" }) as HTMLSelectElement).value).toBe("4");
-  expect(beforeUnload()).toBe(true);
+  await waitFor(() => expect(beforeUnload()).toBe(true));
 });
 it("keeps unsaved edits across navigation and lets the user cancel switching pieces or importing", async () => {
   const view = render(<App />); await importOne(view.container); finger("5");
@@ -117,7 +119,9 @@ it("keeps unsaved edits across navigation and lets the user cancel switching pie
   expect(update).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await screen.findByText("Saved to your library on this device.");
-  expect(beforeUnload()).toBe(false);
+  // The notice can render before the passive effect removes the close guard.
+  // Wait for the guard itself, not an unrelated DOM mutation or a fixed delay.
+  await waitFor(() => expect(beforeUnload()).toBe(false));
   fireEvent.click(screen.getByRole("button", { name: "Reload update" }));
   expect(update).toHaveBeenCalledTimes(1);
 });
@@ -173,10 +177,14 @@ it("keeps edits made during a pending save dirty and lets them save against that
   vi.stubGlobal("navigator", { locks: { request } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(beforeUnload()).toBe(true);
   finger("5"); await act(async () => complete());
   expect(saved()[0].notes[0].finger).toBe(4); expect(beforeUnload()).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Save" })); await act(async () => complete());
-  await waitFor(() => expect(saved()[0].notes[0].finger).toBe(5)); expect(beforeUnload()).toBe(false);
+  await waitFor(() => {
+    expect(saved()[0].notes[0].finger).toBe(5);
+    expect(beforeUnload()).toBe(false);
+  });
 });
 it("does not rebase a reopened old draft when an earlier pending save completes", async () => {
   const view = render(<App />); await importOne(view.container); finger("4");
@@ -214,7 +222,7 @@ it("saves built-in demo edits as a new copy and never overwrites an older saved 
   expect(saved()[0].notes[0].finger).toBe(5);
   expect(saved().find(s => s.id === demoSong.id)).toEqual(legacy);
   expect(screen.getByRole("heading", { name: "Morning Light · copy" })).toBeTruthy();
-  expect(beforeUnload()).toBe(false);
+  await waitFor(() => expect(beforeUnload()).toBe(false));
 });
 it("protects temporary practice history on reload and close even when the song is saved", async () => {
   const advance = playbackClock();
@@ -229,7 +237,7 @@ it("protects temporary practice history on reload and close even when the song i
   fireEvent.click(screen.getByRole("button", { name: "Play" }));
   advance(12);
   await screen.findByText(/These passes are temporary until saved/);
-  expect(beforeUnload()).toBe(true);
+  await waitFor(() => expect(beforeUnload()).toBe(true));
   fireEvent.click(screen.getByRole("button", { name: "Reload update" }));
   expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("temporary practice history"));
   expect(update).not.toHaveBeenCalled();

@@ -1,3 +1,4 @@
+import { PianoAudio } from "./audio";
 import { pianoShortcutPitch, isPianoVirtualClick } from "./pianoKeyboard";
 import { PracticeSession, frameTime, type PracticeHand, type PracticeMode, type RhythmSummary } from "./session";
 import React, { useState, useRef, useEffect, useMemo, useSyncExternalStore } from "react";
@@ -52,40 +53,6 @@ const noteName = (p: number) =>
   ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"][p % 12] +
   (Math.floor(p / 12) - 1);
 const duration = songDuration;
-let audio: AudioContext | undefined;
-const voices = new Set<OscillatorNode>();
-function silence() {
-  for (const o of voices) {
-    try {
-      o.stop();
-    } catch {}
-  }
-  voices.clear();
-}
-function sound(p: number, d = 0.3, v = 0.3) {
-  audio ??= new AudioContext();
-  void audio.resume();
-  const o = audio.createOscillator(),
-    g = audio.createGain();
-  o.type = "triangle";
-  o.frequency.value = 440 * 2 ** ((p - 69) / 12);
-  g.gain.setValueAtTime(0, audio.currentTime);
-  g.gain.linearRampToValueAtTime(v * 0.25, audio.currentTime + 0.008);
-  g.gain.exponentialRampToValueAtTime(
-    0.001,
-    audio.currentTime + Math.max(0.03, d),
-  );
-  o.connect(g);
-  g.connect(audio.destination);
-  voices.add(o);
-  o.onended = () => {
-    voices.delete(o);
-    o.disconnect();
-    g.disconnect();
-  };
-  o.start();
-  o.stop(audio.currentTime + Math.max(0.04, d));
-}
 function TimingSummary({ summary }: { summary: RhythmSummary }) {
   return (
     <dl className="timing-summary">
@@ -98,6 +65,16 @@ function TimingSummary({ summary }: { summary: RhythmSummary }) {
   );
 }
 export function App() {
+  const [audio] = useState(() => new PianoAudio());
+  const [startingAudio, setStartingAudio] = useState(false);
+  const startingAudioRef = useRef(false), playbackGeneration = useRef(0);
+  function silence() { audio.silence(); }
+  function sound(pitch: number, length?: number, velocity?: number) { audio.sound(pitch, length, velocity); }
+  function cancelAudioStart() {
+    playbackGeneration.current++;
+    startingAudioRef.current = false;
+    setStartingAudio(false);
+  }
   const [midiState, setMidiState] = useState(initialMidiSnapshot);
   const previousMidiState = useRef(midiState);
   const [midiPaused, setMidiPaused] = useState(false);
@@ -159,6 +136,7 @@ export function App() {
   });
   const file = useRef<HTMLInputElement>(null),
     inputRef = useRef<(p: number) => void>(() => {}),
+    inputTimers = useRef(new Map<number, number>()),
     last = useRef(0);
   const measures = useMemo(() => {
     try {
@@ -178,6 +156,7 @@ export function App() {
     refreshSession((v) => v + 1);
   }
   function reset(t = 0) {
+    cancelAudioStart();
     silence();
     session.restart(t);
     recorder.reset();
@@ -186,7 +165,20 @@ export function App() {
     setNotice("");
     redraw();
   }
+  function pauseForAudio() {
+    cancelAudioStart();
+    session.pause();
+    silence();
+    setPlaying(false);
+    setNotice("Audio interrupted. Press Play to resume, or choose Mute to practise without sound.");
+    redraw();
+  }
+  useEffect(() => audio.subscribe(() => {
+    if (!muted && (session.running || startingAudioRef.current)) pauseForAudio();
+  }), [audio, session, muted]);
   function step(now: number) {
+    // State events can arrive after an already-queued frame or piano input.
+    if (session.running && !muted && !audio.running) { pauseForAudio(); return; }
     const wasRunning = session.running;
     const timing = frameTime(last.current, now);
     const result = recorder.advanceFrame(timing.seconds, speed, repeatPassage);
@@ -218,7 +210,11 @@ export function App() {
     redraw();
   }
   function togglePlayback() {
-    if (session.running) {
+    if (startingAudioRef.current) {
+      cancelAudioStart();
+      silence();
+      setNotice("Audio start canceled. Press Play when you’re ready.");
+    } else if (session.running) {
       step(performance.now());
       session.pause();
       silence();
@@ -228,16 +224,51 @@ export function App() {
         setNotice("This passage has no notes for this hand. Choose another hand or piece.");
         return;
       }
-      audio ??= new AudioContext();
-      void audio.resume();
-      setNotice("");
-      setMidiPaused(false);
-      last.current = performance.now();
-      session.start();
-      setPlaying(true);
-      step(last.current);
+      const generation = ++playbackGeneration.current;
+      const start = (ready: boolean) => {
+        if (generation !== playbackGeneration.current) return;
+        startingAudioRef.current = false;
+        setStartingAudio(false);
+        if (document.hidden) return;
+        if (!ready || (!muted && !audio.running)) {
+          setNotice("Audio could not start. Press Play to retry, or choose Mute to practise without sound.");
+          return;
+        }
+        setNotice("");
+        setMidiPaused(false);
+        last.current = performance.now();
+        session.start();
+        setPlaying(true);
+        step(last.current);
+        redraw();
+      };
+      const ready = muted || audio.ensureRunning();
+      if (typeof ready === "boolean") start(ready);
+      else {
+        startingAudioRef.current = true;
+        setStartingAudio(true);
+        setNotice("Starting audio. Press the pause button to cancel.");
+        void ready.then(start);
+      }
     }
     redraw();
+  }
+  function changeSpeed(next: number) {
+    if (next !== speed && startingAudioRef.current) {
+      cancelAudioStart();
+      silence();
+      setNotice("Tempo changed. Press Play when you’re ready.");
+    }
+    setSpeed(next);
+  }
+  function toggleMute() {
+    if (startingAudioRef.current) setNotice("");
+    cancelAudioStart();
+    silence();
+    // Muted practice is independent of browser audio. Unmuting an unavailable
+    // context must pause first rather than silently grading an inaudible pass.
+    if (muted && session.running && !audio.running) pauseForAudio();
+    setMuted(!muted);
   }
   function select(s: Song, saved = false, importing = false) {
     if (!importing) importGeneration.current++;
@@ -254,12 +285,17 @@ export function App() {
     setNotice("");
   }
   function input(p: number) {
-    if (!muted) sound(p);
+    if (!muted) {
+      if (session.running && !audio.running) pauseForAudio();
+      audio.preview(p);
+    }
     setPressed((old) => [...new Set([...old, p])]);
-    window.setTimeout(
-      () => setPressed((old) => old.filter((x) => x !== p)),
-      180,
-    );
+    // A repeated note owns a fresh highlight, not the previous note's expiry.
+    window.clearTimeout(inputTimers.current.get(p));
+    inputTimers.current.set(p, window.setTimeout(() => {
+      inputTimers.current.delete(p);
+      setPressed((old) => old.filter((x) => x !== p));
+    }, 180));
     if (!session.running) return;
     // Grade against the input's actual time rather than the last animation frame.
     step(performance.now());
@@ -276,9 +312,11 @@ export function App() {
     if (!next.selectedId) setMidiPaused(false);
     if (previous.status === "connected" && next.status !== "connected"
       && previous.selectedId && next.selectedId === previous.selectedId
-      && session.running && mode !== "listen") {
+      && (session.running || startingAudioRef.current) && mode !== "listen") {
       // Keep the last visible position, count-in and partial matches. Do not
       // catch up to the loss event and create misses or a completed pass.
+      if (startingAudioRef.current) setNotice("");
+      cancelAudioStart();
       session.pause();
       silence();
       setPressed([]);
@@ -300,20 +338,24 @@ export function App() {
   }, []);
   useEffect(
     () => () => {
-      silence();
+      playbackGeneration.current++;
+      session.pause();
+      audio.dispose();
+      for (const timer of inputTimers.current.values()) window.clearTimeout(timer);
+      inputTimers.current.clear();
     },
     [],
   );
   useEffect(() => {
-    if (!playing) return;
-    last.current = performance.now();
+    if (playing) last.current = performance.now();
     let id = 0;
     const tick = (now: number) => {
       step(now);
       if (session.running) id = requestAnimationFrame(tick);
     };
     const onVisibility = () => {
-      if (document.hidden && session.running) {
+      if (document.hidden && (session.running || startingAudioRef.current)) {
+        cancelAudioStart();
         session.pause();
         silence();
         setPlaying(false);
@@ -322,7 +364,7 @@ export function App() {
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
-    id = requestAnimationFrame(tick);
+    if (playing) id = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(id);
       document.removeEventListener("visibilitychange", onVisibility);
@@ -477,6 +519,9 @@ export function App() {
       ? notes.find((n) => !session.matched.has(n.id) && n.start <= time + 0.02)
       : undefined;
   function pauseForPanel() {
+    if (startingAudioRef.current) setNotice("");
+    cancelAudioStart();
+    silence();
     if (session.running) {
       step(performance.now());
       session.pause();
@@ -603,10 +648,11 @@ export function App() {
         </button>
         <button
           className="play-button"
-          aria-label={playing ? "Pause" : "Play"}
+          aria-label={startingAudio ? "Cancel audio start" : playing ? "Pause" : "Play"}
+          aria-busy={startingAudio}
           onClick={togglePlayback}
         >
-          {playing ? <Pause size={20} /> : <Play size={20} />}
+          {playing || startingAudio ? <Pause size={20} /> : <Play size={20} />}
         </button>
         <span className="time">{formatTime(time)}</span>
         <input
@@ -623,7 +669,7 @@ export function App() {
           className={"icon-button " + (muted ? "muted" : "")}
           aria-label={muted ? "Unmute" : "Mute"}
           aria-pressed={muted}
-          onClick={() => { silence(); setMuted(!muted); }}
+          onClick={toggleMute}
         >
           <Volume2 size={19} />
         </button>
@@ -666,7 +712,7 @@ export function App() {
         max="125"
         step="5"
         value={speed}
-        onChange={(e) => setSpeed(Number(e.target.value))}
+        onChange={(e) => changeSpeed(Number(e.target.value))}
       />
       <div className="speed-presets">
         {[25, 50, 75, 100].map((v) => (
@@ -674,7 +720,7 @@ export function App() {
             key={v}
             className={speed === v ? "chosen" : ""}
             aria-pressed={speed === v}
-            onClick={() => setSpeed(v)}
+            onClick={() => changeSpeed(v)}
           >
             {v}%
           </button>

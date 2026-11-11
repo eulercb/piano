@@ -19,7 +19,9 @@ vi.mock("./MidiConnection", async () => {
 });
 let now = 0, frame = 0, oscillatorStarts = 0;
 const callbacks = new Map<number, FrameRequestCallback>();
-class SilentAudio {
+class SilentAudio extends EventTarget {
+  state = "running";
+  close() { return Promise.resolve(); }
   currentTime = 0; destination = {};
   resume() { return Promise.resolve(); }
   createOscillator() { return { frequency: { value: 0 }, connect() {}, disconnect() {}, start() { oscillatorStarts++; }, stop() {}, onended: null }; }

@@ -45,7 +45,9 @@ class FakeAccess implements MidiAccess {
   }
 }
 let stoppedVoices = 0;
-class SilentAudio {
+class SilentAudio extends EventTarget {
+  state = "running";
+  close() { return Promise.resolve(); }
   currentTime = 0; destination = {};
   resume() { return Promise.resolve(); }
   createOscillator() { return { frequency: { value: 0 }, connect() {}, disconnect() {}, start() {}, stop() { stoppedVoices++; }, onended: null }; }
