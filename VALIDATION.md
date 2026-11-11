@@ -1,5 +1,10 @@
 # Validation
 
+These are historical, per-slice validation records. Draft status, test counts,
+bundle sizes and limitations describe the named tree at that time. For merged
+scope and remaining acceptance at current main, see the
+[release checklist](docs/release-checklist.md#merged-implementation-status).
+
 ## Export-test cleanup after rebasing #22
 
 - CI passed all 825 tests but caught a delayed project-export callback after the note-authoring test restored jsdom's `URL`, which has no object-URL methods. The final quota-failure/export test reproduces the same `main.tsx:639` exception when its original teardown stays alive long enough for revocation; the identical observation passes with the fix.
