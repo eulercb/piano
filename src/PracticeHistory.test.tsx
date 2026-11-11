@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PracticeHistory } from "./PracticeHistory";
 import { exportPracticeHistory, HISTORY_KEY, PracticeHistoryStore, type PracticePass } from "./practiceHistory";
@@ -9,6 +9,14 @@ const sample = (id = "one"): PracticePass => ({
   startedAt: "2026-11-10T12:00:00.000Z", completedAt: "2026-11-10T12:01:00.000Z",
   mode: "melody", hand: "right", tempo: 120, speedMin: 50, speedMax: 50,
   startSeconds: 0, endSeconds: 10, noteCount: 12,
+});
+const timingPass = (): PracticePass => ({
+  ...sample(), mode: "rhythm", hand: "both", noteCount: 4,
+  rhythm: { total: 4, onTime: 2, early: 1, late: 0, missed: 1, extra: 3 },
+  writtenHands: {
+    left: { total: 2, onTime: 1, early: 1, late: 0, missed: 0 },
+    right: { total: 2, onTime: 1, early: 0, late: 0, missed: 1 },
+  },
 });
 function setup(passes: PracticePass[] = []) {
   if (passes.length) localStorage.setItem(HISTORY_KEY, exportPracticeHistory(passes));
@@ -24,6 +32,50 @@ function chooseBackup(text: string) {
 afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); });
 
 describe("practice history controls", () => {
+  it.each(["rhythm", "recital"] as const)("labels saved %s written parts accessibly while keeping extra presses global", (mode) => {
+    setup([{ ...timingPass(), mode }]);
+    const left = within(screen.getByRole("group", { name: "Written left part" }));
+    const right = within(screen.getByRole("group", { name: "Written right part" }));
+    expect(left.getByRole("heading", { name: "Written left part" })).toBeTruthy();
+    expect(left.getByText("On time").nextElementSibling?.textContent).toBe("1 / 2");
+    expect(left.getByText("Early").nextElementSibling?.textContent).toBe("1");
+    expect(right.getByText("Missed").nextElementSibling?.textContent).toBe("1");
+    expect(screen.getAllByText("Extra presses")).toHaveLength(1);
+    expect(screen.getByText("Extra presses").nextElementSibling?.textContent).toBe("3");
+    expect(screen.getByText(/not which physical hand played/)).toBeTruthy();
+  });
+  it("explains missing old breakdowns without inventing counts or changing single-hand summaries", () => {
+    const timed = timingPass();
+    setup([{ ...timed, writtenHands: undefined }, { ...timed, id: "single", hand: "right", writtenHands: undefined }]);
+    expect(screen.getAllByText("Written-part breakdown was not saved for this pass.")).toHaveLength(1);
+    expect(screen.queryByRole("group", { name: "Written left part" })).toBeNull();
+    expect(screen.getAllByText("Extra presses")).toHaveLength(2);
+  });
+  it("labels an empty written part without showing a misleading zero denominator", () => {
+    const timed = timingPass();
+    setup([{ ...timed, writtenHands: {
+      left: { total: 0, onTime: 0, early: 0, late: 0, missed: 0 },
+      right: { total: 4, onTime: 2, early: 1, late: 0, missed: 1 },
+    } }]);
+    expect(within(screen.getByRole("group", { name: "Written left part" })).getByText("No selected note starts in this written part.")).toBeTruthy();
+    expect(screen.queryByText("0 / 0")).toBeNull();
+  });
+  it("restores written-part counts only after confirmation and rejects inconsistent replacements", async () => {
+    const store = setup();
+    chooseBackup(exportPracticeHistory([timingPass()]));
+    const merge = await screen.findByRole("button", { name: "Merge backup" });
+    expect(screen.queryByRole("group", { name: "Written left part" })).toBeNull();
+    await act(async () => { fireEvent.click(merge); });
+    expect(store.getSnapshot().passes).toEqual([timingPass()]);
+    expect(screen.getByRole("group", { name: "Written left part" })).toBeTruthy();
+    const saved = localStorage.getItem(HISTORY_KEY);
+    chooseBackup(JSON.stringify({ kind: "piano-practice-history", version: 1, passes: [{
+      ...timingPass(), writtenHands: { ...timingPass().writtenHands, left: { total: 2, onTime: 0, early: 2, late: 0, missed: 0 } },
+    }] }));
+    await screen.findByText(/must add up to the overall timing counts/);
+    expect(screen.queryByRole("button", { name: "Merge backup" })).toBeNull();
+    expect(localStorage.getItem(HISTORY_KEY)).toBe(saved);
+  });
   it("shows the empty state, privacy and scoring limitations without negative pressure", () => {
     setup();
     expect(screen.getByText("Ready for your first pass.")).toBeTruthy();

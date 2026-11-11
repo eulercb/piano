@@ -1,6 +1,7 @@
 import { useRef, useState, useSyncExternalStore } from "react";
 import { Download, History, Trash2, Upload } from "lucide-react";
 import { formatTime } from "./music";
+import type { NoteStartCounts, RhythmSummary } from "./session";
 import {
   exportPracticeHistory, MAX_HISTORY_BYTES, MAX_HISTORY_PASSES,
   parsePracticeHistory, practiceSuggestion, PracticeHistoryStore, type PracticePass,
@@ -10,17 +11,30 @@ import "./practiceHistory.css";
 const modeNames = { listen: "Listening", melody: "Melody", rhythm: "Rhythm", recital: "Recital" };
 const handNames = { left: "Left hand", right: "Right hand", both: "Both hands" };
 
-function PassSummary({ pass }: { pass: PracticePass }) {
-  if (pass.mode === "listen") return <p>Listening pass · {pass.noteCount} selected notes · no performance score</p>;
-  if (pass.mode === "melody") return <p>{pass.noteCount} selected notes reached in wait-for-note practice · timing not graded</p>;
-  const summary = pass.rhythm!;
+function TimingCounts({ summary }: { summary: NoteStartCounts | RhythmSummary }) {
   return <dl className="history-counts">
     <div><dt>On time</dt><dd>{summary.onTime} / {summary.total}</dd></div>
     <div><dt>Early</dt><dd>{summary.early}</dd></div>
     <div><dt>Late</dt><dd>{summary.late}</dd></div>
     <div><dt>Missed</dt><dd>{summary.missed}</dd></div>
-    <div><dt>Extra presses</dt><dd>{summary.extra}</dd></div>
+    {"extra" in summary && <div><dt>Extra presses</dt><dd>{summary.extra}</dd></div>}
   </dl>;
+}
+
+function PassSummary({ pass }: { pass: PracticePass }) {
+  if (pass.mode === "listen") return <p>Listening pass · {pass.noteCount} selected notes · no performance score</p>;
+  if (pass.mode === "melody") return <p>{pass.noteCount} selected notes reached in wait-for-note practice · timing not graded</p>;
+  const writtenHands = pass.writtenHands;
+  return <>
+    <TimingCounts summary={pass.rhythm!} />
+    {writtenHands ? <div className="history-written-parts">
+      <p>Written parts use the piece’s saved left/right assignments, not which physical hand played. Extra presses stay in the overall count.</p>
+      {(["left", "right"] as const).map((hand) => <div role="group" aria-label={`Written ${hand} part`} key={hand}>
+        <h4>Written {hand} part</h4>
+        {writtenHands[hand].total > 0 ? <TimingCounts summary={writtenHands[hand]} /> : <p>No selected note starts in this written part.</p>}
+      </div>)}
+    </div> : pass.hand === "both" && <p>Written-part breakdown was not saved for this pass.</p>}
+  </>;
 }
 
 export function PracticeHistory({ store }: { store: PracticeHistoryStore }) {

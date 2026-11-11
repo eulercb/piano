@@ -36,6 +36,99 @@ function storage(initial: string | null = null) {
   };
 }
 
+const writtenSong: Song = { id: "written-parts", title: "Synthetic written parts", tempo: 120, duration: 1.5, notes: [
+  { id: "left-unison", pitch: 72, start: 0, duration: 0.1, hand: "left", velocity: 0.7 },
+  { id: "right-unison", pitch: 72, start: 0, duration: 0.1, hand: "right", velocity: 0.7 },
+  { id: "right-early", pitch: 48, start: 0.5, duration: 0.1, hand: "right", velocity: 0.7 },
+  { id: "left-late", pitch: 52, start: 0.7, duration: 0.1, hand: "left", velocity: 0.7 },
+  { id: "right-missed", pitch: 67, start: 1, duration: 0.1, hand: "right", velocity: 0.7 },
+] };
+const writtenPass = (): PracticePass => ({
+  ...pass(), hand: "both", noteCount: 5,
+  rhythm: { total: 5, onTime: 2, early: 1, late: 1, missed: 1, extra: 1 },
+  writtenHands: {
+    left: { total: 2, onTime: 1, early: 0, late: 1, missed: 0 },
+    right: { total: 3, onTime: 1, early: 1, late: 0, missed: 1 },
+  },
+});
+
+describe("completed written-part recording", () => {
+  it.each(["rhythm", "recital"] as const)("records %s by saved assignments, including crossed pitches and doubled unisons", (mode) => {
+    const session = new PracticeSession({ notes: writtenSong.notes, duration: 1.5, tempo: 120, mode, hand: "both", countIn: false });
+    const recorder = new PracticePassRecorder(session, writtenSong, () => date, () => "written");
+    session.start(); recorder.advanceFrame(0, 100, false);
+    session.press(72, 100); session.press(99, 100);
+    recorder.advanceFrame(0.2, 100, false); recorder.advanceFrame(0.1, 100, false);
+    session.press(48, 100);
+    for (let i = 0; i < 3; i++) recorder.advanceFrame(0.2, 100, false);
+    session.press(52, 100);
+    expect(session.writtenHands).toBeUndefined();
+    if (mode === "recital") expect(session.grades.size).toBe(0);
+    session.pause();
+    expect(recorder.advanceFrame(30, 100, false).completedPass).toBeUndefined();
+    session.start();
+    expect(recorder.advanceFrame(2, 100, false).interrupted).toBe(true);
+    expect(session.writtenHands).toBeUndefined();
+    session.start();
+    recorder.advanceFrame(0.2, 100, false); recorder.advanceFrame(0.2, 100, false);
+    const completed = recorder.advanceFrame(0.21, 100, false).completedPass;
+    expect(completed?.rhythm).toEqual(writtenPass().rhythm);
+    expect(completed?.writtenHands).toEqual(writtenPass().writtenHands);
+    expect(parsePracticeHistory(exportPracticeHistory([completed!]))).toEqual([completed]);
+    expect(recorder.advanceFrame(0.1, 100, false).completedPass).toBeUndefined();
+    session.restart(); recorder.reset();
+    expect(session.writtenHands).toBeUndefined();
+    expect(session.previousWrittenHands).toBeUndefined();
+  });
+
+  it.each(["rhythm", "recital"] as const)("captures %s loop counts before resetting and excludes earlier notes after seek", (mode) => {
+    const session = new PracticeSession({ notes: writtenSong.notes, duration: 1.5, tempo: 120, mode, hand: "both", countIn: false });
+    let id = 0;
+    const recorder = new PracticePassRecorder(session, writtenSong, () => date, () => `loop-${++id}`);
+    session.start(); recorder.advanceFrame(0, 100, true); session.press(72, 100);
+    session.restart(0.5); recorder.reset(); session.start();
+    recorder.advanceFrame(0, 100, true); session.press(48, 100);
+    for (let i = 0; i < 3; i++) recorder.advanceFrame(0.25, 100, true);
+    const first = recorder.advanceFrame(0.25, 100, true).completedPass!;
+    expect(first).toMatchObject({ startSeconds: 0.5, noteCount: 3, writtenHands: {
+      left: { total: 1, onTime: 0, early: 0, late: 0, missed: 1 },
+      right: { total: 2, onTime: 1, early: 0, late: 0, missed: 1 },
+    } });
+    expect(session.writtenHands).toBeUndefined();
+    expect(session.previousWrittenHands).toEqual(first.writtenHands);
+    expect(session.grades.size).toBe(0);
+    for (let i = 0; i < 5; i++) recorder.advanceFrame(0.25, 100, true);
+    const second = recorder.advanceFrame(0.25, 100, true).completedPass!;
+    expect(second).toMatchObject({ startSeconds: 0, noteCount: 5, writtenHands: {
+      left: { total: 2, onTime: 0, early: 0, late: 0, missed: 2 },
+      right: { total: 3, onTime: 0, early: 0, late: 0, missed: 3 },
+    } });
+    expect(second.id).not.toBe(first.id);
+    expect(first.writtenHands?.right.onTime).toBe(1);
+    expect(session.previousWrittenHands).toEqual(second.writtenHands);
+    session.restart(1.1); recorder.reset(); session.start();
+    recorder.advanceFrame(0.2, 100, false);
+    expect(recorder.advanceFrame(0.2, 100, false).completedPass).toBeUndefined();
+    expect(session.previousWrittenHands).toBeUndefined();
+  });
+
+  it.each(["rhythm", "recital"] as const)("keeps %s single-hand counts unchanged and records an empty written part honestly", (mode) => {
+    for (const hand of ["right", "both"] as const) {
+      const session = new PracticeSession({ notes: song.notes, duration: 0.6, tempo: 120, mode, hand, countIn: false });
+      const recorder = new PracticePassRecorder(session, song, () => date, () => hand);
+      session.start();
+      recorder.advanceFrame(0.2, 100, false); recorder.advanceFrame(0.2, 100, false);
+      const completed = recorder.advanceFrame(0.2, 100, false).completedPass!;
+      expect(completed.rhythm).toEqual({ total: 2, onTime: 0, early: 0, late: 0, missed: 2, extra: 0 });
+      if (hand === "right") expect(completed.writtenHands).toBeUndefined();
+      else expect(completed.writtenHands).toEqual({
+        left: { total: 0, onTime: 0, early: 0, late: 0, missed: 0 },
+        right: { total: 2, onTime: 0, early: 0, late: 0, missed: 2 },
+      });
+    }
+  });
+});
+
 describe("completed-pass recording", () => {
   it("records one listening pass, without inventing performance counts, and never repeats a completion", () => {
     const { session, recorder } = transport("listen");
@@ -133,6 +226,36 @@ describe("completed-pass recording", () => {
 });
 
 describe("bounded backup validation", () => {
+  it.each(["rhythm", "recital"] as const)("round trips optional %s written-part counts and preserves old backups without inventing them", (mode) => {
+    const current = { ...writtenPass(), mode };
+    const legacy = { ...current, id: "legacy", writtenHands: undefined };
+    const restored = parsePracticeHistory(exportPracticeHistory([current, legacy]));
+    expect(restored.find((item) => item.id === current.id)).toEqual(current);
+    expect(restored.find((item) => item.id === "legacy")).not.toHaveProperty("writtenHands");
+    const memory = storage(exportPracticeHistory(restored));
+    expect(new PracticeHistoryStore(() => memory).getSnapshot().passes).toEqual(restored);
+  });
+  it.each([
+    null, [], {}, { left: {} }, { left: null, right: {} },
+    { ...writtenPass().writtenHands, extra: 1 },
+    { ...writtenPass().writtenHands, left: { ...writtenPass().writtenHands!.left, extra: 0 } },
+    { ...writtenPass().writtenHands, left: { ...writtenPass().writtenHands!.left, total: -1 } },
+    { ...writtenPass().writtenHands, left: { ...writtenPass().writtenHands!.left, onTime: 0.5 } },
+    { ...writtenPass().writtenHands, left: { ...writtenPass().writtenHands!.left, late: "1" } },
+    { ...writtenPass().writtenHands, left: { ...writtenPass().writtenHands!.left, missed: null } },
+    { ...writtenPass().writtenHands, left: { ...writtenPass().writtenHands!.left, total: Number.MAX_SAFE_INTEGER + 1 } },
+    // Each part is complete, but the distribution no longer matches the aggregate.
+    { ...writtenPass().writtenHands, left: { total: 2, onTime: 0, early: 0, late: 2, missed: 0 } },
+    { ...writtenPass().writtenHands, left: { total: 1, onTime: 0, early: 0, late: 1, missed: 0 } },
+  ])("rejects invalid or mismatched written-part backup data: %j", (writtenHands) => {
+    const source = JSON.stringify({ kind: "piano-practice-history", version: 1, passes: [{ ...writtenPass(), writtenHands }] });
+    expect(() => parsePracticeHistory(source)).toThrow(/Invalid practice history/);
+  });
+  it.each([
+    { hand: "left" }, { hand: "right" }, { mode: "listen", rhythm: undefined }, { mode: "melody", rhythm: undefined },
+  ])("rejects written-part counts outside both-hand timing passes: %j", (patch) => {
+    expect(() => normalizePracticePass({ ...writtenPass(), ...patch })).toThrow(/only both-hand/);
+  });
   it("round trips summaries while stripping arbitrary and score-bearing data", () => {
     const source = JSON.stringify({ kind: "piano-practice-history", version: 1, passes: [{ ...pass(), scoreXml: "private score", notes: song.notes, rhythm: { ...pass().rhythm, secret: "no" } }] });
     const parsed = parsePracticeHistory(source);

@@ -84,6 +84,8 @@ MusicXML-origin notes do not offer structural insertion/deletion/retiming: that 
 
 Completed listen, melody, rhythm and recital passes are stored locally with hand, speed range and passage context. Open History for gentle next-step suggestions, JSON backups and explicit delete/clear controls. Storage is bounded; export backups before clearing browser data. Modern Web Locks serialize changes across tabs; without that API, use one app tab to avoid simultaneous-write conflicts.
 
+New completed **both-hand Rhythm and Recital** passes also show note-start counts for the written left and right parts. These follow the piece’s saved hand assignments, not which physical hand played; imported MIDI assignments may need review in Studio. Doubled unisons count in each written part, while extra presses stay in the overall count because their physical hand cannot be detected. Recital still reveals results only after completion. Seeking excludes earlier targets, and repeated passes retain their own counts before the next attempt starts. Older history backups remain readable without invented breakdowns; new backups preserve and validate the optional counts.
+
 The score cursor requires unchanged correspondence between MusicXML and playable notes. Written grace positions share the principal note; performed grace timing remains approximate. Follow scrolling is opt-in and stays inside the score pane.
 
 Compressed scores are read locally with strict size, path, integrity and decompression limits. External images and resource links are rejected; no archive resources are fetched. Original imported files are not overwritten.
