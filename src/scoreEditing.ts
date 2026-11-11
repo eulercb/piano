@@ -6,6 +6,7 @@ import {
 } from "@xmldom/xmldom";
 import { parseMusicXml } from "./musicxml";
 import type { Note, Song } from "./music";
+import { passageTitle } from "./songTitle";
 const children = (node: Element, name: string): Element[] =>
   Array.from(node.childNodes).filter(
     (n): n is Element => n.nodeType === 1 && (n as Element).localName === name,
@@ -203,7 +204,7 @@ export function trimScoreMeasures(
   return {
     ...trimmed,
     id: crypto.randomUUID(),
-    title: song.title + " · passage",
+    title: passageTitle(song.title),
   };
 }
 export function transposeScore(song: Song, semitones: number): Song {
