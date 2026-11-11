@@ -81,9 +81,15 @@ license determination for a future combined product.
    separately before replacing anything useful. Verify saved-song persistence
    and offline reopening on the intended device before relying on it.
 
-Offline desktop operation, actual Audiveris output compatibility and recognition
-quality have not been exercised here. App offline behavior also depends on a
-successful prior PWA install/cache and is not proven by a unit test or build.
+The separate [Audiveris CLI experiment](local-omr-evaluation.md), merged through
+[#22](https://github.com/eulercb/piano/pull/22), exercised actual recognition and
+app import on one original clean two-bar fixture: 16/16 quarter-note events
+matched, and a blank control failed without output. This is narrow synthetic
+evidence, not general-score or phone-photo accuracy. Network isolation and
+observation were denied; private-score offline safety remains unverified. Use
+synthetic inputs until that acceptance is completed on an authorized machine.
+App offline behavior also requires a successful prior PWA install/cache and is
+not proven by a unit test or build.
 
 ## Implemented boundary
 

@@ -1,0 +1,146 @@
+{
+  "schema_version": 2,
+  "artifact_kind": "reviewed public evidence; recognized XML files are derived copies, not raw exports",
+  "engine": "Audiveris 5.11.0",
+  "timeout_seconds_per_engine_wait": 180,
+  "gate": "Exact written events including rests, pitch/onset/duration/staff/measure, voice partition, note types/dots and sound/visible ties. No correction or retries.",
+  "network_isolation": "not provided or verified",
+  "excluded_evidence": "Raw engine/adapter logs and original exports remain local and are not included in this public artifact set.",
+  "removed_nonmusical_metadata": [
+    "identification/source",
+    "identification/miscellaneous (source-file and source-sheet-1)",
+    "identification/encoding/encoding-date"
+  ],
+  "cases": [
+    {
+      "id": "rhythm-accidentals",
+      "artifact_kind": "derived public MusicXML; not the original raw export",
+      "input_sha256": "cc1a4920f3dcb867cb3daca252dcf58f0c1802515cdb171a50c2bad2e1dd2a7d",
+      "gold_sha256": "ccecc89b11fe585ac27859bb80f4100cec5570cf99ab3e8f95f9c0d978dbc270",
+      "private_original_export_sha256": "0d234987634763472596a61644a32641e6a6e79b0fe2d8a7af612ebcfd8fc9bf",
+      "musical_content_sha256": "4f6be199a60962eef95b0476cfe12e7f14888c0438db782e266eef4a76ace3a5",
+      "original_engine_exit": 0,
+      "original_adapter_exit": 0,
+      "measurements": {
+        "elapsed_seconds": 8.587,
+        "child_max_rss_kib_linux": 462176,
+        "engine_warning_lines": 2
+      },
+      "warning_summary": [
+        "Missing OCR languages",
+        "OCR supported-language collection empty"
+      ],
+      "comparison": {
+        "comparable": true,
+        "voice_partition_matches": true,
+        "gold_events": 14,
+        "recognized_events": 14,
+        "exact_pitch_onset_duration_staff_measure_matches": 14,
+        "precision": 1.0,
+        "recall": 1.0,
+        "exact_written_type_dot_tie_matches": 14,
+        "written_type_dot_tie_matches": true,
+        "missing_events": [],
+        "unexpected_events": [],
+        "missing_written_events": [],
+        "unexpected_written_events": [],
+        "voice_mapping": {
+          "(0, '1', '1')": [
+            "1"
+          ],
+          "(0, '2', '2')": [
+            "5"
+          ]
+        },
+        "scope": "Event multiset, measure index, staff and voice correspondence; written type, dot count, sound ties and visible ties. Not full notation/engraving equivalence."
+      },
+      "accepted": true,
+      "artifact_sha256": {
+        "recognized.public.musicxml": "bf658275794f0e478878a6f15fe17909ba4c92cf396569ecc97dfd3a402d0934"
+      }
+    },
+    {
+      "id": "chords-ties",
+      "artifact_kind": "derived public MusicXML; not the original raw export",
+      "input_sha256": "76b418cba900977ca77d058cbbe9c8164f115cb09b5da971937633db92776245",
+      "gold_sha256": "af012119b2db8af3cd527a94796b33ad26f6f190d1966599558e06ed1ffd73ac",
+      "private_original_export_sha256": "ad08c5714caad5ad8866729395a0add6a04220415094c9f8c5fb1414eb9fbc47",
+      "musical_content_sha256": "db3609993c747de29af493607950c3b2099f36c940cfaa88f98dd80a3c108082",
+      "original_engine_exit": 0,
+      "original_adapter_exit": 0,
+      "measurements": {
+        "elapsed_seconds": 7.205,
+        "child_max_rss_kib_linux": 446416,
+        "engine_warning_lines": 3
+      },
+      "warning_summary": [
+        "Missing OCR languages",
+        "OCR supported-language collection empty",
+        "Beam-height estimate unavailable; guessed value used"
+      ],
+      "comparison": {
+        "comparable": false,
+        "error": "Invalid MusicXML divisions in part 1, measure 1: must be greater than zero and at most 10000000",
+        "scope": "No event accuracy measured: invalid or unreadable MusicXML."
+      },
+      "accepted": false,
+      "artifact_sha256": {
+        "recognized.public.musicxml": "5607031df1c825084b070ae29811102b52fb478b5101be3811f9671356cdcfd5"
+      },
+      "capture_note": "The original pre-timing-validation adapter accepted an invalid export. This public copy retains divisions=0 and every musical element unchanged; the importer and hardened timing validation still reject it."
+    },
+    {
+      "id": "rhythm-skew-contrast",
+      "artifact_kind": "derived public MusicXML; not the original raw export",
+      "input_sha256": "79cdbebac122c2148c0d6514e81d50d0a579f39fce89aacabcfb387f2a6dd509",
+      "gold_sha256": "ccecc89b11fe585ac27859bb80f4100cec5570cf99ab3e8f95f9c0d978dbc270",
+      "private_original_export_sha256": "d34893c4a0e1b198e5145f293a5b096f478bf85c9c0f4e80fccdff57cbc43e98",
+      "musical_content_sha256": "f30d0a99e537270a02d49ba29e30e94e2d4c9d45b6d981e39cc038ee86ddb88f",
+      "original_engine_exit": 0,
+      "original_adapter_exit": 0,
+      "measurements": {
+        "elapsed_seconds": 9.145,
+        "child_max_rss_kib_linux": 378664,
+        "engine_warning_lines": 2
+      },
+      "warning_summary": [
+        "Missing OCR languages",
+        "OCR supported-language collection empty"
+      ],
+      "comparison": {
+        "comparable": true,
+        "voice_partition_matches": true,
+        "gold_events": 14,
+        "recognized_events": 14,
+        "exact_pitch_onset_duration_staff_measure_matches": 14,
+        "precision": 1.0,
+        "recall": 1.0,
+        "exact_written_type_dot_tie_matches": 14,
+        "written_type_dot_tie_matches": true,
+        "missing_events": [],
+        "unexpected_events": [],
+        "missing_written_events": [],
+        "unexpected_written_events": [],
+        "voice_mapping": {
+          "(0, '1', '1')": [
+            "1"
+          ],
+          "(0, '2', '2')": [
+            "5"
+          ]
+        },
+        "scope": "Event multiset, measure index, staff and voice correspondence; written type, dot count, sound ties and visible ties. Not full notation/engraving equivalence."
+      },
+      "accepted": true,
+      "artifact_sha256": {
+        "recognized.public.musicxml": "b6a6e5aee79e7a5dac5c30e7df200e7c18395787d3039fd46238105aaadc96f0"
+      }
+    }
+  ],
+  "capture_history": [
+    "Rhythm-accidentals and chords-ties each ran once before timing validation was added. Both engines/adapters exited 0. The comparator stopped on chords-ties divisions=0 with ZeroDivisionError before the third case ran.",
+    "The original invalid export was preserved locally without correction. Validation and comparison were hardened without repeating recognition.",
+    "Only the previously unrun rhythm-skew-contrast case then ran once. Total actual-engine invocations: 3.",
+    "These public copies remove only local source metadata and export date. Original export hashes and musical-content hashes document their derivation. Logs are excluded; summaries retain the failed chord/tie outcome and warning counts."
+  ]
+}

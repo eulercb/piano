@@ -1,0 +1,47 @@
+{
+  "id": "rhythm-accidentals",
+  "artifact_kind": "derived public MusicXML; not the original raw export",
+  "input_sha256": "cc1a4920f3dcb867cb3daca252dcf58f0c1802515cdb171a50c2bad2e1dd2a7d",
+  "gold_sha256": "ccecc89b11fe585ac27859bb80f4100cec5570cf99ab3e8f95f9c0d978dbc270",
+  "private_original_export_sha256": "0d234987634763472596a61644a32641e6a6e79b0fe2d8a7af612ebcfd8fc9bf",
+  "musical_content_sha256": "4f6be199a60962eef95b0476cfe12e7f14888c0438db782e266eef4a76ace3a5",
+  "original_engine_exit": 0,
+  "original_adapter_exit": 0,
+  "measurements": {
+    "elapsed_seconds": 8.587,
+    "child_max_rss_kib_linux": 462176,
+    "engine_warning_lines": 2
+  },
+  "warning_summary": [
+    "Missing OCR languages",
+    "OCR supported-language collection empty"
+  ],
+  "comparison": {
+    "comparable": true,
+    "voice_partition_matches": true,
+    "gold_events": 14,
+    "recognized_events": 14,
+    "exact_pitch_onset_duration_staff_measure_matches": 14,
+    "precision": 1.0,
+    "recall": 1.0,
+    "exact_written_type_dot_tie_matches": 14,
+    "written_type_dot_tie_matches": true,
+    "missing_events": [],
+    "unexpected_events": [],
+    "missing_written_events": [],
+    "unexpected_written_events": [],
+    "voice_mapping": {
+      "(0, '1', '1')": [
+        "1"
+      ],
+      "(0, '2', '2')": [
+        "5"
+      ]
+    },
+    "scope": "Event multiset, measure index, staff and voice correspondence; written type, dot count, sound ties and visible ties. Not full notation/engraving equivalence."
+  },
+  "accepted": true,
+  "artifact_sha256": {
+    "recognized.public.musicxml": "bf658275794f0e478878a6f15fe17909ba4c92cf396569ecc97dfd3a402d0934"
+  }
+}

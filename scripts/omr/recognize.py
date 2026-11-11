@@ -15,6 +15,7 @@ import tempfile
 import time
 import zipfile
 import xml.etree.ElementTree as ET
+from timing import check_timing
 
 MAX_INPUT = 20 * 1024 * 1024
 MAX_OUTPUT = 20 * 1024 * 1024
@@ -54,6 +55,7 @@ def read_export(path):
     root = ET.fromstring(data)
     if root.tag != 'score-partwise' or not root.findall('./part/measure/note'):
         raise ValueError('No recognized score-partwise notes')
+    check_timing(root)
     return data
 
 
@@ -71,7 +73,7 @@ def publish(data, destination):
         staged.unlink(missing_ok=True)
 
 
-def run(engine, source, destination, timeout=180):
+def run(engine, source, destination, timeout=180, log_destination=None):
     if os.name != 'posix':
         raise ValueError('This experimental adapter currently requires Linux/POSIX')
     engine = Path(engine).resolve(strict=True)
@@ -86,6 +88,10 @@ def run(engine, source, destination, timeout=180):
         raise ValueError('Provide the executable of your trusted Audiveris installation')
     if not 1 <= timeout <= 600:
         raise ValueError('Timeout must be between 1 and 600 seconds')
+    if log_destination is not None:
+        log_destination = Path(log_destination).absolute()
+        if log_destination.suffix.lower() != '.log' or not log_destination.parent.is_dir():
+            raise ValueError('Engine log must be a new .log file in an existing directory')
     started = time.monotonic()
     with tempfile.TemporaryDirectory(prefix='piano-omr-') as folder:
         work = Path(folder)
@@ -105,7 +111,10 @@ def run(engine, source, destination, timeout=180):
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
             resource.setrlimit(resource.RLIMIT_CPU, (timeout, timeout + 1))
         process = None
-        with (work / 'engine.log').open('wb') as log:
+        # A requested log remains byte-for-byte intact even on engine failure or
+        # timeout. Exclusive creation refuses existing files and symlinks.
+        log_path = log_destination if log_destination is not None else work / 'engine.log'
+        with os.fdopen(os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as log:
             try:
                 process = subprocess.Popen([str(engine), '-batch', '-transcribe', '-export', '-output', str(output), '--', str(image)],
                                            cwd=work, env=env, stdout=log, stderr=log, start_new_session=True, preexec_fn=limits)
@@ -124,7 +133,7 @@ def run(engine, source, destination, timeout=180):
         if len(exports) != 1:
             raise ValueError('Audiveris did not export exactly one MXL score')
         data = read_export(exports[0])
-        log_text = (work / 'engine.log').read_text(errors='replace')
+        log_text = log_path.read_text(errors='replace')
         # Exclusive creation prevents overwriting a file created during recognition.
         publish(data, destination)
         return {'elapsed_seconds': round(time.monotonic() - started, 3), 'output_bytes': len(data),
@@ -140,13 +149,14 @@ def main():
     parser.add_argument('--input', required=True, help='Chosen PNG; use synthetic inputs until offline acceptance')
     parser.add_argument('--output', required=True, help='New .musicxml file; never overwrites')
     parser.add_argument('--timeout', type=int, default=180)
+    parser.add_argument('--log', help='Optional new .log file retaining raw engine stdout/stderr, including failures and local paths')
     args = parser.parse_args()
     def terminate(_signum, _frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, terminate)
     print('Experimental desktop recognition: outbound network is NOT blocked or verified. Use synthetic inputs until offline acceptance. Every result needs review.', file=sys.stderr)
     try:
-        print(json.dumps(run(args.audiveris, args.input, args.output, args.timeout), indent=2))
+        print(json.dumps(run(args.audiveris, args.input, args.output, args.timeout, args.log), indent=2))
     except (ValueError, OSError, RuntimeError, subprocess.TimeoutExpired, ET.ParseError, zipfile.BadZipFile) as exc:
         parser.exit(1, f'Recognition failed: {exc}\n')
     except KeyboardInterrupt:

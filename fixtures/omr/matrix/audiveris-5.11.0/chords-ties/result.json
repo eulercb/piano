@@ -1,0 +1,30 @@
+{
+  "id": "chords-ties",
+  "artifact_kind": "derived public MusicXML; not the original raw export",
+  "input_sha256": "76b418cba900977ca77d058cbbe9c8164f115cb09b5da971937633db92776245",
+  "gold_sha256": "af012119b2db8af3cd527a94796b33ad26f6f190d1966599558e06ed1ffd73ac",
+  "private_original_export_sha256": "ad08c5714caad5ad8866729395a0add6a04220415094c9f8c5fb1414eb9fbc47",
+  "musical_content_sha256": "db3609993c747de29af493607950c3b2099f36c940cfaa88f98dd80a3c108082",
+  "original_engine_exit": 0,
+  "original_adapter_exit": 0,
+  "measurements": {
+    "elapsed_seconds": 7.205,
+    "child_max_rss_kib_linux": 446416,
+    "engine_warning_lines": 3
+  },
+  "warning_summary": [
+    "Missing OCR languages",
+    "OCR supported-language collection empty",
+    "Beam-height estimate unavailable; guessed value used"
+  ],
+  "comparison": {
+    "comparable": false,
+    "error": "Invalid MusicXML divisions in part 1, measure 1: must be greater than zero and at most 10000000",
+    "scope": "No event accuracy measured: invalid or unreadable MusicXML."
+  },
+  "accepted": false,
+  "artifact_sha256": {
+    "recognized.public.musicxml": "5607031df1c825084b070ae29811102b52fb478b5101be3811f9671356cdcfd5"
+  },
+  "capture_note": "The original pre-timing-validation adapter accepted an invalid export. This public copy retains divisions=0 and every musical element unchanged; the importer and hardened timing validation still reject it."
+}
