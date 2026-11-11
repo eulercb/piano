@@ -1,5 +1,13 @@
 # Validation
 
+## Gentle next steps after completed practice
+
+- Final aggregate gate: all **568 tests pass** across 33 files. TypeScript and the Vite/PWA production build pass; whitespace checks pass. No dependencies or private scores were added. The existing large lazy notation chunk warning remains.
+- Twenty-nine additional regressions cover explicit listening-to-melody progression, five-point speed steps and bounds, only available hand choices, slower wait-for-notes for new hand combinations, no autoplay, repeated/canceled Results panels and focus-return wiring, count-in/repeat preservation, completed loops versus unfinished attempts, seeking/restart/navigation/settings invalidation, accurate history after changed tempo, and preservation of unsaved Studio fingers, saved songs and source tempo.
+- Independent review found no actionable correctness issue. Five retained adversarial tests exercise corrupt stored history, temporary-history close protection, mode/count-in/seek changes, and a 50–75% pass followed by a deliberately selected 80% step. Quota failures and a seeked partial pass are also covered in app regressions.
+- Validation uses synthetic DOM, clocks, audio, modal and storage behavior plus authored CSS contracts. Actual portrait/landscape rendering, native modal focus, Android/Casio USB-C, real audio and installed/offline PWA acceptance remain unverified. No browser upload, merge or deployment was performed.
+- Device acceptance when available: finish a short listening pass, open Results and choose one-hand wait-for-notes; confirm the panel closes and playback waits for Play. Finish a melody/rhythm pass, try a five-point speed change or both hands, and check displayed hand/mode/speed, count-in, touch targets and paused transport. Export private project backups before device testing.
+
 ## Landscape keyboard and falling-note geometry
 
 - All 539 automated tests pass; TypeScript and Vite/PWA production build pass. Dependencies are unchanged. The existing large lazy notation chunk warning remains.

@@ -47,6 +47,14 @@ The keyboard and falling-note guide fill the usable screen width between safe-ar
 - **Piano** opens connection and input selection. The connection stays mounted and listening when the panel closes or when moving between pages. Setup links to **Prepare a song** and **Practice history**. Rhythm feedback stays compact during the pass; **Results** opens the detailed summary.
 - The room uses dynamic viewport height, safe-area insets and internally scrolling dialogs/score panes. Synthetic DOM and stylesheet tests cover these contracts; actual Android/Casio and rendered mobile layout still need device verification.
 
+### Choosing the next practice step
+
+After a completed listening, melody or rhythm pass, open **Results** for gentle next-step choices. Repeat from the beginning or try another approach. Melody and rhythm passes also offer increasing or decreasing practice speed by 5 percentage points (within 25–125%). Listening leads to one-hand wait-for-notes practice. Exploring the other hand or combining both uses wait-for-notes at the current speed or 50%, whichever is slower; empty-hand options are omitted.
+
+These are choices, not automatic progression or a claim of mastery. The exact hand, speed and mode are shown before selection. Choosing a step closes Results and resets to the beginning of the selected piece/prepared passage, leaving playback paused until **Play**. Count-in and repeat preferences stay in place. The song, source tempo, Studio draft and already recorded history are unchanged. **Choose a shorter passage in Studio** opens preparation without trimming or saving anything automatically.
+
+During repeated playback Results refers to the last completed pass; opening it pauses the current attempt. Restart, seek, changing hand/mode/speed/count-in or navigation clears the next-step choices. History remains available separately. An unfinished attempt never earns a completion suggestion, and temporary history still supports next steps if browser storage fails.
+
 ## Android and a USB-C piano
 
 Target: current Chrome on Android, with a class-compliant USB MIDI Casio and suitable USB-C/OTG adapter. This hardware path is not yet physically tested. Open **Piano**, then tap **Connect piano** after opening the HTTPS app, then allow MIDI access. A sole connected input is selected automatically; if several are present, choose your Casio under **Piano input**. Only that input affects practice. Play a key and check the last-note/activity indicator before starting a passage. No microphone recognition or sysex is requested.

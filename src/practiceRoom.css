@@ -118,6 +118,11 @@ dialog.practice-panel::backdrop { background: #102d25b3; }
 .practice-panel-footer .button { min-height: 44px; width: 100%; }
 .room-hint { margin-top: 16px; font-size: 12px; color: #435e50; }
 .room-destinations { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.practice-next-steps { margin-bottom: 20px; }
+.practice-next-steps > p { margin-top: 10px; line-height: 1.5; }
+.next-step-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 8px; margin: 16px 0; }
+.next-step-actions .button { flex-direction: column; align-items: flex-start; min-height: 60px; white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.next-step-actions span { font-size: 12px; font-weight: 400; }
 
 @media (max-width: 420px) {
   .room-heading .room-button { flex-direction: column; gap: 2px; padding: 5px; font-size: 10px; }
