@@ -133,6 +133,19 @@ describe("MIDI connection and selection", () => {
     expect(piano.open).toHaveBeenCalledTimes(1);
   });
 
+  it("can clear an unplugged selection without automatically reopening it when it returns", async () => {
+    const piano = new FakeInput("piano");
+    const { controller, access } = setup(new FakeAccess(piano));
+    await controller.connect(); await settle();
+    access.unplug(piano); await settle();
+    controller.select("");
+    expect(controller.snapshot).toMatchObject({ status: "no-inputs", selectedId: null, selectedName: "" });
+    const replacement = new FakeInput("piano");
+    access.add(replacement); await settle();
+    expect(controller.snapshot).toMatchObject({ status: "choosing", selectedId: null });
+    expect(replacement.open).not.toHaveBeenCalled();
+  });
+
   it("shows unavailable support, denied permission and retryable request errors", async () => {
     const unavailable = new MidiInputController(undefined, vi.fn(), vi.fn());
     await unavailable.connect();
@@ -305,12 +318,12 @@ describe("MIDI hotplug and lifecycle cleanup", () => {
     expect(controller.snapshot.status).toBe("connected");
   });
 
-  it("reports an unexpectedly closed selected port and ignores further notes", async () => {
+  it.each(["closed", "pending"] as const)("reports a selected port becoming %s and ignores further notes", async (connection) => {
     const piano = new FakeInput("piano");
     const { controller, access, onNote } = setup(new FakeAccess(piano));
     await controller.connect(); await settle();
     const oldMessage = piano.onmidimessage;
-    piano.connection = "closed"; access.changed();
+    piano.connection = connection; access.changed();
     expect(controller.snapshot.status).toBe("error");
     message(oldMessage, piano, [0x90, 60, 90]);
     expect(onNote).not.toHaveBeenCalled();

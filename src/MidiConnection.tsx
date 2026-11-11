@@ -1,21 +1,31 @@
 import { useEffect, useRef, useState } from "react";
-import { MidiInputController, initialMidiSnapshot, midiStatusText } from "./midiInput";
+import { MidiInputController, initialMidiSnapshot, midiStatusText, type MidiSnapshot } from "./midiInput";
 
 const noteName = (pitch: number) =>
   ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"][pitch % 12]
   + (Math.floor(pitch / 12) - 1);
 
-export function MidiConnection({ onNote }: { onNote: (pitch: number) => void }) {
+export function MidiConnection({ onNote, onStateChange }: {
+  onNote: (pitch: number) => void;
+  onStateChange?: (state: MidiSnapshot) => void;
+}) {
   const [state, setState] = useState(initialMidiSnapshot);
   const controller = useRef<MidiInputController | null>(null);
   const noteCallback = useRef(onNote);
   noteCallback.current = onNote;
+  const stateCallback = useRef(onStateChange);
+  stateCallback.current = onStateChange;
   useEffect(() => {
     const midi = new MidiInputController(
       typeof navigator.requestMIDIAccess === "function"
         ? (options) => navigator.requestMIDIAccess(options)
         : undefined,
-      setState,
+      (next) => {
+        setState(next);
+        // Notify synchronously: practice must pause before another frame/input
+        // can advance or grade the attempt, even while this panel is closed.
+        stateCallback.current?.(next);
+      },
       (pitch) => noteCallback.current(pitch),
     );
     controller.current = midi;
@@ -42,7 +52,7 @@ export function MidiConnection({ onNote }: { onNote: (pitch: number) => void }) 
           <label className="midi-input-label" htmlFor="midi-input">Piano input</label>
           <select id="midi-input" value={state.selectedId ?? ""} aria-describedby="midi-status"
             onChange={(event) => controller.current?.select(event.target.value)}>
-            <option value="">{state.inputs.length ? "Choose a MIDI input" : "No MIDI inputs available"}</option>
+            <option value="">Touch/typing keys (no MIDI)</option>
             {missingSelection && <option value={state.selectedId!}>{state.selectedName} (disconnected)</option>}
             {state.inputs.map((input) => <option key={input.id} value={input.id}>{input.label}</option>)}
           </select>

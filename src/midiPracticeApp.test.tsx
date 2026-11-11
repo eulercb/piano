@@ -44,10 +44,11 @@ class FakeAccess implements MidiAccess {
     this.inputs.delete(input.id); this.changed();
   }
 }
+let stoppedVoices = 0;
 class SilentAudio {
   currentTime = 0; destination = {};
   resume() { return Promise.resolve(); }
-  createOscillator() { return { frequency: { value: 0 }, connect() {}, disconnect() {}, start() {}, stop() {}, onended: null }; }
+  createOscillator() { return { frequency: { value: 0 }, connect() {}, disconnect() {}, start() {}, stop() { stoppedVoices++; }, onended: null }; }
   createGain() { return { connect() {}, disconnect() {}, gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} } }; }
 }
 const song: Song = { id: "midi-fixture", title: "Synthetic MIDI practice", tempo: 60, notes: [
@@ -64,7 +65,10 @@ function advance(seconds: number) {
 const button = (name: string) => screen.getByRole("button", { name });
 const click = (name: string) => fireEvent.click(button(name));
 const position = () => Number((screen.getByRole("slider", { name: "Playback position" }) as HTMLInputElement).value);
-const passes = () => parsePracticeHistory(localStorage.getItem(HISTORY_KEY) ?? "[]");
+const passes = () => {
+  const saved = localStorage.getItem(HISTORY_KEY);
+  return saved ? parsePracticeHistory(saved) : [];
+};
 function openPiano() { click("Piano connection"); return screen.getByRole("dialog", { name: "Piano connection" }); }
 function prepare(mode = "Melody practice · wait for notes") {
   click("My library"); fireEvent.click(screen.getByRole("button", { name: new RegExp(song.title) }));
@@ -85,7 +89,7 @@ function requestMidi(request: RequestMidiAccess) {
 let restoreMidi: (() => void) | undefined;
 beforeEach(() => {
   stubDialogs(); localStorage.clear(); localStorage.setItem("piano-songs", JSON.stringify([song]));
-  now = frameId = 0; frames.clear();
+  now = frameId = stoppedVoices = 0; frames.clear();
   vi.spyOn(performance, "now").mockImplementation(() => now);
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frames.set(++frameId, callback); return frameId; });
   vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
@@ -149,6 +153,8 @@ it("recovers only the selected input after unplugging and ignores stale or unsel
   act(() => { other.emit(60); piano.emit(60, 0); }); advance(.5); expect(position()).toBe(0);
   act(() => piano.emit(60)); advance(1); expect(position()).toBeCloseTo(1);
   await act(async () => { access.unplug(piano); await settle(); });
+  expect(button("Play")).toBeTruthy();
+  expect(screen.getByText("Piano not connected · practice paused")).toBeTruthy();
   act(() => { message(staleMessage, piano, [0x90, 62, 90]); other.emit(62); });
   advance(.5); expect(position()).toBeCloseTo(1);
   let panel = openPiano();
@@ -157,12 +163,14 @@ it("recovers only the selected input after unplugging and ignores stale or unsel
   expect(other.open).not.toHaveBeenCalled(); click("Done");
   const replacement = new FakeInput("piano");
   await act(async () => { access.add(replacement); await settle(); });
+  expect(screen.getByText("Piano ready · press Play to continue")).toBeTruthy();
+  act(() => replacement.emit(62)); advance(.5); expect(position()).toBeCloseTo(1);
   click("Play");
   act(() => { message(staleMessage, piano, [0x90, 62, 90]); replacement.emit(62, 0); });
   advance(.5); expect(position()).toBeCloseTo(1);
   act(() => replacement.emit(62)); advance(1); expect(position()).toBeCloseTo(2);
   panel = openPiano();
-  expect(within(panel).getByText("Last note: D4 · 1 note received")).toBeTruthy();
+  expect(within(panel).getByText("Last note: D4 · 2 notes received")).toBeTruthy();
   expect(request).toHaveBeenCalledTimes(1);
 });
 
@@ -213,4 +221,215 @@ it("keeps touch practice usable after denial and recovers from an empty list and
   click("Done"); click("Play"); advance(.5); act(() => piano.emit(62)); advance(.5);
   expect(position()).toBeCloseTo(1.5);
   expect(request).toHaveBeenCalledTimes(3);
+});
+
+async function connectPiano(piano: FakeInput, access = new FakeAccess(piano)) {
+  restoreMidi = requestMidi(vi.fn(async () => access));
+  render(<App />); prepare("Rhythm practice"); openPiano();
+  await act(async () => { click("Connect piano"); await settle(); });
+  if (access.inputs.size > 1) await act(async () => {
+    fireEvent.change(screen.getByRole("combobox", { name: "Piano input" }), { target: { value: piano.id } });
+    await settle();
+  });
+  click("Done");
+  return access;
+}
+
+it("freezes rhythm immediately on selected-input loss, retaining grades without missed notes or a false completion", async () => {
+  const piano = new FakeInput("piano"), other = new FakeInput("other", "Other");
+  const access = await connectPiano(piano, new FakeAccess(piano, other));
+  click("Play"); act(() => piano.emit(60)); advance(.5);
+  // A different input disappearing must not interrupt the selected piano.
+  await act(async () => { access.unplug(other); await settle(); });
+  expect(button("Pause")).toBeTruthy();
+  const before = position(), staleFrames = [...frames.values()], oldMessage = piano.onmidimessage, stopsBeforeLoss = stoppedVoices;
+  await act(async () => {
+    access.unplug(piano);
+    // Simulate another already-queued frame before React commits effect cleanup.
+    now += 100; staleFrames.forEach(frame => frame(now));
+    message(oldMessage, piano, [0x90, 62, 90]);
+    await settle();
+  });
+  expect(position()).toBe(before); expect(button("Play")).toBeTruthy();
+  expect(stoppedVoices).toBeGreaterThan(stopsBeforeLoss);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.getByText("Piano not connected · practice paused")).toBeTruthy();
+  advance(10); expect(position()).toBe(before); expect(passes()).toHaveLength(0);
+  click("Results");
+  const feedback = screen.getByRole("region", { name: "Rhythm feedback" });
+  expect(feedback.querySelector(".timing-summary")!.textContent).toContain("On time1 / 3");
+  expect(feedback.querySelector(".timing-summary")!.textContent).toContain("Missed0");
+  click("Done");
+  const replacement = new FakeInput("piano");
+  await act(async () => { access.add(replacement); await settle(); });
+  act(() => replacement.emit(62)); advance(1); expect(position()).toBe(before);
+  expect(button("Play")).toBeTruthy();
+  click("Play"); advance(.5); act(() => replacement.emit(62)); advance(1); act(() => replacement.emit(64)); advance(.5);
+  expect(passes()).toHaveLength(1);
+  expect(passes()[0]).toMatchObject({ mode: "rhythm", rhythm: { total: 3, onTime: 3, missed: 0, extra: 0 } });
+});
+
+it.each(["Melody practice · wait for notes", "Rhythm practice"])("keeps a partial count-in across unplug, delayed reopen and manual resume in %s", async (mode) => {
+  const piano = new FakeInput("piano");
+  const access = await connectPiano(piano);
+  click("Practice setup"); fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${mode}`) }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" })); click("Done");
+  click("Play"); advance(1.2); expect(screen.getByText("Get ready · 2 of 4 beats")).toBeTruthy();
+  await act(async () => { access.unplug(piano); await settle(); });
+  advance(5); expect(position()).toBe(0); expect(passes()).toHaveLength(0);
+  const opening = deferred<void>(), replacement = new FakeInput("piano");
+  replacement.open.mockImplementationOnce(async () => { await opening.promise; replacement.connection = "open"; replacement.changed(); });
+  await act(async () => { access.add(replacement); await settle(); });
+  expect(screen.getByText("Connecting piano · practice paused")).toBeTruthy();
+  advance(1); expect(button("Play")).toBeTruthy();
+  await act(async () => { opening.resolve(); await settle(); });
+  advance(1); expect(button("Play")).toBeTruthy();
+  click("Play"); expect(screen.getByText("Get ready · 2 of 4 beats")).toBeTruthy();
+  advance(2.7); expect(screen.getByText("Get ready · 4 of 4 beats")).toBeTruthy();
+  advance(.1); expect(screen.queryByText(/Get ready ·/)).toBeNull();
+  act(() => replacement.emit(60)); advance(1); act(() => replacement.emit(62)); advance(1); act(() => replacement.emit(64)); advance(.5);
+  expect(passes()).toHaveLength(1);
+  if (mode === "Rhythm practice") expect(passes()[0].rhythm).toMatchObject({ onTime: 3, missed: 0, extra: 0 });
+});
+
+it.each(["closed", "pending"] as const)("pauses when the selected port becomes %s and retains the attempt through failed reconnect and explicit input switch", async (connection) => {
+  const piano = new FakeInput("piano"), other = new FakeInput("other", "Other");
+  const access = await connectPiano(piano, new FakeAccess(piano, other));
+  click("Play"); act(() => piano.emit(60)); advance(.5); const before = position();
+  await act(async () => { piano.connection = connection; access.changed(); await settle(); });
+  expect(button("Play")).toBeTruthy(); expect(piano.onmidimessage).toBeNull();
+  expect(screen.getByText("Piano not connected · practice paused")).toBeTruthy();
+  await act(async () => { access.changed(); await settle(); });
+  expect(piano.open).toHaveBeenCalledTimes(1); expect(other.open).not.toHaveBeenCalled();
+  click("Open Piano"); piano.open.mockRejectedValueOnce(new Error("device busy"));
+  await act(async () => { click("Reconnect piano"); await settle(); });
+  expect(screen.getByText(/Could not open this MIDI input/)).toBeTruthy();
+  click("Done"); advance(1); expect(position()).toBe(before); expect(button("Play")).toBeTruthy();
+  click("Open Piano");
+  await act(async () => {
+    fireEvent.change(screen.getByRole("combobox", { name: "Piano input" }), { target: { value: "other" } });
+    await settle();
+  });
+  click("Done"); expect(screen.getByText("Piano ready · press Play to continue")).toBeTruthy();
+  act(() => other.emit(62)); advance(.5); expect(position()).toBe(before);
+  click("Play"); advance(.5); act(() => other.emit(62)); advance(1); act(() => other.emit(64)); advance(.5);
+  expect(passes()).toHaveLength(1);
+  expect(passes()[0].rhythm).toMatchObject({ onTime: 3, missed: 0, extra: 0 });
+});
+
+it.each(["disconnect", "clear selection"])("clears the recovery reminder on intentional %s and permits touch/typing without automatic input switching", async (choice) => {
+  const piano = new FakeInput("piano"), access = await connectPiano(piano);
+  click("Play"); act(() => piano.emit(60)); advance(.5);
+  await act(async () => { access.unplug(piano); await settle(); });
+  click("Open Piano");
+  await act(async () => {
+    if (choice === "disconnect") click("Disconnect");
+    else fireEvent.change(screen.getByRole("combobox", { name: "Piano input" }), { target: { value: "" } });
+    await settle();
+  });
+  click("Done");
+  expect(screen.queryByText(/^Piano .*practice paused|^Piano ready/)).toBeNull();
+  expect(screen.queryByRole("button", { name: "Open Piano" })).toBeNull();
+  expect(button("Play")).toBeTruthy();
+  const replacement = new FakeInput("piano");
+  await act(async () => { access.add(replacement); await settle(); });
+  expect(replacement.open).not.toHaveBeenCalled();
+  click("Play"); advance(.5); click("Play D4"); advance(1);
+  fireEvent.keyDown(document.body, { key: "d" }); advance(.5);
+  expect(passes()).toHaveLength(1);
+  expect(passes()[0].rhythm).toMatchObject({ onTime: 3, missed: 0, extra: 0 });
+});
+
+it("does not interrupt touch rhythm for permission or an initial failed open before MIDI has become usable", async () => {
+  const permission = deferred<MidiAccess>(), piano = new FakeInput("piano");
+  piano.open.mockRejectedValueOnce(new Error("device busy"));
+  restoreMidi = requestMidi(vi.fn(() => permission.promise));
+  render(<App />); prepare("Rhythm practice"); openPiano(); click("Connect piano"); click("Done");
+  click("Play"); click("Play C4"); advance(.5);
+  await act(async () => { permission.resolve(new FakeAccess(piano)); await settle(); });
+  expect(button("Pause")).toBeTruthy();
+  expect(screen.queryByText(/practice paused/)).toBeNull();
+  advance(.5); click("Play D4"); advance(1); click("Play E4"); advance(.5);
+  expect(passes()).toHaveLength(1);
+  expect(passes()[0].rhythm).toMatchObject({ onTime: 3, missed: 0, extra: 0 });
+});
+
+it("keeps listening uninterrupted when the selected piano is unplugged", async () => {
+  const piano = new FakeInput("piano"), access = await connectPiano(piano);
+  click("Practice setup"); fireEvent.click(screen.getByRole("button", { name: /^Listen & explore/ })); click("Done");
+  click("Play"); advance(.5);
+  await act(async () => { access.unplug(piano); await settle(); });
+  expect(button("Pause")).toBeTruthy();
+  expect(screen.getByText("Piano not connected")).toBeTruthy();
+  expect(screen.queryByText(/practice paused/)).toBeNull();
+  advance(2); expect(passes()).toHaveLength(1); expect(passes()[0].mode).toBe("listen");
+});
+
+it("keeps saved songs, existing history and a dirty Studio draft intact through loss and reconnect", async () => {
+  const piano = new FakeInput("piano"), access = await connectPiano(piano);
+  click("Play"); act(() => piano.emit(60)); advance(1); act(() => piano.emit(62)); advance(1); act(() => piano.emit(64)); advance(.5);
+  const savedSongs = localStorage.getItem("piano-songs"), savedHistory = localStorage.getItem(HISTORY_KEY);
+  expect(passes()).toHaveLength(1);
+  click("Practice setup"); click("Prepare a song");
+  fireEvent.change(screen.getByRole("combobox", { name: "Finger" }), { target: { value: "5" } });
+  click("Practice room"); click("Play"); act(() => piano.emit(60)); advance(.5);
+  await act(async () => { access.unplug(piano); await settle(); }); advance(5);
+  const replacement = new FakeInput("piano");
+  await act(async () => { access.add(replacement); await settle(); });
+  expect(button("Play")).toBeTruthy();
+  expect(localStorage.getItem("piano-songs")).toBe(savedSongs);
+  expect(localStorage.getItem(HISTORY_KEY)).toBe(savedHistory);
+  click("Practice setup"); click("Prepare a song");
+  expect((screen.getByRole("combobox", { name: "Finger" }) as HTMLSelectElement).value).toBe("5");
+  const closing = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(closing); expect(closing.defaultPrevented).toBe(true);
+});
+
+it.each(["Melody practice · wait for notes", "Rhythm practice"])("preserves partial chord through reconnect in %s", async (mode) => {
+  const chordSong: Song = { ...song, notes: [
+    ...[60, 64, 67].map((pitch, i) => ({ id: `chord-${i}`, pitch, start: 0, duration: .5, velocity: .7, hand: "right" as const })),
+    { id: "next", pitch: 62, start: 1, duration: .5, velocity: .7, hand: "right" },
+  ] };
+  localStorage.setItem("piano-songs", JSON.stringify([chordSong]));
+  const piano = new FakeInput("piano"), access = await connectPiano(piano);
+  click("Practice setup"); fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${mode}`) })); click("Done");
+  click("Play"); act(() => piano.emit(60));
+  await act(async () => { access.unplug(piano); await settle(); });
+  advance(20); expect(position()).toBe(0); expect(passes()).toHaveLength(0);
+  const replacement = new FakeInput("piano");
+  await act(async () => { access.add(replacement); await settle(); });
+  act(() => { replacement.emit(64); replacement.emit(67); }); advance(.2);
+  expect(position()).toBe(0); expect(button("Play")).toBeTruthy();
+  click("Play"); act(() => { replacement.emit(64); replacement.emit(67); });
+  advance(1); act(() => replacement.emit(62)); advance(.5);
+  expect(passes()).toHaveLength(1);
+  if (mode === "Rhythm practice") expect(passes()[0].rhythm).toMatchObject({ onTime: 4, missed: 0, extra: 0 });
+});
+
+it("replacement of selected input object pauses before a delayed reopen and repeats safely", async () => {
+  const piano = new FakeInput("piano"), access = await connectPiano(piano);
+  click("Play"); act(() => piano.emit(60)); advance(.5);
+  const replacement = new FakeInput("piano"), opening = deferred<void>();
+  replacement.open.mockImplementationOnce(async () => { await opening.promise; replacement.connection = "open"; replacement.changed(); });
+  await act(async () => { access.add(replacement); await settle(); });
+  expect(button("Play")).toBeTruthy(); expect(position()).toBeCloseTo(.5);
+  await act(async () => { opening.resolve(); await settle(); });
+  click("Play"); advance(.5); act(() => replacement.emit(62));
+  await act(async () => { access.unplug(replacement); await settle(); });
+  expect(position()).toBeCloseTo(1); expect(button("Play")).toBeTruthy();
+  replacement.state = "connected";
+  await act(async () => { access.add(replacement); await settle(); });
+  click("Play"); advance(1); act(() => replacement.emit(64)); advance(.5);
+  expect(passes()).toHaveLength(1); expect(passes()[0].rhythm).toMatchObject({ onTime: 3, missed: 0, extra: 0 });
+});
+
+it("replug after explicit touch resume never starts another attempt or pauses it", async () => {
+  const piano = new FakeInput("piano"), access = await connectPiano(piano);
+  click("Play"); act(() => piano.emit(60)); advance(.5);
+  await act(async () => { access.unplug(piano); await settle(); });
+  click("Play"); advance(.5); click("Play D4");
+  const replacement = new FakeInput("piano");
+  await act(async () => { access.add(replacement); await settle(); });
+  expect(button("Pause")).toBeTruthy(); advance(1); click("Play E4"); advance(.5);
+  expect(passes()).toHaveLength(1); expect(passes()[0].rhythm).toMatchObject({ onTime: 3, missed: 0, extra: 0 });
 });

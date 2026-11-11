@@ -193,3 +193,86 @@ describe('reading cursor', () => {
     expect(viewport.scrollTop).toBe(0)
   })
 })
+
+describe('compact score pane following', () => {
+  const { scoreTimeline } = parseMusicXml(score(`<measure>${attributes}<sound tempo="60"/>${['C', 'D', 'E', 'F', 'G', 'A'].map(step => pitch(step, 8)).join('')}</measure>`))
+
+  // These are synthetic layout metrics, not browser/mobile engraving tests.
+  // Cursor rectangles move with scrolling, unlike fixed-rectangle test doubles.
+  function layout(height = 120, width = 20, paneHeight = 80, paneWidth = 600) {
+    const viewport = pane(), cursor = cursorFor(scoreTimeline)
+    viewport.getBoundingClientRect = () => rect(40, 40 + paneHeight, 60, 60 + paneWidth)
+    let top = 100, left = 100
+    cursor.cursorElement.getBoundingClientRect = () => rect(
+      40 + top - viewport.scrollTop, 40 + top + height - viewport.scrollTop,
+      60 + left - viewport.scrollLeft, 60 + left + width - viewport.scrollLeft,
+    )
+    const follower = new ScoreCursorFollower(cursor, scoreTimeline, viewport)
+    return { viewport, cursor, follower, move: (nextTop: number, nextLeft = left) => { top = nextTop; left = nextLeft } }
+  }
+
+  it.each([120, 60])('stays aligned across six onsets when a %ipx system cannot fit the padded pane', height => {
+    const { viewport, follower } = layout(height)
+    const scrollPositions = scoreTimeline.entries.map(entry => {
+      follower.position(entry.start, true)
+      return viewport.scrollTop
+    })
+    expect(scrollPositions).toEqual([80, 80, 80, 80, 80, 80])
+    expect(viewport.scrollLeft).toBe(0)
+  })
+
+  it.each([120, 60])('stays aligned when a %ipx cursor is wider than the padded pane', width => {
+    const { viewport, follower } = layout(20, width, 400, 80)
+    const scrollPositions = scoreTimeline.entries.map(entry => {
+      follower.position(entry.start, true)
+      return viewport.scrollLeft
+    })
+    expect(scrollPositions).toEqual([80, 80, 80, 80, 80, 80])
+    expect(viewport.scrollTop).toBe(0)
+  })
+
+  it('moves to the next oversized system and back on a loop without oscillating on reveals', () => {
+    const { viewport, follower, move } = layout()
+    follower.position(0, true)
+    expect(viewport.scrollTop).toBe(80)
+    move(300)
+    follower.position(3, true)
+    expect(viewport.scrollTop).toBe(280)
+    follower.reveal()
+    follower.position(4, true)
+    follower.reveal()
+    expect(viewport.scrollTop).toBe(280)
+    move(100)
+    follower.position(0, true)
+    follower.reveal()
+    expect(viewport.scrollTop).toBe(80)
+  })
+
+  it('preserves manual scrolling while following is off or the written position has not changed', () => {
+    const { viewport, follower } = layout()
+    follower.position(0, true)
+    viewport.scrollTop = 150
+    follower.position(.5, true)
+    expect(viewport.scrollTop).toBe(150)
+    follower.position(1, false)
+    follower.position(2, false)
+    expect(viewport.scrollTop).toBe(150)
+    follower.reveal()
+    expect(viewport.scrollTop).toBe(80)
+    follower.reveal()
+    expect(viewport.scrollTop).toBe(80)
+  })
+
+  it('keeps the nearest-edge behavior for cursors that fit, including the exact padded size', () => {
+    const { viewport, follower, move } = layout(40, 40, 80, 80)
+    follower.position(0, true)
+    expect([viewport.scrollTop, viewport.scrollLeft]).toEqual([80, 80])
+    follower.position(1, true)
+    expect([viewport.scrollTop, viewport.scrollLeft]).toEqual([80, 80])
+    move(20, 20)
+    follower.position(2, true)
+    expect([viewport.scrollTop, viewport.scrollLeft]).toEqual([0, 0])
+    follower.position(3, true)
+    expect([viewport.scrollTop, viewport.scrollLeft]).toEqual([0, 0])
+  })
+})

@@ -186,10 +186,10 @@ export class MidiInputController {
     }
     this.update({ selectedName: inputs.find((input) => input.id === selected.id)!.label });
     if (this.binding?.port === selected) {
-      if (this.binding.opened && selected.connection === "closed") {
+      if (this.binding.opened && selected.connection !== "open") {
         this.releaseInput();
         this.update({ status: "error", lastNote: null, noteCount: 0,
-          error: "The MIDI input closed. Select your piano again or reconnect. On-screen keys still work." });
+          error: "The MIDI input is no longer open. Select your piano again or reconnect. On-screen keys still work." });
       }
       return;
     }
@@ -201,7 +201,7 @@ export class MidiInputController {
     if (this.disposed || !this.access) return;
     const port = [...this.access.inputs.values()].find((input) => input.id === id && input.state === "connected");
     if (id && !port) return;
-    if (port === this.binding?.port) return;
+    if (port && port === this.binding?.port) return;
     this.releaseInput();
     this.update({ selectedId: port?.id ?? null,
       selectedName: this.state.inputs.find((input) => input.id === id)?.label ?? "",

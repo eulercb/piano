@@ -1,5 +1,21 @@
 # Validation
 
+## Combined focused-practice reliability
+
+- Final combined gate: all 466 tests pass, TypeScript/Vite/PWA build passes, and diff checks are clean. Independent MIDI and score-following reviews found no remaining actionable issues.
+- Four retained adversarial MIDI tests cover partial chords in both modes, replaced same-ID inputs with delayed/repeated loss, and replug after deliberate touch resume.
+- Seven dynamic-geometry score regressions ensure oversized cursors stay anchored on both axes without oscillation, while preserving manual scrolling, loop/system transitions, reveal and exact-fit behavior. These are not Android rendering checks.
+- Earlier concurrent lane runs encountered one storage-effect timing assertion and one post-teardown keyboard timer error. Clean lane reruns and the final combined run passed; the storage assertion also passed 20 repeated probes. No persistent production defect was established by those transient failures.
+- Browser upload approval and physical Android/Casio acceptance remain pending. No new-branch browser visual or hardware validation is claimed.
+
+## MIDI connection-loss pause
+
+- All 455 automated tests pass; TypeScript and Vite/PWA production build pass. Dependencies are unchanged. The existing lazy notation chunk remains large (about 398 KiB gzip).
+- Ten additional real-App regressions cover immediate rhythm pause despite an already-queued frame, silenced audio, retained grades and partial Melody/Rhythm count-ins, delayed reopen, closed/pending ports, failed reconnect, deliberate input switching, explicit touch/typing fallback, unchanged listening, and saved songs/history plus a dirty Studio draft. The existing unplug/replug melody test now checks no automatic resume and no note grading while paused.
+- Two additional controller regressions cover a previously open port entering pending and clearing an unplugged input without automatically selecting it on return. Existing failed-close/reopen and stale-event tests still pass. A stylesheet regression checks wrapping recovery text and the touch-sized action inside the bounded notice area; this is not rendered mobile verification.
+- Permission, MIDI ports, audio, clock and dialogs are synthetic. No browser upload, hardware connection, mobile emulation, publication or deployment was performed for this change. Real Android/Casio USB-C behavior, native modal/screen-reader behavior and rendered narrow-screen layout remain unverified.
+- Device acceptance when available: start Melody/Rhythm (including a count-in), unplug the selected Casio and check immediate pause, visible guidance and no accumulated misses. Replug and check that only the same selected ID reconnects and that playback waits for Play. Try another-device unplug, input-open failure, explicit touch/typing selection and Listen mode; confirm Studio edits and saved history remain intact. Export private project backups before testing.
+
 ## Library and Studio data safety
 
 - Five additional real-app synthetic MIDI tests cover delayed permission, cancellation/retry, selected-device unplug/replug, stale events, repeated panels/reconnect and error recovery. No production MIDI changes were needed; physical hardware remains untested.
