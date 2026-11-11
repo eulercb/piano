@@ -40,7 +40,9 @@ import { PracticeRoom, PracticePanel } from "./PracticeRoom";
 import { MidiConnection } from "./MidiConnection";
 import { initialMidiSnapshot, type MidiSnapshot } from "./midiInput";
 import { PracticeHistory } from "./PracticeHistory";
-import { PracticeHistoryStore, PracticePassRecorder } from "./practiceHistory";
+import { PracticeHistoryStore, PracticePassRecorder, type PracticePass } from "./practiceHistory";
+import { PracticeNextSteps } from "./PracticeNextSteps";
+import { practiceHandName, practiceModeName, type PracticeStep } from "./practiceNextSteps";
 import { parseProject } from "./project";
 import { SongLibrary } from "./songLibrary";
 import { importScoreFile } from "./scoreImport";
@@ -80,6 +82,7 @@ export function App() {
   const previousMidiState = useRef(midiState);
   const [midiPaused, setMidiPaused] = useState(false);
   const [history] = useState(() => new PracticeHistoryStore());
+  const [lastCompletedPass, setLastCompletedPass] = useState<PracticePass>();
   const historySnapshot = useSyncExternalStore(history.subscribe, history.getSnapshot);
   useEffect(() => history.listen(), [history]);
   const [library] = useState(() => new SongLibrary());
@@ -161,6 +164,7 @@ export function App() {
     silence();
     session.restart(t);
     recorder.reset();
+    setLastCompletedPass(undefined);
     setPlaying(false);
     setMidiPaused(false);
     setNotice("");
@@ -183,7 +187,10 @@ export function App() {
     const wasRunning = session.running;
     const timing = frameTime(last.current, now);
     const result = recorder.advanceFrame(timing.seconds, speed, repeatPassage);
-    if (result.completedPass) history.append(result.completedPass);
+    if (result.completedPass) {
+      setLastCompletedPass(result.completedPass);
+      history.append(result.completedPass);
+    }
     if (result.historyError) history.report(result.historyError);
     last.current = timing.timestamp;
     if (result.interrupted) {
@@ -205,8 +212,8 @@ export function App() {
       setNotice(mode === "rhythm"
         ? "Pass complete. Open Results to review your timing, then try another pass."
         : mode === "melody"
-          ? "Beautiful work. You completed this passage."
-          : "Playback complete. Make another pass, or prepare a smaller passage.");
+          ? "Beautiful work. You completed this passage. Open Results to choose a small next step."
+          : "Playback complete. Open Results to try waiting for notes or repeat this passage.");
     }
     redraw();
   }
@@ -255,6 +262,7 @@ export function App() {
     redraw();
   }
   function changeSpeed(next: number) {
+    if (next !== speed) setLastCompletedPass(undefined);
     if (next !== speed && startingAudioRef.current) {
       cancelAudioStart();
       silence();
@@ -537,6 +545,13 @@ export function App() {
     }
   }
   function navigate(next: string) { importGeneration.current++; reset(); setPage(next); }
+  function chooseNextStep(step: PracticeStep) {
+    reset();
+    setHand(step.hand);
+    setMode(step.mode);
+    setSpeed(step.speed);
+    setNotice(`Ready from the beginning: ${practiceHandName(step.hand)} · ${step.speed}% · ${practiceModeName(step.mode)}. Press Play when you’re ready.`);
+  }
   const practiceStage = (
     <section className="stage-card">
       <div className="stage-top">
@@ -999,7 +1014,13 @@ export function App() {
               onFingers={() => setShowFingers(value => !value)}
               onNavigate={navigate} onConnection={() => { pauseForPanel(); setConnectionOpen(true); }}
               onSetup={pauseForPanel} settings={practiceSettings} guide={practiceStage}
-              results={mode === "rhythm" ? rhythmPanel : undefined} />
+              results={close => <>
+                {lastCompletedPass ? <PracticeNextSteps pass={lastCompletedPass} song={song} speed={speed}
+                  onChoose={step => { chooseNextStep(step); close(); }}
+                  onPrepare={() => { close(); navigate("prepare"); }} />
+                  : mode !== "rhythm" && <p>Complete a listening or wait-for-notes pass to see gentle next-step choices here. Pauses and unfinished attempts are not failures.</p>}
+                {mode === "rhythm" && rhythmPanel}
+              </>} />
           ) : page === "history" ? <PracticeHistory store={history} /> : page === "library" ? (
             <>
               <div className="section-title">

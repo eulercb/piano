@@ -34,7 +34,7 @@ export function PracticePanel({ open, title, onClose, children }: {
 export function PracticeRoom({ title, hand, mode, speed, guide, settings, results, showScore,
   hasScore, showFingers, onScore, onFingers, onNavigate, onConnection, onSetup }: {
   title: string; hand: PracticeHand; mode: PracticeMode; speed: number;
-  guide: ReactNode; settings: ReactNode; results?: ReactNode;
+  guide: ReactNode; settings: ReactNode; results?: (onClose: () => void) => ReactNode;
   showScore: boolean; hasScore: boolean; showFingers: boolean;
   onScore: () => void; onFingers: () => void; onNavigate: (page: string) => void;
   onConnection: () => void; onSetup: () => void;
@@ -64,6 +64,6 @@ export function PracticeRoom({ title, hand, mode, speed, guide, settings, result
       </div>
       <p className="room-hint">Touch keys and A–; are a demo. Connect your piano for the full passage. Close this panel, then press Play to continue.</p>
     </PracticePanel>
-    <PracticePanel open={panel === "results"} title="Practice results" onClose={() => setPanel(null)}>{results}</PracticePanel>
+    <PracticePanel open={panel === "results"} title="Practice results" onClose={() => setPanel(null)}>{results?.(() => setPanel(null))}</PracticePanel>
   </section>;
 }

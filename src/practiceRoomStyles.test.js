@@ -39,6 +39,14 @@ it("keeps MIDI recovery inside the bounded notices with wrapping text and a touc
   expect(value(".midi-recovery .room-button", "flex-shrink")).toBe("0");
   expect(value(".room-button", "min-height")).toBe("44px");
 });
+it("keeps next-step choices touch-sized and wrapping inside the scrollable results panel", () => {
+  expect(value(".next-step-actions", "display")).toBe("grid");
+  expect(value(".next-step-actions", "grid-template-columns")).toContain("min(100%, 190px)");
+  expect(value(".next-step-actions .button", "min-height")).toBe("60px");
+  expect(value(".next-step-actions .button", "white-space")).toBe("normal");
+  expect(value(".next-step-actions .button", "overflow-wrap")).toBe("anywhere");
+  expect(value(".practice-panel-body", "overflow")).toBe("auto");
+});
 it("provides touch-sized transport and a short-landscape layout without fixed roll height", () => {
   expect(value(".practice-room .transport .play-button", "min-height")).toBe("44px");
   expect(value(".practice-room .transport .icon-button", "min-width")).toBe("44px");
