@@ -5,6 +5,13 @@ bundle sizes and limitations describe the named tree at that time. For merged
 scope and remaining acceptance at current main, see the
 [release checklist](docs/release-checklist.md#merged-implementation-status).
 
+## Trimmed score initialization ordering
+
+- Public-browser acceptance on 2026-11-11 found that trimming the synthetic grand-staff pickup/tie/tuplet score to measure 2 retained six correctly timed notes but failed notation rendering. The trim inserted its inherited tempo direction before the copied divisions/staves/clefs. Installed real OSMD reproduced an `undefined.parent` render exception in the existing jsdom harness; initializing attributes before the inserted direction resolves that reproduction.
+- The bounded fix places inherited tempo after leading attributes and layout-only print/barline nodes, before original directions and timed events. Existing tempo override precedence, attributes, source mappings, tie clipping, both hands and playback remain unchanged. No renderer fallback or validation is relaxed.
+- Eight real-OSMD model/render invocations cover every single-measure trim of the original synthetic fixture and the actual edited public-browser export. Canvas metrics are simulated, so these are not visual/browser acceptance. The captured failing export is retained to compare exact notes/source mappings and score timelines after the fix. Additional unit checks cover initial layout nodes, explicit tempo overrides and continued rejection of missing divisions.
+- Implementation `b7941e2` passes **1,256 tests across 82 files** with two workers, all **22 Python safeguards**, explicit TypeScript checking, the TypeScript/Vite/PWA production build, all **7 release contracts** and whitespace checks. Existing notation bundle-size warnings remain. Live trim-workflow retest remains required after deployment; no publication, merge or private-score run is claimed here.
+
 ## Bounded legacy MIDI pairing safety
 
 - Stacked on guarded tempo export `e869419`. Map-less export checks its existing quantized MIDI events against FIFO reimport using a multiset of hand, pitch, start tick, end tick and encoded velocity, not source note identities. Already faithful streams retain their bytes. Only an unfaithful stream retries simultaneous note-ons in ending order; incompatible nested intervals fail with project/available MusicXML recovery guidance.

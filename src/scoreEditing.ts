@@ -195,7 +195,13 @@ export function trimScoreMeasures(
         sound = doc.createElementNS(firstMeasure.namespaceURI, "sound");
       sound.setAttribute("tempo", String(tempo));
       dir.appendChild(sound);
-      firstMeasure.insertBefore(dir, firstMeasure.firstChild);
+      // OSMD needs the initial divisions/staves/clefs before a direction.
+      // Keep inherited tempo ahead of original directions (which may override
+      // it), but after leading attributes, including those already in the bar.
+      let anchor = firstMeasure.firstChild;
+      while (anchor && (anchor.nodeType !== 1 ||
+        ["attributes", "print", "barline"].includes((anchor as Element).localName || ""))) anchor = anchor.nextSibling;
+      firstMeasure.insertBefore(dir, anchor);
     }
     for (let i = 0; i < measures.length; i++)
       if (i < start || i > end) part.removeChild(measures[i]);

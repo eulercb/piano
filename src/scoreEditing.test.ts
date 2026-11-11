@@ -45,6 +45,22 @@ describe("score editing", () => {
     expect(r.scoreXml).toContain("<divisions>4</divisions>");
     expect(r.scoreXml).not.toContain('type="stop"');
   });
+  it("keeps explicit tempo overrides after initial attributes and layout nodes", () => {
+    const input = xml.replace('<attributes>', '<print new-system="yes"/><barline location="left"><bar-style>regular</bar-style></barline><!--layout--><attributes>')
+      .replace('<measure number="1">', '<measure number="1"><attributes><key><fifths>1</fifths></key></attributes><direction><sound tempo="84"/></direction>');
+    const original = parseMusicXml(input).song;
+    const beginning = trimScoreMeasures(original, 0, 0);
+    expect(beginning.scoreXml!.indexOf('</attributes>')).toBeLessThan(beginning.scoreXml!.indexOf('<direction>'));
+    const interior = trimScoreMeasures(original, 1, 1);
+    expect(interior.tempo).toBe(84);
+    expect(interior.scoreXml!.indexOf('<fifths>1')).toBeLessThan(interior.scoreXml!.indexOf('<direction>'));
+    expect(interior.scoreXml!.indexOf('tempo="120"')).toBeLessThan(interior.scoreXml!.indexOf('tempo="84"'));
+    expect(interior.notes[0].duration).toBeCloseTo(60 / 84);
+  });
+  it("still rejects notes without divisions rather than inventing attributes", () => {
+    const input = '<score-partwise><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><direction><sound tempo="72"/></direction><note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note></measure></part></score-partwise>';
+    expect(() => parseMusicXml(input)).toThrow("notes appear before divisions");
+  });
   it("transposes the score and playback together", () => {
     const r = transposeScore(song(), 2);
     expect(r.notes.map((n) => n.pitch)).toEqual([62, 66, 69]);
