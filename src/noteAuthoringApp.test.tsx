@@ -35,6 +35,7 @@ function choose(container: HTMLElement, input: File) { fireEvent.change(containe
 async function open(container: HTMLElement, song = source) {
   choose(container, file(JSON.stringify({ version: 1, song }), 'synthetic.piano.json'));
   await screen.findByRole('heading', { name: song.title });
+  await screen.findByRole('heading', { name: song.scoreOrigin === 'musicxml' ? 'Add, delete & resize written notes' : 'Add, delete & retime notes' });
 }
 const button = (name: string) => screen.getByRole('button', { name });
 const change = (name: string, value: string) => fireEvent.change(screen.getByRole('spinbutton', { name: new RegExp(`^${name}`) }), { target: { value } });
@@ -49,6 +50,7 @@ it('imports actual MIDI, retimes and inserts, preserves hands/fingers, saves, re
   let view = render(<App />);
   choose(view.container, file(exportMidi(source), 'Synthetic MIDI.mid'));
   await screen.findByRole('heading', { name: 'Synthetic MIDI' });
+  await screen.findByRole('heading', { name: 'Add, delete & retime notes' });
   const original = saved()[0];
   fireEvent.change(screen.getByRole('combobox', { name: 'Finger' }), { target: { value: '3' } });
   change('Start', '3'); change('Duration', '1.5');

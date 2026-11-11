@@ -37,7 +37,7 @@ import {
 } from "./music";
 import "./style.css";
 import { Score } from "./Score";
-import { StudioNoteAuthoring } from "./StudioNoteAuthoring";
+import { DeferredStudioNoteAuthoring } from "./DeferredStudioNoteAuthoring";
 import { ScorePreparationGuide } from "./ScorePreparationGuide";
 import { PracticeRoom, PracticePanel } from "./PracticeRoom";
 import { MidiConnection } from "./MidiConnection";
@@ -51,7 +51,7 @@ import { storedFolder, fileDigest, contentDigest, readPermission, supportedSong,
 import { SongLibrary } from "./songLibrary";
 import { PracticeBookmarks } from "./PracticeBookmarks";
 import { PracticeBookmarksStore, songRevision, type PracticeBookmark } from "./practiceBookmarks";
-import { importScoreFile } from "./scoreImport";
+import { loadScoreImporter } from "./preparationModules";
 import {
   scoreMeasures,
   editScoreNote,
@@ -581,7 +581,11 @@ export function App() {
       if (f.size > 10 * 1024 * 1024) throw Error("Please choose a song file smaller than 10 MB.");
       let s: Song, message: string;
       if (/\.(musicxml|xml|mxl)$/i.test(f.name)) {
-        const result = await importScoreFile(f);
+        let importer;
+        try { importer = await loadScoreImporter(); }
+        catch { throw Error("Score import tools could not load. Your piece is unchanged. Choose the file again to retry."); }
+        if (!current()) return { ok: false, error: "Import canceled.", stop: true };
+        const result = await importer.importScoreFile(f);
         s = { ...result.song, id: crypto.randomUUID() };
         message = result.warnings.length ? result.warnings.join(" ")
           : "Score imported with playable notes, hands and printed fingerings.";
@@ -1458,7 +1462,7 @@ export function App() {
                 />
               )}
               {page === "prepare" && (
-                <StudioNoteAuthoring
+                <DeferredStudioNoteAuthoring
                   song={song}
                   timingOnly
                   selectedNoteId={song.notes[Math.min(editIndex, song.notes.length - 1)]?.id}
