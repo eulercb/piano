@@ -50,6 +50,8 @@ Target: current Chrome on Android, with a class-compliant USB MIDI Casio and sui
 
 The input list updates as devices are plugged in or removed. If the selected piano disconnects, the app keeps its selection and reconnects only that same input ID; it never silently switches to another device. If the browser assigns a different ID, select the piano again. **Disconnect** stops MIDI input, and **Reconnect piano** retries the connection. Denied permission, missing browser support, missing inputs and input-open failures have separate guidance. Touch and typing keys remain available. Device choices and activity are session-only, not saved in browser storage.
 
+Losing an active selected MIDI input pauses Melody and Rhythm immediately, including a count-in, and silences accompaniment. The current position, partial matches and timing results stay intact; no missed notes or history completion are added while paused. A compact notice stays visible outside the Piano panel with cable/reconnect guidance. Reconnection never resumes practice automatically: press **Play** when ready. Listen mode is not interrupted. To continue without MIDI, choose **Touch/typing keys (no MIDI)** under Piano input or **Disconnect**, then press **Play**; this clears the reconnect reminder without changing saved songs or Studio drafts.
+
 Library → **Open song folder** progressively uses `showDirectoryPicker` when available; otherwise select multiple files via **Import song**. The first slice copies files into local app storage and requires explicit re-opening to refresh, rather than promising permanent background folder access. MusicXML and compressed .mxl import as new playable scores. Save/export a Piano project to retain score and fingerings.
 
 ## Score-linked Studio

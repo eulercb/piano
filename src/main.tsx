@@ -36,6 +36,7 @@ import "./style.css";
 import { Score } from "./Score";
 import { PracticeRoom, PracticePanel } from "./PracticeRoom";
 import { MidiConnection } from "./MidiConnection";
+import { initialMidiSnapshot, type MidiSnapshot } from "./midiInput";
 import { PracticeHistory } from "./PracticeHistory";
 import { PracticeHistoryStore, PracticePassRecorder } from "./practiceHistory";
 import { parseProject } from "./project";
@@ -97,6 +98,9 @@ function TimingSummary({ summary }: { summary: RhythmSummary }) {
   );
 }
 export function App() {
+  const [midiState, setMidiState] = useState(initialMidiSnapshot);
+  const previousMidiState = useRef(midiState);
+  const [midiPaused, setMidiPaused] = useState(false);
   const [history] = useState(() => new PracticeHistoryStore());
   const historySnapshot = useSyncExternalStore(history.subscribe, history.getSnapshot);
   useEffect(() => history.listen(), [history]);
@@ -178,6 +182,7 @@ export function App() {
     session.restart(t);
     recorder.reset();
     setPlaying(false);
+    setMidiPaused(false);
     setNotice("");
     redraw();
   }
@@ -226,6 +231,7 @@ export function App() {
       audio ??= new AudioContext();
       void audio.resume();
       setNotice("");
+      setMidiPaused(false);
       last.current = performance.now();
       session.start();
       setPlaying(true);
@@ -261,6 +267,26 @@ export function App() {
     redraw();
   }
   inputRef.current = input;
+  function midiStateChanged(next: MidiSnapshot) {
+    const previous = previousMidiState.current;
+    previousMidiState.current = next;
+    setMidiState(next);
+    // Disconnect/clearing the input is an explicit choice to use the fallback.
+    // Keep transport paused, but do not keep telling the user to reconnect.
+    if (!next.selectedId) setMidiPaused(false);
+    if (previous.status === "connected" && next.status !== "connected"
+      && previous.selectedId && next.selectedId === previous.selectedId
+      && session.running && mode !== "listen") {
+      // Keep the last visible position, count-in and partial matches. Do not
+      // catch up to the loss event and create misses or a completed pass.
+      session.pause();
+      silence();
+      setPressed([]);
+      setPlaying(false);
+      setMidiPaused(true);
+      redraw();
+    }
+  }
   useEffect(() => {
     const f = (e: KeyboardEvent) => {
       const pitch = pianoShortcutPitch(e);
@@ -754,7 +780,7 @@ export function App() {
   return (
     <div className={page === "practice" ? "shell practice-shell" : "shell"}>
       <PracticePanel open={connectionOpen} title="Piano connection" onClose={() => setConnectionOpen(false)}>
-        <MidiConnection onNote={(pitch) => inputRef.current(pitch)} />
+        <MidiConnection onNote={(pitch) => inputRef.current(pitch)} onStateChange={midiStateChanged} />
       </PracticePanel>
       <aside hidden={page === "practice"}>
         <a className="brand" href="#" onClick={(e) => e.preventDefault()}>
@@ -861,6 +887,19 @@ export function App() {
           </div>
           }
           <div className="app-messages">
+          {(midiPaused || (midiState.selectedId && ["disconnected", "error"].includes(midiState.status))) && (
+            <div className="midi-recovery">
+              <div role="status" aria-live="polite" aria-atomic="true">
+                <b>{midiState.status === "connected"
+                  ? "Piano ready · press Play to continue"
+                  : `${["requesting", "opening"].includes(midiState.status) ? "Connecting piano" : "Piano not connected"}${midiPaused ? " · practice paused" : ""}`}</b>
+                <p>{midiState.status === "connected"
+                  ? "Your position is kept. Practice will not resume automatically."
+                  : "Check power and USB-C/OTG cable. Reconnect in Piano, then press Play. Touch/typing keys also work."}</p>
+              </div>
+              <button className="room-button" onClick={() => { pauseForPanel(); setConnectionOpen(true); }}>Open Piano</button>
+            </div>
+          )}
           {needRefresh && (
             <div role="status" className="update-notice">
               <div>

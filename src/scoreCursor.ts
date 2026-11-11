@@ -60,9 +60,11 @@ export function scrollScorePane(viewport: HTMLElement, cursorElement: HTMLElemen
   const pane = viewport.getBoundingClientRect(), cursor = cursorElement.getBoundingClientRect()
   if (!pane.height || !pane.width || !cursor.height) return
   const margin = Math.min(24, pane.height / 4, pane.width / 4)
-  if (cursor.top < pane.top + margin) viewport.scrollTop += cursor.top - pane.top - margin
+  // If both edges cannot fit, always anchor the leading edge. Alternating edge
+  // corrections would bounce the same system on every note in a compact pane.
+  if (cursor.height > pane.height - 2 * margin || cursor.top < pane.top + margin) viewport.scrollTop += cursor.top - pane.top - margin
   else if (cursor.bottom > pane.bottom - margin) viewport.scrollTop += cursor.bottom - pane.bottom + margin
-  if (cursor.left < pane.left + margin) viewport.scrollLeft += cursor.left - pane.left - margin
+  if (cursor.width > pane.width - 2 * margin || cursor.left < pane.left + margin) viewport.scrollLeft += cursor.left - pane.left - margin
   else if (cursor.right > pane.right - margin) viewport.scrollLeft += cursor.right - pane.right + margin
 }
 

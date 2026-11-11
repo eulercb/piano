@@ -31,6 +31,14 @@ it("keeps score and dialogs internally scrollable without growing the document",
   expect(value("dialog.practice-panel", "max-height")).toContain("100dvh");
   expect(value(".practice-shell .app-messages", "max-height")).toBe("22%");
 });
+it("keeps MIDI recovery inside the bounded notices with wrapping text and a touch-sized action", () => {
+  expect(value(".practice-shell .app-messages", "overflow")).toBe("auto");
+  expect(value(".midi-recovery", "display")).toBe("flex");
+  expect(value(".midi-recovery > div", "min-width")).toBe("0");
+  expect(value(".midi-recovery > div", "overflow-wrap")).toBe("anywhere");
+  expect(value(".midi-recovery .room-button", "flex-shrink")).toBe("0");
+  expect(value(".room-button", "min-height")).toBe("44px");
+});
 it("provides touch-sized transport and a short-landscape layout without fixed roll height", () => {
   expect(value(".practice-room .transport .play-button", "min-height")).toBe("44px");
   expect(value(".practice-room .transport .icon-button", "min-width")).toBe("44px");

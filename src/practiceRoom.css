@@ -66,6 +66,14 @@
 }
 .practice-shell .update-notice > div { min-width: 0; }
 .practice-shell .update-notice .button { flex-shrink: 0; }
+.midi-recovery {
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+  border: 1px solid #ad772d; border-radius: 8px; background: #fff4d7;
+  color: #593b13; font-size: 12px; line-height: 1.3;
+}
+.midi-recovery > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.midi-recovery p { margin-top: 3px; }
+.midi-recovery .room-button { flex-shrink: 0; }
 
 /* The reading score replaces the roll, never adds another page of content. */
 .practice-room .compact-score {
