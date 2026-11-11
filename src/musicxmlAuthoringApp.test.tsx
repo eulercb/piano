@@ -30,7 +30,7 @@ function file(text: string, name: string) { return Object.assign(new File([text]
 function choose(container: HTMLElement, input: File) { fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [input] } }); }
 function slot(id: string) { fireEvent.change(screen.getByRole('combobox', { name: 'Written slot' }), { target: { value: id } }); }
 function beats(value: string) { fireEvent.change(screen.getByRole('spinbutton', { name: 'Duration (quarter-note beats)' }), { target: { value } }); }
-async function open(container: HTMLElement) { choose(container, file(xml, 'synthetic.musicxml')); await screen.findByRole('heading', { name: 'Synthetic slots' }); }
+async function open(container: HTMLElement) { choose(container, file(xml, 'synthetic.musicxml')); await screen.findByRole('heading', { name: 'Synthetic slots' }); await screen.findByRole('combobox', { name: 'Written slot' }); }
 function downloadText() {
   return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsText(downloads.at(-1)!); });
 }
@@ -124,4 +124,61 @@ it('retains the authored score after dirty replacement is declined and a stale-t
   const retained = parseProject(await exportProject());
   expect(retained.notes.find(note => note.pitch === 60)?.duration).toBe(.25);
   expect(music(parseMusicXml(retained.scoreXml!).song)).toEqual(music(retained));
+});
+
+it('adds and removes chord tones in the App, round trips source and saves only the explicit draft', async () => {
+  const view = render(<App />);
+  const positioned = xml.replace('<note>', '<note default-x="20" default-y="-40">');
+  choose(view.container, file(positioned, 'positioned.musicxml'));
+  await screen.findByRole('heading', { name: 'Synthetic slots' });
+  await screen.findByRole('combobox', { name: 'Written slot' });
+  const original = saved()[0];
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'New chord pitch (MIDI)' }), { target: { value: '64' } });
+  fireEvent.click(button('Add chord tone'));
+  let draft = parseProject(await exportProject());
+  expect(saved()).toEqual([original]);
+  expect(draft.notes).toHaveLength(4);
+  expect(draft.notes.find(n => n.sourceNoteIds?.includes('0:0:1'))).toMatchObject({ pitch: 64, start: 0, duration: .5, hand: 'right' });
+  expect(draft.notes.find(n => n.sourceNoteIds?.includes('0:0:0'))?.finger).toBe(2);
+  expect(draft.scoreXml).toContain('default-x="20" default-y="-40"');
+  expect(music(draft).filter(n => !(n.pitch === 64 && n.start === 0))).toEqual(music(original));
+  expect((button('Apply written duration') as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(button('Remove chord tone')); fireEvent.click(button('Keep written note'));
+  expect(parseProject(await exportProject())).toEqual(draft);
+  // Delete the leader, promoting the newly added tone without a rest or shift.
+  fireEvent.click(button('Remove chord tone')); fireEvent.click(button('Confirm remove chord tone'));
+  draft = parseProject(await exportProject());
+  expect(draft.notes.some(n => n.pitch === 60)).toBe(false);
+  expect(draft.notes.find(n => n.sourceNoteIds?.includes('0:0:0'))).toMatchObject({ pitch: 64, start: 0, duration: .5 });
+  expect(music(draft).filter(n => !(n.pitch === 64 && n.start === 0))).toEqual(music(original).filter(n => n.pitch !== 60));
+  expect(draft.scoreXml).not.toContain('<chord');
+  expect(draft.duration).toBe(original.duration);
+  expect(saved()).toEqual([original]);
+  expect(music(parseMusicXml(draft.scoreXml!).song)).toEqual(music(draft));
+  clickDownload(button('Export MusicXML'));
+  expect(await downloadText()).toBe(draft.scoreXml);
+  fireEvent.click(button('Save')); await screen.findByText('Saved to your library on this device.');
+  expect(saved()).toEqual([draft]);
+  choose(view.container, file(await exportProject(), 'chord-restored.json'));
+  await waitFor(() => expect(saved()).toHaveLength(2));
+  expect(music(saved()[0])).toEqual(music(draft));
+  expect(saved()[0].scoreXml).toBe(draft.scoreXml);
+  expect(saved()[1]).toEqual(draft);
+});
+
+it('retains an unsaved chord when a stale-tab save fails and a replacement is canceled', async () => {
+  const view = render(<App />); await open(view.container);
+  const original = saved()[0];
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'New chord pitch (MIDI)' }), { target: { value: '67' } });
+  fireEvent.click(button('Add chord tone'));
+  choose(view.container, file(xml.replace('Synthetic slots', 'Replacement'), 'replacement.musicxml'));
+  expect(window.confirm).toHaveBeenCalled();
+  expect(screen.queryByRole('heading', { name: 'Replacement' })).toBeNull();
+  const external = { ...original, title: 'Newer library revision' };
+  localStorage.setItem(SONGS_KEY, JSON.stringify([external]));
+  fireEvent.click(button('Save')); await screen.findByText(/This piece changed in another tab/);
+  expect(saved()).toEqual([external]);
+  const draft = parseProject(await exportProject());
+  expect(draft.notes.find(n => n.pitch === 67)).toMatchObject({ start: 0, duration: .5 });
+  expect(music(parseMusicXml(draft.scoreXml!).song)).toEqual(music(draft));
 });
