@@ -137,7 +137,9 @@ export function parseMidi(buffer: ArrayBuffer): Song {
   sustained.forEach(queue => queue.forEach(note => finish(note, seconds)))
   notes.sort((a, b) => a.start - b.start || a.pitch - b.pitch)
   if (!notes.length) throw new Error('This MIDI file contains no playable notes.')
-  return { id: `midi-${Date.now()}`, title: title.trim() || 'Imported MIDI', tempo, notes, duration: seconds }
+  // Several files (or tabs) can finish within one wall-clock tick. Each manual
+  // import is a separate piece; folder refresh supplies its own content identity.
+  return { id: `midi-${crypto.randomUUID()}`, title: title.trim() || 'Imported MIDI', tempo, notes, duration: seconds }
 }
 
 /** Export a format-0 piano MIDI, preserving seconds at a single tempo. */
