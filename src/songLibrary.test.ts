@@ -87,3 +87,31 @@ it("does not fall back to an uncoordinated write when locking fails", async () =
   expect((await library.save(song("incoming"), null)).ok).toBe(false);
   expect(disk.setItem).not.toHaveBeenCalled();
 });
+
+it.each([undefined, 'musicxml'] as const)('retains legacy unsafe source, playback and unrelated entries (%s)', async scoreOrigin => {
+  const unsafe = { ...song('legacy'), scoreXml: 'https://example.invalid/score.xml', scoreOrigin };
+  const disk = storage([unsafe, song('good')]), raw = disk.getItem();
+  const library = new SongLibrary(() => disk);
+  const recovered = library.getSnapshot().songs[0];
+  expect(recovered.notes).toEqual(unsafe.notes);
+  expect(recovered.scoreXml).toBe(unsafe.scoreXml);
+  expect(recovered.scoreOrigin).toBeUndefined();
+  expect(library.getSnapshot().message).toMatch(/blocked.*retained.*editing is unavailable/);
+  expect(disk.getItem()).toBe(raw);
+  expect(disk.setItem).not.toHaveBeenCalled();
+  expect(JSON.parse(JSON.stringify({ version: 1, song: recovered })).song.notes).toEqual(unsafe.notes);
+  expect((await library.save(song('new'), null)).ok).toBe(true);
+  expect(JSON.parse(disk.getItem()).find((s: Song) => s.id === 'legacy')).toEqual(JSON.parse(JSON.stringify(unsafe)));
+  expect((await library.save({ ...recovered, title: 'Recovered study' }, recovered)).ok).toBe(true);
+  expect(library.getSnapshot().songs[0].scoreXml).toBe(unsafe.scoreXml);
+});
+
+it('distinguishes a recoverable notation warning from unreadable storage and clears fatal status after recovery', () => {
+  const disk = storage([{ ...song('legacy'), scoreXml: 'https://example.invalid/score.xml' }]);
+  const library = new SongLibrary(() => disk);
+  expect(library.getSnapshot()).toMatchObject({ blocked: false, message: expect.stringContaining('reading score is blocked') });
+  disk.setItem(SONGS_KEY, '{broken'); library.refresh();
+  expect(library.getSnapshot()).toMatchObject({ blocked: true, message: expect.stringContaining('has not been overwritten') });
+  disk.setItem(SONGS_KEY, JSON.stringify([song('good')])); library.refresh();
+  expect(library.getSnapshot()).toMatchObject({ blocked: false, message: '' });
+});

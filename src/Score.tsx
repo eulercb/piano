@@ -1,3 +1,4 @@
+import { safeDocument } from "./scoreSource";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 import { loadScoreRenderer } from "./scoreRenderer";
@@ -114,6 +115,10 @@ export function Score({
 
     void (async () => {
       try {
+        // OSMD.load(string) also accepts URLs. Never pass unvalidated cache or project data.
+        safeDocument(xml);
+        const scoreDocument = new DOMParser().parseFromString(xml, "application/xml");
+        if (scoreDocument.querySelector("parsererror")) throw new Error("Invalid score XML");
         const { OpenSheetMusicDisplay } = await loadScoreRenderer();
         if (cancelled) return;
         osmd = new OpenSheetMusicDisplay(container, {
@@ -126,7 +131,7 @@ export function Score({
           followCursor: false,
           cursorsOptions: [{ type: 0, color: "#3578c8", alpha: 0.35, follow: false }],
         });
-        await osmd.load(xml);
+        await osmd.load(scoreDocument);
         if (cancelled) return;
         osmd.Zoom = zoomRef.current / 100;
         osmd.render();

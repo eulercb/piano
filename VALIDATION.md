@@ -166,6 +166,16 @@
 - Browser interaction and engraving QA of this new slice remain unverified: the managed browser cannot reach the local build server. Automated parser tests are not browser validation.
 - Build warns about the large notation bundle (~518 KiB gzip); optimization remains pending.
 
+## Self-contained score sources
+
+- Stacked on reading-size branch `cdd843f`: **842 tests pass across 54 files** with `npm test -- --maxWorkers=2`; TypeScript/Vite/PWA production build and all **7 emitted-artifact contracts** pass. Reading-size fixtures use inline MusicXML and assert the Document renderer overload. The first stacked run exposed the inherited Library-heading/Practice-heading test race; the test-only fix awaits the level-1 Practice heading and adds a delayed-digest regression. Shared export tests now finish and assert delayed URL cleanup before restoring browser mocks. The complete gate was rerun after these test-only fixes; production code is unchanged from the independently reviewed stack. The main-based result below remains scoped to its earlier tree.
+- Based on main `72a26dca`: **829 tests pass across 54 files** with `npm test -- --maxWorkers=2`. TypeScript/Vite/PWA production build and all **7 emitted-artifact contracts** pass with `npm run build` and `npm run check:release`. The existing large lazy notation chunk warning remains; dependencies are unchanged.
+- Shared bounded offline validation covers direct MusicXML, project imports and rendering. The renderer receives a native XML Document instead of OSMD's URL-capable string input. Installed-OSMD tests intercept URL dispatch before any request and verify offline Document loading with BOM/whitespace, comments, XML prologs and ordinary external DOCTYPE declarations.
+- Regression coverage includes external resource/namespace/encoded-link variants, safe reference scores without playable-note requirements, legacy source/playback/folder-provenance preservation, unchanged stored entries, and safe bookmarks alongside nonfatal recovery warnings. Unsafe selected sources cannot substitute a different piece; missing-ID matching skips unsafe candidates. Independent review found no remaining blockers.
+- The first aggregate run found one obsolete non-MusicXML `<reference/>` fixture in the source-preservation regression. It now uses `<score-partwise/>` and retains the original preservation assertions. The complete gate was rerun successfully; no tests were removed or disabled.
+- Tests use synthetic public fixtures, mocked network dispatch and DOM/app simulations. No private assets or external score requests were used. Rendered browser/device behavior, Android/Casio MIDI and installed-PWA lifecycle were not revalidated. Unsafe legacy project backups retain source and playback, but require a safe source before project reimport; MIDI export remains available. No publication or deployment is part of this validation.
+
+
 ## Deployed first slice
 
 - First-slice 37 tests and production build passed before PR #9 merged.

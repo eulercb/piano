@@ -99,7 +99,7 @@ class DrawingRenderer {
   timeline?: ScoreTimeline;
   cursor = new DrawingCursor([]);
   constructor(readonly container: HTMLElement) {}
-  async load(source: string) { this.timeline = parseMusicXml(source).scoreTimeline; }
+  async load(source: Document) { this.timeline = parseMusicXml(new XMLSerializer().serializeToString(source)).scoreTimeline; }
   render() {
     const unique = new Map(this.timeline!.entries.map(entry => [`${entry.measureIndex}:${entry.beat}`, { measureIndex: entry.measureIndex, beat: entry.beat }]));
     this.cursor = new DrawingCursor([...unique.values()].sort((a, b) => a.measureIndex - b.measureIndex || a.beat - b.beat));
