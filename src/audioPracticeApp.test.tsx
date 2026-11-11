@@ -339,7 +339,7 @@ it("adversarial: pending preview is invalidated by unmount along with its key ti
 // Ongoing metronome regressions use the real transport and audio lifecycle.
 function enableMetronome() {
   click("Practice setup");
-  const toggle = screen.getByRole("checkbox", { name: "Steady metronome" }) as HTMLInputElement;
+  const toggle = screen.getByRole("checkbox", { name: "Metronome" }) as HTMLInputElement;
   expect(toggle.checked).toBe(false);
   fireEvent.click(toggle); click("Done");
 }
@@ -420,7 +420,7 @@ it("starts fresh after seek/restart and silences immediately when disabled or un
   fireEvent.change(screen.getByRole("slider", { name: "Playback position" }), { target: { value: "1" } });
   click("Play"); expect(clicks()).toBe(2);
   click("Restart"); click("Play"); expect(clicks()).toBe(3);
-  click("Practice setup"); fireEvent.click(screen.getByRole("checkbox", { name: "Steady metronome" }));
+  click("Practice setup"); fireEvent.click(screen.getByRole("checkbox", { name: "Metronome" }));
   click("Done"); click("Play"); advance(1.2); expect(clicks()).toBe(3);
   const audio = context(); view.unmount(); advance(10);
   expect(audio.pitches.filter(pitch => pitch > 1000)).toHaveLength(3);

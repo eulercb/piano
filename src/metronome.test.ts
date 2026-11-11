@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { SteadyMetronome } from "./metronome";
+import { PracticeMetronome } from "./metronome";
 import { PracticeSession } from "./session";
 
 const make = (options: Partial<PracticeSession["options"]> = {}, startAt = 0) => new PracticeSession({
@@ -9,15 +9,15 @@ const make = (options: Partial<PracticeSession["options"]> = {}, startAt = 0) =>
 }, startAt);
 
 it("emits at most one click per advance and never repeats missed beats", () => {
-  const clock = new SteadyMetronome(120);
-  expect(clock.advance(0)).toBe(true);
-  expect(clock.advance(0)).toBe(false);
-  expect(clock.advance(.49)).toBe(false);
-  expect(clock.advance(.01)).toBe(true);
-  expect(clock.advance(20)).toBe(true);
-  expect(clock.advance(0)).toBe(false);
+  const clock = new PracticeMetronome(120);
+  expect(clock.advance(0, 0, 0)).toBe(true);
+  expect(clock.advance(0, 0, 0)).toBe(false);
+  expect(clock.advance(.49, 0, .49)).toBe(false);
+  expect(clock.advance(.01, .49, .5)).toBe(true);
+  expect(clock.advance(20, .5, 20.5)).toBe(true);
+  expect(clock.advance(0, 20.5, 20.5)).toBe(false);
   clock.reset();
-  expect(clock.advance(0)).toBe(true);
+  expect(clock.advance(0, 0, 0)).toBe(true);
 });
 
 it("is opt-in and does not affect playback or grading", () => {

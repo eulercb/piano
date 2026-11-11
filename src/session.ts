@@ -1,6 +1,6 @@
 import type { Note } from "./music";
 import { matchMelodyPitch, melodyPosition } from "./practice";
-import { SteadyMetronome } from "./metronome";
+import { PracticeMetronome, type TempoSegment } from "./metronome";
 import { RecitalAttempt } from "./recital";
 
 export type PracticeMode = "listen" | "melody" | "rhythm" | "recital";
@@ -31,6 +31,8 @@ export type SessionOptions = {
   mode: PracticeMode;
   countIn: boolean;
   metronome?: boolean;
+  /** Derived only from matching source notation, never inferred from notes. */
+  tempoMap?: readonly TempoSegment[];
 };
 
 // Windows are in real seconds, not source-song time. Slower playback must not
@@ -68,11 +70,11 @@ export class PracticeSession {
   private sentCountBeat = 0;
   private hasStarted = false;
   private recital?: RecitalAttempt;
-  private readonly metronome: SteadyMetronome;
+  private readonly metronome: PracticeMetronome;
 
   constructor(options: SessionOptions, startAt = 0) {
     this.options = options;
-    this.metronome = new SteadyMetronome(options.tempo);
+    this.metronome = new PracticeMetronome(options.tempo, options.tempoMap);
     this.notes = options.notes
       .filter((n) => options.hand === "both" || n.hand === options.hand)
       .sort((a, b) => a.start - b.start);
@@ -245,6 +247,7 @@ export class PracticeSession {
       if (this.countingIn) return result;
       this.countRemaining = 0;
     }
+    const previousPosition = this.position;
     this.position += delta;
     this.recital?.advance(delta, speed / 100);
     if (this.options.mode === "melody")
@@ -292,11 +295,11 @@ export class PracticeSession {
         this.completed = true;
       }
     }
-    // Use active elapsed time rather than song position: the steady beat keeps
-    // going while Melody waits. Count-in consumed its own time above. A repeat
+    // Integrate movement through source tempos; any Melody wait uses the tempo
+    // at its stopped position. Count-in consumed its own time above. A repeat
     // starts a fresh clock on its next frame, never a second click in this one.
     if (this.running && !result.looped && this.options.metronome)
-      result.metronomeBeat = this.metronome.advance(delta);
+      result.metronomeBeat = this.metronome.advance(delta, previousPosition, this.position);
     return result;
   }
 }
