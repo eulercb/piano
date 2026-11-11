@@ -1,5 +1,15 @@
 # Validation
 
+## Browser audio interruption safety
+
+- Final integrated gate: all 508 tests pass, TypeScript/Vite/PWA build passes and diff checks are clean. Independent review passed after fixing pending-start tempo changes; five additional adversarial cases are retained.
+- Input highlight timers are owned per pitch and canceled on unmount; repeated notes keep their newest highlight. Save tests await the actual close-guard effect. The prior unmount-timer and save-effect timing failures are addressed by this lifecycle fix; three regressions and 20 focused repetitions passed.
+- The audio-only intermediate branch had a known save-effect assertion failure; the final integrated full run passed cleanly. Existing large lazy notation chunk warning remains.
+
+- Thirty-nine real-App synthetic regressions cover visible audio suspension/interruption/closure, queued frames and input before statechange, partial count-ins/chords and prior grades, running-state-only Play, rejected/thrown/still-suspended resume, cancelable pending starts, stale attempts, Studio tempo changes during pending starts, navigation/settings/visibility/unmount, muted fallback, MIDI loss during audio start, and preserved saved history and dirty Studio drafts.
+- Audio voices never queue on a stopped audio clock. Per-App context ownership removes state listeners, stops voices and closes audio on unmount. Existing audio doubles now explicitly model running state and statechange listeners.
+- These checks use controlled AudioContext, animation, MIDI and storage; they do not establish browser audio quality, rendered layout, Android/Casio hardware or installed-PWA behavior. No browser upload, publication or deployment is included.
+
 ## Combined focused-practice reliability
 
 - Final combined gate: all 466 tests pass, TypeScript/Vite/PWA build passes, and diff checks are clean. Independent MIDI and score-following reviews found no remaining actionable issues.

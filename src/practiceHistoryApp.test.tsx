@@ -22,7 +22,9 @@ function advance(seconds: number) {
     }
   });
 }
-class SilentAudio {
+class SilentAudio extends EventTarget {
+  state = "running";
+  close() { return Promise.resolve(); }
   currentTime = 0;
   destination = {};
   resume() { return Promise.resolve(); }
