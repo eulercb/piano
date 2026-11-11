@@ -9,3 +9,9 @@
   .score-follow-controls { align-items: flex-start; flex-direction: column; }
   .score-sheet.score-follow-viewport { max-height: 60vh; }
 }
+
+.score-size-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: .5rem 0; }
+.score-size-controls label { display: inline-flex; align-items: center; gap: .5rem; }
+.score-size-controls select, .score-size-controls button { min-height: 44px; }
+.compact-score .score-size-controls { flex-shrink: 0; margin: 0; font-size: 12px; }
+.score-reading-controls:focus-visible { outline: 2px solid #3578c8; outline-offset: -2px; }

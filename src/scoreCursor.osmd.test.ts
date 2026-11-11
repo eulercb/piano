@@ -45,6 +45,16 @@ describe('installed OSMD cursor contract', () => {
       expect(osmd.cursor.Iterator.CurrentMeasureIndex).toBe(1)
       expect(osmd.cursor.Iterator.CurrentRelativeInMeasureTimestamp.RealValue).toBe(.5)
       follower.dispose()
+      for (const zoom of [.75, 1.5, 2, 1]) {
+        osmd.Zoom = zoom
+        osmd.render()
+        expect(osmd.Zoom).toBe(zoom)
+        vi.spyOn(osmd.cursor, 'show').mockImplementation(() => {})
+        follower = new ScoreCursorFollower(osmd.cursor, scoreTimeline, container)
+        expect(follower.position(6)).toEqual({ measureIndex: 2, beat: 2 })
+        expect(osmd.cursor.Iterator.CurrentMeasureIndex).toBe(2)
+        follower.dispose()
+      }
     } finally { osmd.dispose(); osmd.clear() }
   })
 })
