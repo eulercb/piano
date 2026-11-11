@@ -142,7 +142,7 @@ it('adds and removes chord tones in the App, round trips source and saves only t
   expect(draft.notes.find(n => n.sourceNoteIds?.includes('0:0:0'))?.finger).toBe(2);
   expect(draft.scoreXml).toContain('default-x="20" default-y="-40"');
   expect(music(draft).filter(n => !(n.pitch === 64 && n.start === 0))).toEqual(music(original));
-  expect((button('Apply written duration') as HTMLButtonElement).disabled).toBe(true);
+  expect((button('Apply chord duration') as HTMLButtonElement).disabled).toBe(false);
   fireEvent.click(button('Remove chord tone')); fireEvent.click(button('Keep written note'));
   expect(parseProject(await exportProject())).toEqual(draft);
   // Delete the leader, promoting the newly added tone without a rest or shift.
@@ -166,11 +166,12 @@ it('adds and removes chord tones in the App, round trips source and saves only t
   expect(saved()[1]).toEqual(draft);
 });
 
-it('retains an unsaved chord when a stale-tab save fails and a replacement is canceled', async () => {
+it('retains an unsaved resized chord when a stale-tab save fails and a replacement is canceled', async () => {
   const view = render(<App />); await open(view.container);
   const original = saved()[0];
   fireEvent.change(screen.getByRole('spinbutton', { name: 'New chord pitch (MIDI)' }), { target: { value: '67' } });
   fireEvent.click(button('Add chord tone'));
+  beats('2'); fireEvent.click(button('Apply chord duration'));
   choose(view.container, file(xml.replace('Synthetic slots', 'Replacement'), 'replacement.musicxml'));
   expect(window.confirm).toHaveBeenCalled();
   expect(screen.queryByRole('heading', { name: 'Replacement' })).toBeNull();
@@ -179,6 +180,66 @@ it('retains an unsaved chord when a stale-tab save fails and a replacement is ca
   fireEvent.click(button('Save')); await screen.findByText(/This piece changed in another tab/);
   expect(saved()).toEqual([external]);
   const draft = parseProject(await exportProject());
-  expect(draft.notes.find(n => n.pitch === 67)).toMatchObject({ start: 0, duration: .5 });
+  expect(draft.notes.find(n => n.pitch === 67)).toMatchObject({ start: 0, duration: 1 });
+  expect(draft.notes.find(n => n.pitch === 60)).toMatchObject({ start: 0, duration: 1, finger: 2 });
+  expect(music(parseMusicXml(draft.scoreXml!).song)).toEqual(music(draft));
+});
+
+
+it('resizes a whole chord from its follower, preserves the saved original and round trips both hands through export and Save', async () => {
+  const view = render(<App />);
+  const chordXml = xml.replace('</note>', '</note><note default-x="20" default-y="-20"><chord/><pitch><step>G</step><alter>-1</alter><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>quarter</type><accidental>flat</accidental><staff>1</staff><notations><technical><fingering>4</fingering></technical></notations></note>');
+  choose(view.container, file(chordXml, 'original-chord.musicxml'));
+  await screen.findByRole('heading', { name: 'Synthetic slots' });
+  await screen.findByRole('combobox', { name: 'Written slot' });
+  const original = saved()[0];
+  slot('0:0:1'); beats('2'); fireEvent.click(button('Apply chord duration'));
+  let draft = parseProject(await exportProject());
+  expect(saved()).toEqual([original]);
+  expect(draft.notes.filter(n => n.start === 0 && n.hand === 'right').map(n => [n.pitch, n.duration, n.finger])).toEqual([[60, 1, 2], [66, 1, 4]]);
+  expect(music(draft).filter(n => n.start > 0 || n.hand === 'left')).toEqual(music(original).filter(n => n.start > 0 || n.hand === 'left'));
+  expect(draft.scoreXml).toContain('<step>G</step><alter>-1</alter>');
+  expect(draft.scoreXml).toContain('default-x="20" default-y="-20"');
+  expect(draft.duration).toBe(original.duration);
+  expect((screen.getByLabelText('Duration (quarter-note beats)') as HTMLInputElement).value).toBe('2');
+  beats('.5'); fireEvent.click(button('Apply chord duration'));
+  const raw = await exportProject();
+  draft = parseProject(raw);
+  expect(JSON.parse(raw).song.notes).toEqual(draft.notes);
+  expect(draft.notes.filter(n => n.start === 0 && n.hand === 'right').map(n => [n.pitch, n.duration, n.finger])).toEqual([[60, .25, 2], [66, .25, 4]]);
+  expect(music(draft).filter(n => n.start > 0 || n.hand === 'left')).toEqual(music(original).filter(n => n.start > 0 || n.hand === 'left'));
+  expect(saved()).toEqual([original]);
+  fireEvent.click(button('Remove chord tone')); fireEvent.click(button('Keep written note'));
+  expect(parseProject(await exportProject())).toEqual(draft);
+  clickDownload(button('Export MusicXML'));
+  const outputXml = await downloadText();
+  expect(outputXml).toBe(draft.scoreXml);
+  expect(music(parseMusicXml(outputXml).song)).toEqual(music(draft));
+  fireEvent.click(button('Save')); await screen.findByText('Saved to your library on this device.');
+  expect(saved()).toEqual([draft]);
+  choose(view.container, file(raw, 'resized-chord.json'));
+  await waitFor(() => expect(saved()).toHaveLength(2));
+  expect(music(saved()[0])).toEqual(music(draft));
+  expect(saved()[0].scoreXml).toBe(draft.scoreXml);
+  expect(saved()[1]).toEqual(draft);
+  expect(original.scoreXml).toBe(chordXml);
+});
+
+it('invalidates a pending import when a whole-chord duration is applied', async () => {
+  const view = render(<App />); await open(view.container);
+  const original = saved()[0];
+  fireEvent.change(screen.getByLabelText('New chord pitch (MIDI)'), { target: { value: '67' } });
+  fireEvent.click(button('Add chord tone'));
+  let resolve!: (text: string) => void;
+  const pending = new Promise<string>(done => { resolve = done; });
+  const late = file('', 'late.json'); late.text = vi.fn(() => pending);
+  vi.mocked(window.confirm).mockReturnValueOnce(true);
+  choose(view.container, late); expect(late.text).toHaveBeenCalledTimes(1);
+  slot('0:0:1'); beats('2'); fireEvent.click(button('Apply chord duration'));
+  await act(async () => resolve(JSON.stringify({ version: 1, song: { ...original, title: 'Late chord replacement' } })));
+  expect(screen.queryByRole('heading', { name: 'Late chord replacement' })).toBeNull();
+  const draft = parseProject(await exportProject());
+  expect(draft.notes.filter(n => n.start === 0 && n.hand === 'right').map(n => [n.pitch, n.duration])).toEqual([[60, 1], [67, 1]]);
+  expect(saved()).toEqual([original]);
   expect(music(parseMusicXml(draft.scoreXml!).song)).toEqual(music(draft));
 });

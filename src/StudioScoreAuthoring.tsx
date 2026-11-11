@@ -27,6 +27,7 @@ export function StudioScoreAuthoring({ song, onChange }: { song: Song; onChange:
     setPitch(String(song.notes.find(n => n.sourceNoteIds?.includes(slot?.sourceId ?? ''))?.pitch ?? 60));
   }
   function apply(edit: ScoreSlotEdit) {
+    if (confirm && edit.action !== 'delete') return;
     if (edit.action === 'delete') {
       if (!confirm || deleted.current === song) return;
       deleted.current = song;
@@ -40,18 +41,18 @@ export function StudioScoreAuthoring({ song, onChange }: { song: Song; onChange:
   return <section className="studio-note-authoring" aria-label="MusicXML structural authoring">
     <h3>Add, delete & resize written notes</h3>
     {unavailable && <p role="alert">{unavailable}</p>}
-    <p>Fill an explicit rest, replace an independent note with a rest, or change its duration using adjacent silence. Add or remove simple chord tones at the same onset and duration. Times stay fixed across both hands. Durations are quarter-note beats, not seconds.</p>
-    <p>Simple notes and adjacent chord tones in the same voice and staff only. Chord durations, ties, grace/cue notes, beams, tuplets and complex notation cannot be changed here. Simple fingerings and engraving-position attributes are preserved. New notes and duration changes use whole through 64th notes, optionally single-dotted. Keep at least one sounding note. Use a notation editor for other passages.</p>
+    <p>Fill an explicit rest, replace an independent note with a rest, or change its duration using adjacent silence. Add or remove simple chord tones at the same onset and duration, or resize all tones together using adjacent silence. Times stay fixed across both hands. Durations are quarter-note beats, not seconds.</p>
+    <p>Simple notes and adjacent chord tones in the same voice and staff only. Ties, grace/cue notes, beams, tuplets and complex notation cannot be changed here. Simple fingerings and engraving-position attributes are preserved. New notes and duration changes use whole through 64th notes, optionally single-dotted. Keep at least one sounding note. Use a notation editor for other passages.</p>
     <label>Written slot<select value={selected} onChange={e => { setSelected(e.target.value); setConfirm(false); setError(''); setMessage(''); }}>
       {slots.map(s => <option key={s.sourceId} value={s.sourceId}>Part {Number(s.sourceId.split(':')[0]) + 1}, measure {s.measure}, slot {Number(s.sourceId.split(':')[2]) + 1} · staff {s.staff}, voice {s.voice} · {s.rest ? 'rest' : `MIDI ${pitches.get(s.sourceId) ?? '?'}${s.chordSize > 1 ? ` · ${s.chordSize}-tone chord` : ''}`} · {s.beats} beats</option>)}
     </select></label>
     {slot?.reason && <p>{slot.reason}</p>}
     <fieldset disabled={!slot || !!slot.reason || confirm}>
-      <legend>{slot?.rest ? 'Fill selected rest' : 'Change selected note'}</legend>
+      <legend>{slot?.rest ? 'Fill selected rest' : inChord ? 'Change selected chord' : 'Change selected note'}</legend>
       {slot?.rest && <label>New pitch (MIDI)<input type="number" min="0" max="127" step="1" value={pitch} onChange={e => setPitch(e.target.value)} /></label>}
-      {inChord && <p>Each tone keeps {slot.beats} beats. Removing this tone leaves the other chord tones in place.</p>}
-      <label>Duration (quarter-note beats)<input disabled={inChord} type="number" min="0.0625" step="any" value={beats} onChange={e => setBeats(e.target.value)} /></label>
-      <button disabled={inChord} type="button" className="button" onClick={() => apply(slot?.rest ? { action: 'insert', pitch: pitch.trim() ? Number(pitch) : NaN, beats: Number(beats) } : { action: 'duration', beats: Number(beats) })}>{slot?.rest ? 'Insert into rest' : 'Apply written duration'}</button>
+      {inChord && <p>Duration changes apply to all {slot.chordSize} tones, whichever tone is selected. Shortening leaves one rest after the chord; lengthening uses only the immediately following rest in the same voice and staff. Removing this tone leaves the other chord tones in place.</p>}
+      <label>Duration (quarter-note beats)<input type="number" min="0.0625" step="any" value={beats} onChange={e => setBeats(e.target.value)} /></label>
+      <button type="button" className="button" onClick={() => apply(slot?.rest ? { action: 'insert', pitch: pitch.trim() ? Number(pitch) : NaN, beats: Number(beats) } : { action: 'duration', beats: Number(beats) })}>{slot?.rest ? 'Insert into rest' : inChord ? 'Apply chord duration' : 'Apply written duration'}</button>
       {!slot?.rest && <>
         <label>New chord pitch (MIDI)<input type="number" min="0" max="127" step="1" value={pitch} onChange={e => setPitch(e.target.value)} /></label>
         <button type="button" className="button" onClick={() => apply({ action: 'addChordTone', pitch: pitch.trim() ? Number(pitch) : NaN })}>Add chord tone</button>
