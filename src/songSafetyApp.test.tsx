@@ -137,7 +137,9 @@ it("allows an explicitly confirmed piece change and clears the old unsaved warni
 it("does not let an older import replace a newer one", async () => {
   const slow = deferred<Awaited<ReturnType<typeof importScoreFile>>>();
   vi.mocked(importScoreFile).mockReturnValueOnce(slow.promise).mockResolvedValueOnce(imported("New choice"));
-  const view = render(<App />); chooseFiles(view.container, "old.mxl"); chooseFiles(view.container, "new.mxl");
+  const view = render(<App />); chooseFiles(view.container, "old.mxl");
+  await waitFor(() => expect(importScoreFile).toHaveBeenCalledTimes(1));
+  chooseFiles(view.container, "new.mxl");
   await screen.findByRole("heading", { name: "New choice" });
   await act(async () => slow.resolve(imported("Old choice")));
   expect(screen.getByRole("heading", { name: "New choice" })).toBeTruthy();
@@ -147,6 +149,7 @@ it("cancels pending batch imports when a newer navigation occurs", async () => {
   const slow = deferred<Awaited<ReturnType<typeof importScoreFile>>>();
   vi.mocked(importScoreFile).mockReturnValue(slow.promise);
   const view = render(<App />); chooseFiles(view.container, "pending.mxl", "later.mxl");
+  await waitFor(() => expect(importScoreFile).toHaveBeenCalledTimes(1));
   fireEvent.click(screen.getByRole("button", { name: "My library" }));
   await act(async () => slow.resolve(imported("Late import")));
   expect(screen.getByRole("heading", { name: "On your music stand" })).toBeTruthy();
@@ -155,7 +158,9 @@ it("cancels pending batch imports when a newer navigation occurs", async () => {
 it("does not let a pending import overwrite a newer Studio edit", async () => {
   const slow = deferred<Awaited<ReturnType<typeof importScoreFile>>>();
   vi.mocked(importScoreFile).mockReturnValue(slow.promise);
-  const view = render(<App />); prepare(); chooseFiles(view.container, "pending.mxl"); finger("5");
+  const view = render(<App />); prepare(); chooseFiles(view.container, "pending.mxl");
+  await waitFor(() => expect(importScoreFile).toHaveBeenCalledTimes(1));
+  finger("5");
   await act(async () => slow.resolve(imported("Late import")));
   expect(screen.getByRole("heading", { name: "Morning Light" })).toBeTruthy();
   expect((screen.getByRole("combobox", { name: "Finger" }) as HTMLSelectElement).value).toBe("5");

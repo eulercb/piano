@@ -6,6 +6,8 @@ A local-first browser piano practice workspace. Roadmap: [issue #8](https://gith
 
 Node 22+; `npm ci`, `npm run dev`. Validate with `npm test`, `npm run build` and `npm run check:release`. The release gate inspects emitted PWA artifacts; it is not browser or hardware acceptance. See [the support matrix and release checklist](docs/release-checklist.md).
 
+Preparation-only authoring and score-file import code loads on demand. Studio offers an explicit retry if its tools cannot load; the current piece stays available for practice, save and export. All emitted chunks remain in the offline precache. See [initial loading and reproducible bundle checks](docs/initial-loading.md) for the measured scope and browser-validation limits.
+
 The app supports MIDI preparation, a local song library, listening, wait-for-note melody practice, beginner rhythm feedback, end-only recital assessment and a reading score. No account or server-side music storage. Browser MIDI access is optional and requested on click; use Chrome/Edge where Web MIDI is supported. Touch keys and A–; are a demo fallback, not full piano input.
 
 ## Scope and limits

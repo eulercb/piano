@@ -30,7 +30,7 @@ function file(text: string, name: string) { return Object.assign(new File([text]
 function choose(container: HTMLElement, input: File) { fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [input] } }); }
 function slot(id: string) { fireEvent.change(screen.getByRole('combobox', { name: 'Written slot' }), { target: { value: id } }); }
 function beats(value: string) { fireEvent.change(screen.getByRole('spinbutton', { name: 'Duration (quarter-note beats)' }), { target: { value } }); }
-async function open(container: HTMLElement) { choose(container, file(xml, 'synthetic.musicxml')); await screen.findByRole('heading', { name: 'Synthetic slots' }); }
+async function open(container: HTMLElement) { choose(container, file(xml, 'synthetic.musicxml')); await screen.findByRole('heading', { name: 'Synthetic slots' }); await screen.findByRole('combobox', { name: 'Written slot' }); }
 function downloadText() {
   return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsText(downloads.at(-1)!); });
 }
