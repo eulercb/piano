@@ -414,6 +414,9 @@ h2 {
 .keyboard .pressed {
   background: #accea6;
 }
+.keyboard .pressed span {
+  color: #263d36;
+}
 .transport {
   display: flex;
   align-items: center;
@@ -1141,7 +1144,7 @@ header { height: auto; min-height: 84px; padding-top: 16px; padding-bottom: 16px
 .midi-actions button:disabled { cursor: wait; opacity: 0.65; }
 .midi-status { color: #52644e; font-size: 12px; line-height: 1.5; margin-top: 8px; overflow-wrap: anywhere; }
 .midi-input-label { display: block; margin: 10px 0 5px; font-size: 12px; font-weight: 600; }
-.midi-device select { width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 1px solid #c5d0bb; border-radius: 6px; background: #fffef9; color: inherit; font: inherit; }
+.midi-device select { width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 1px solid #798b71; border-radius: 6px; background: #fffef9; color: inherit; font: inherit; }
 .midi-device select:focus-visible { outline: 3px solid #80520c; outline-offset: 4px; }
 .midi-activity { display: flex; align-items: center; gap: 7px; color: #42643e; font-size: 12px; margin-top: 8px; }
 .midi-pulse { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: #b0bea8; }
@@ -1208,6 +1211,9 @@ header { height: auto; min-height: 84px; padding-top: 16px; padding-bottom: 16px
 .keyboard .black:focus-visible {
   z-index: 4;
   outline-color: #ffe1a1;
+}
+.keyboard .black.pressed:focus-visible {
+  outline-color: #80520c;
 }
 
 /* Let long piece names and action rows reflow instead of widening the page. */
@@ -1306,7 +1312,9 @@ footer,
   }
 }
 @media (forced-colors: active) {
-  .keyboard button:focus-visible {
+  .keyboard button:focus-visible,
+  .keyboard .black:focus-visible,
+  .keyboard .black.pressed:focus-visible {
     outline-color: Highlight;
   }
 }
