@@ -46,6 +46,51 @@ function child(doc: Document, parent: Element, name: string) {
 function strip(node: Element, name: string) {
   for (const e of children(node, name)) node.removeChild(e);
 }
+/** A clipped tie becomes a new attack. Carry only an unambiguous written
+ * finger from its removed prefix, never another technical mark or a guessed
+ * physical hand. An explicit boundary marking always takes precedence.
+ */
+function carryTieFinger(doc: Document, removed: string[], boundary: Element) {
+  const fingerings = (note: Element) =>
+    Array.from(note.getElementsByTagName("*")).filter(
+      (element) => element.localName === "fingering",
+    );
+  if (fingerings(boundary).length) return;
+  for (const id of removed.slice().reverse()) {
+    const donor = resolve(doc, id), marks = fingerings(donor);
+    if (!marks.length) continue;
+    const mark = marks[0], value = mark.textContent?.trim() ?? "";
+    // Do not simplify alternatives, substitutions, compound or nested marks,
+    // or fall back past a later marking whose meaning we cannot carry safely.
+    if (marks.length !== 1 || !/^[1-5]$/.test(value) ||
+      Array.from(mark.childNodes).some((node) => node.nodeType === 1) ||
+      ["alternate", "substitution"].some((name) => mark.hasAttribute(name) && mark.getAttribute(name)?.trim() !== "no") ||
+      mark.parentNode?.localName !== "technical" ||
+      mark.parentNode.parentNode?.localName !== "notations" ||
+      mark.parentNode.parentNode.parentNode !== donor ||
+      [mark, mark.parentNode, mark.parentNode.parentNode].some(
+        (node) => node.namespaceURI !== donor.namespaceURI,
+      )) return;
+    const scoreChild = (parent: Element, name: string) => {
+      const existing = children(parent, name).find(
+        (element) => element.namespaceURI === boundary.namespaceURI,
+      );
+      if (existing) return existing;
+      const element = doc.createElementNS(boundary.namespaceURI, name);
+      parent.appendChild(element);
+      return element;
+    };
+    const notations = scoreChild(boundary, "notations");
+    const afterNotations = Array.from(boundary.childNodes).find(
+      (node) => node.nodeType === 1 && ["lyric", "play", "listen"].includes((node as Element).localName || ""),
+    );
+    if (afterNotations) boundary.insertBefore(notations, afterNotations);
+    // As with a Studio finger edit, create a fresh mark rather than copying
+    // engraving coordinates that belonged to the removed measure.
+    scoreChild(scoreChild(notations, "technical"), "fingering").textContent = value;
+    return;
+  }
+}
 function songFrom(doc: Document, original: Song) {
   const result = parseMusicXml(serialize(doc));
   // Provenance describes the imported source bytes, not the edited playback.
@@ -156,14 +201,21 @@ export function trimScoreMeasures(
       for (const t of children(notation, "tied"))
         if (t.getAttribute("type") === type) notation.removeChild(t);
   };
-  for (const note of song.notes) {
+  // Source-derived chains distinguish part, staff, voice and pitch. Never
+  // associate a clipped tie using potentially stale cached playback mappings.
+  const parsed = parseMusicXml(song.scoreXml!);
+  for (const note of parsed.song.notes) {
     const ids = note.sourceNoteIds || [],
       kept = ids.filter((id) => {
         const m = Number(id.split(":")[1]);
         return m >= start && m <= end;
       });
     if (!kept.length) continue;
-    if (kept[0] !== ids[0]) clearTie(resolve(doc, kept[0]), "stop");
+    if (kept[0] !== ids[0]) {
+      const boundary = resolve(doc, kept[0]);
+      carryTieFinger(doc, ids.slice(0, ids.indexOf(kept[0])), boundary);
+      clearTie(boundary, "stop");
+    }
     if (kept.at(-1) !== ids.at(-1))
       clearTie(resolve(doc, kept.at(-1)!), "start");
   }
@@ -174,7 +226,7 @@ export function trimScoreMeasures(
         "Measure trimming requires matching measure counts across parts.",
       );
     const inherited = new Map<string, Element>();
-    const tempo = parseMusicXml(song.scoreXml!).measureStartTempos[start];
+    const tempo = parsed.measureStartTempos[start];
     for (const measure of measures.slice(0, start)) {
       for (const attrs of children(measure, "attributes"))
         for (const n of Array.from(attrs.childNodes)) {

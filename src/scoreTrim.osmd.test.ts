@@ -24,9 +24,11 @@ it.each([-1, 0, 1, 2, 3].flatMap(measure => [false, true].map(isEdited => ({meas
     expect(trimmed.tempo).toBe(song.tempo);
     if (measure === 2 && isEdited) {
       // Captured public-browser failure: changing order must not alter playback,
-      // hands, clipped ties, fingering or source mappings.
+      // hands, clipped ties or source mappings. A later fingering fix also
+      // restores the edited finger from the removed tie start onto the new attack.
       const baseline = parseMusicXml(failed).song;
-      expect(trimmed.notes).toEqual(baseline.notes);
+      expect(trimmed.notes).toEqual(baseline.notes.map(note => note.sourceNoteIds?.includes('0:0:0') ? { ...note, finger: 3 } : note));
+      expect(trimmed.scoreXml).toContain('<fingering>3</fingering>');
       expect(trimmed.duration).toEqual(baseline.duration);
       expect(parseMusicXml(trimmed.scoreXml!).scoreTimeline).toEqual(parseMusicXml(failed).scoreTimeline);
     }

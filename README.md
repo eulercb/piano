@@ -76,7 +76,7 @@ Content fingerprints skip unchanged sources even when you have edited their save
 
 Import `.musicxml`, `.xml` or compressed `.mxl` directly to create playable notes and readable notation together. Supported partwise piano scores preserve staff-to-hand assignment, printed fingers, chords, tuplets expressed via duration, and ties. Structural playback features that are not supported must fail clearly rather than silently play the wrong sequence. Grace-note approximation is disclosed on import.
 
-For these imported scores, Studio pitch/finger edits and transposition rewrite the MusicXML and re-derive playback. Trim by whole measures (including a pickup) to keep notation and sound aligned; inherited attributes and crossing ties are repaired. Export MusicXML or a Piano project. Editing MIDI-only songs retains the simpler seconds-based editor.
+For these imported scores, Studio pitch/finger edits and transposition rewrite the MusicXML and re-derive playback. Trim by whole measures (including a pickup) to keep notation and sound aligned; inherited attributes and crossing ties are repaired. When a passage begins inside a tie, its new attack retains the latest prior fingering from the removed prefix when that mark is a single unambiguous number and the boundary has no fingering. Compound, alternative and substitution marks are not inferred or simplified. Export MusicXML or a Piano project. Editing MIDI-only songs retains the simpler seconds-based editor.
 
 ### MIDI and project note authoring
 
