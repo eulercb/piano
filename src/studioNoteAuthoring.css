@@ -12,8 +12,8 @@
 .authoring-heading > div { flex: 1 1 260px; }
 .authoring-selection { margin: 18px 0 12px; }
 .studio-note-authoring label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: #354f3f; }
-.studio-note-authoring input, .studio-note-authoring select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; padding: 10px; border: 1px solid #bdc9bd; border-radius: 6px; background: white; font: inherit; font-size: 14px; color: #263d36; }
-.studio-note-authoring select:focus-visible { outline: 3px solid #cf9347; outline-offset: 4px; }
+.studio-note-authoring input, .studio-note-authoring select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; padding: 10px; border: 1px solid #798b71; border-radius: 6px; background: white; font: inherit; font-size: 14px; color: #263d36; }
+.studio-note-authoring select:focus-visible { outline: 3px solid #80520c; outline-offset: 4px; }
 .studio-note-authoring button { min-height: 44px; }
 .studio-note-authoring button:disabled { opacity: .5; cursor: not-allowed; }
 .studio-note-authoring fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
