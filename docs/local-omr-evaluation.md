@@ -246,6 +246,17 @@ it neither corrects musical recognition nor publishes raw logs.
 
 - Single explicit PNG, at most 20 MiB / 20 million pixels; no PDF/multipage support.
 - Fresh temporary input copy, home, cache and output per job. No persistent daemon.
+  Native `TMPDIR`/`TMP`/`TEMP` and Java `java.io.tmpdir` point to a private
+  per-job `tmp` directory, removed along with the job on success, engine failure,
+  timeout or cancellation. Previously these defaults were not redirected and
+  could leave cooperative engine intermediates outside the cleanup directory.
+  Fake-engine tests verify native temporary-file placement and cleanup for all
+  four outcomes, plus the Java option supplied to the child. JVM path options
+  are double-quoted so spaces and apostrophes do not split them. Temporary
+  parents containing double quotes are rejected before launch rather than
+  applying unverified escaping. These fake-engine tests do not verify
+  actual Java/Audiveris temporary writes or prevent a program from choosing a
+  different path. This is cleanup configuration, not filesystem isolation.
 - `--log` is opt-in and creates a new owner-only `.log` file exclusively, refusing existing
   files and symlinks. It retains raw stdout/stderr on success, failure, timeout or
   cancellation. Logs can contain local paths and score-derived details; keep
@@ -254,8 +265,10 @@ it neither corrects musical recognition nor publishes raw logs.
   bounds each adapter stdout/stderr file to 64 MiB. These are individual file
   limits, not an aggregate disk quota.
 - Argument array, no shell interpolation; fixed temporary input filename.
-- 1–600 second wall timeout, CPU-time limit, 1536 MiB Java heap and two JVM
-  processors. 64 MiB per-file write limit, core dumps disabled. These are not a
+- 1–600 second wall timeout and CPU-time limit. For the pinned HotSpot/Zulu
+  launcher, controlled `JAVA_TOOL_OPTIONS` and `_JAVA_OPTIONS` request a
+  1536 MiB Java heap and two JVM processors; the latter is applied after normal
+  launcher command-line options. Both values replace inherited Java options. 64 MiB per-file write limit, core dumps disabled. These are not a
   complete memory/process/disk sandbox and do not constrain arbitrary untrusted
   executables. Only supply a trusted installed Audiveris launcher.
 - Timeout, Ctrl-C and SIGTERM kill the process group and remove temporary state.
@@ -306,3 +319,71 @@ thresholds in advance and report failures and correction effort. Verify
 cancellation with the actual engine on each target
 platform, resource limits, bad images, missing models, repeated runs, and current
 licenses. Desktop workflow acceptance does not establish browser/mobile support.
+
+## Temporary-state regression check
+
+On 2026-11-11, the job-local temporary-directory change passed all 24 Python OMR
+boundary/fixture tests (`python -m unittest discover -s scripts/omr -p 'test_*.py' -v`).
+No actual recognizer, private score, network observation or isolation operation
+was run for this check. The original captured recognition results above are
+unchanged. Actual-engine temporary writes and cleanup still require verification
+in the authorized, outbound-blocked target environment before private-score use.
+
+A separate locally authored Java probe, using the same sanitized environment and
+JVM options with a synthetic temporary parent containing spaces and an apostrophe,
+verified the exact `user.home` and `java.io.tmpdir` properties and that
+`Files.createTempFile` created its file in the job's `tmp` directory. The file and
+whole probe directory were removed. This used the already-installed OpenJDK
+21.0.13, build `21.0.13+9-1-deb13u2-Debian`, not the pinned Audiveris Java 25.0.3.
+It proves this quoting/default-temp behavior for that system JVM only. It does
+not test Audiveris dependencies, arbitrary path choices, actual-engine
+cancellation, filesystem confinement or network access.
+
+## Launcher option precedence correction
+
+On 2026-11-12, reprovisioning the same hash-verified official package revealed
+that its unchanged `Audiveris.cfg` supplies `-Xmx8G`. A harmless bundled-Java
+probe confirmed that this command-line option overrides the earlier adapter's
+`JAVA_TOOL_OPTIONS=-Xmx1536m`. Therefore the historical baseline/matrix metrics'
+1536 MiB limit text is an ineffective requested setting, **not an enforced heap
+cap**. Those captured measurements and recognition results are retained, not
+rewritten. The same precedence can override `user.home` and `java.io.tmpdir`.
+
+The adapter now supplies its controlled options through both `JAVA_TOOL_OPTIONS`
+and `_JAVA_OPTIONS`, removing inherited values. On pinned Zulu Java 25.0.3+9-LTS,
+a probe with deliberately conflicting command-line heap, processor, home and
+temporary settings confirmed an effective heap of 1,610,612,736 bytes, two JVM
+processors, and the exact intended home/temporary properties. The unchanged
+packaged Audiveris launcher also exited 0 on `-help` with `PrintFlagsFinal`,
+confirming that heap size and processor count. Its JVM argument diagnostic showed
+the intended path options last, after the vendor options; its cache/log appeared
+under the requested synthetic home. The direct JVM probe prints property values;
+the launcher diagnostic prints argument order, not a property-value dump.
+A first help diagnostic used `-XshowSettings:properties`, which the native
+launcher does not accept; that failed before application startup and was replaced
+with supported JVM flag diagnostics. No vendor files were changed.
+
+This is verified cooperative configuration for the pinned HotSpot/Zulu runtime,
+not a portable guarantee for other JVMs or a launcher that replaces its own
+environment. Revalidate a changed executable/runtime before relying on these
+settings. It does not cap total RSS, native allocations, descendants or aggregate
+disk use, and provides no network isolation. Fake-engine regressions check both
+variables, replacement of inherited conflicting options, and unchanged cleanup,
+raw-log retention and exclusive publication. All 24 Python OMR tests pass.
+
+With the corrected options, the same unchanged, hash-verified package then ran
+only the original baseline and blank control, once each. The baseline exited 0
+and matched all 16 events, voice correspondence and written type/dot/tie checks.
+Observed adapter wall time was 7.671 seconds and child maximum RSS was 475,192 KiB;
+these are measurements, not memory guarantees. Three warning lines included the
+existing missing OCR-language limitation. The blank control exited 1 and created
+no destination; its elapsed time/RSS were not separately instrumented. Both jobs
+used temporary parents containing spaces and an apostrophe. Ordinary filesystem
+polling observed font/classifier/imageio/logback intermediates beneath the job's
+temporary directory, and both job trees were gone after exit. This does not prove
+that no other paths were touched. The separate harmless launcher diagnostic
+verified heap/CPU values; recognition used the same controlled options without
+diagnostic flags. Earlier compatibility runs using the effective 8 GiB heap are
+preserved separately and are not evidence for the corrected cap. No private
+scores, network observation or isolation operations were used. Raw logs and
+outputs remain local; no new captured export is published by this check.

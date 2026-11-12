@@ -13,9 +13,11 @@ public QA artifacts. Never publish private scores, MIDI, recordings or projects.
    uploading a Pages artifact. It checks the emitted manifest, real PNG sizes,
    root custom-domain deployment, local precache files and their revision hashes,
    complete offline assets (including lazy notation), navigation fallback, and
-   explicit rather than immediate worker activation. Seven mutation/contract tests
-   verify that missing icons, stale bytes, uncached assets, unregistered navigation
-   fallback and unsafe activation fail the gate. This is artifact inspection, not proof of offline operation.
+   explicit rather than immediate worker activation. Twenty-three mutation/contract
+   tests reject missing icons, stale bytes, uncached assets, unregistered navigation,
+   unsafe activation, noncanonical URLs, unexpected data-cache entries/routes and
+   incorrect root manifest linkage. See the [offline artifact audit](offline-artifact-audit.md)
+   for evidence and limitations. This is artifact inspection, not proof of offline operation.
 4. Optional, on a machine allowing a local HTTP server and Chromium: with Python
    Playwright and Chromium already installed, run
    `python scripts/browser-release.py --chromium /path/to/chromium`.
