@@ -104,7 +104,7 @@ class Boundaries(unittest.TestCase):
                     'temporary = pathlib.Path(tempfile.mkdtemp())\n'
                     '(temporary / "score-intermediate").write_text("synthetic score")\n'
                     'state = {key: os.environ.get(key) for key in '
-                    '("TMPDIR", "TMP", "TEMP", "JAVA_TOOL_OPTIONS", "HOME", "OMR_TEST_SECRET")}\n'
+                    '("TMPDIR", "TMP", "TEMP", "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "HOME", "OMR_TEST_SECRET")}\n'
                     'state.update(temporary=str(temporary), work=os.getcwd())\n'
                     f'pathlib.Path({str(marker)!r}).write_text(json.dumps(state))\n'
                     + ('' if succeeds else 'sys.exit(7)\n') +
@@ -113,7 +113,8 @@ class Boundaries(unittest.TestCase):
                     f'    z.writestr("score.xml", pathlib.Path({str(gold)!r}).read_bytes())\n')
                 target = self.root / f'{succeeds}.musicxml'
                 with patch('tempfile.tempdir', str(temporary_parent)), patch.dict(os.environ, {'TMPDIR': str(self.root), 'TMP': str(self.root),
-                                             'TEMP': str(self.root), 'OMR_TEST_SECRET': 'not inherited'}):
+                                             'TEMP': str(self.root), '_JAVA_OPTIONS': '-Xmx8G -Duser.home=/wrong',
+                                             'JAVA_TOOL_OPTIONS': '-Xmx8G', 'OMR_TEST_SECRET': 'not inherited'}):
                     if succeeds:
                         run(engine, FIXTURE, target)
                     else:
@@ -126,6 +127,10 @@ class Boundaries(unittest.TestCase):
                 self.assertEqual(Path(state['temporary']).parent, Path(expected))
                 self.assertIn(f'"-Djava.io.tmpdir={expected}"', state['JAVA_TOOL_OPTIONS'])
                 self.assertIn(f'"-Duser.home={state["HOME"]}"', state['JAVA_TOOL_OPTIONS'])
+                self.assertEqual(state['_JAVA_OPTIONS'], state['JAVA_TOOL_OPTIONS'])
+                self.assertIn('-Xmx1536m', state['_JAVA_OPTIONS'])
+                self.assertIn('-XX:ActiveProcessorCount=2', state['_JAVA_OPTIONS'])
+                self.assertNotIn('-Xmx8G', state['_JAVA_OPTIONS'])
                 self.assertIsNone(state['OMR_TEST_SECRET'])
                 self.assertFalse(Path(state['work']).exists())
                 self.assertFalse(Path(state['temporary']).exists())
