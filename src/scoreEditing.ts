@@ -283,26 +283,63 @@ export function transposeScore(song: Song, semitones: number): Song {
     throw Error("Transpose by a whole number of semitones.");
   const names = ["C", "C", "D", "D", "E", "F", "F", "G", "G", "A", "A", "B"],
     sharps = [1, 3, 6, 8, 10];
-  for (const note of song.notes) {
-    const pitch = note.pitch + semitones;
-    if (pitch < 0 || pitch > 127)
-      throw Error(
-        "Transposition would move a note outside the piano MIDI range.",
-      );
-    for (const id of note.sourceNoteIds || []) {
-      const element = resolve(doc, id),
-        p = child(doc, element, "pitch");
-      child(doc, p, "step").textContent = names[pitch % 12];
-      strip(p, "alter");
-      const octave = child(doc, p, "octave");
-      octave.textContent = String(Math.floor(pitch / 12) - 1);
-      if (sharps.includes(pitch % 12)) {
-        const alter = doc.createElementNS(p.namespaceURI, "alter");
-        alter.textContent = "1";
-        p.insertBefore(alter, octave);
+  const steps: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  const targets: { element: Element; p: Element; pitch: number }[] = [];
+  const unsupported = (): never => {
+    throw Error("Score transposition requires a supported whole MIDI pitch for every written note, including cue notes. Use a notation editor for this score.");
+  };
+  // Song.notes intentionally omits cues and merges ties. Transpose the written
+  // source instead, including every cue, grace, chord and tie constituent.
+  // The importer skips cue pitch validation, so preflight ALL targets before
+  // rewriting any of them. Unsupported display-only pitches must not be left
+  // behind or silently turned into a different pitch.
+  for (const part of children(doc.documentElement!, "part"))
+    for (const measure of children(part, "measure"))
+      for (const element of children(measure, "note")) {
+        const pitches = children(element, "pitch");
+        if (first(element, "rest")) {
+          if (pitches.length) unsupported();
+          // A rest's display-step/display-octave is placement, not a pitch.
+          continue;
+        }
+        if (pitches.length !== 1) unsupported();
+        const p = pitches[0];
+        const pitchChildren = Array.from(p.childNodes).filter(n => n.nodeType === 1) as Element[];
+        if (element.namespaceURI !== measure.namespaceURI || p.namespaceURI !== element.namespaceURI ||
+          children(p, "step").length !== 1 || children(p, "octave").length !== 1 ||
+          children(p, "alter").length > 1 || pitchChildren.some(n =>
+            n.namespaceURI !== p.namespaceURI || !["step", "alter", "octave"].includes(n.localName || "") ||
+            Array.from(n.childNodes).some(c => c.nodeType === 1))) unsupported();
+        const step = first(p, "step")!.textContent?.trim() || "";
+        const octaveText = first(p, "octave")!.textContent?.trim() || "";
+        const alteration = first(p, "alter");
+        const alterText = alteration?.textContent?.trim() || "";
+        const octave = Number(octaveText), alter = alteration ? Number(alterText) : 0;
+        if (!Object.hasOwn(steps, step) || !octaveText || (alteration && !alterText) ||
+          !Number.isSafeInteger(octave) || !Number.isSafeInteger(alter)) unsupported();
+        const octaveBase = (octave + 1) * 12;
+        const naturalPitch = octaveBase + steps[step];
+        // Extreme octave/alter pairs can cancel into MIDI range only after
+        // unsafe intermediate rounding. Refuse those instead of changing pitch.
+        if (!Number.isSafeInteger(octaveBase) || !Number.isSafeInteger(naturalPitch)) unsupported();
+        const originalPitch = naturalPitch + alter;
+        if (!Number.isSafeInteger(originalPitch) || originalPitch < 0 || originalPitch > 127) unsupported();
+        const pitch = originalPitch + semitones;
+        if (pitch < 0 || pitch > 127)
+          throw Error("Transposition would move a note outside the piano MIDI range.");
+        targets.push({ element, p, pitch });
       }
-      strip(element, "accidental");
+  for (const { element, p, pitch } of targets) {
+    first(p, "step")!.textContent = names[pitch % 12];
+    strip(p, "alter");
+    const octave = first(p, "octave")!;
+    octave.textContent = String(Math.floor(pitch / 12) - 1);
+    if (sharps.includes(pitch % 12)) {
+      const alter = doc.createElementNS(p.namespaceURI, "alter");
+      alter.textContent = "1";
+      p.insertBefore(alter, octave);
     }
+    strip(element, "accidental");
   }
   return songFrom(doc, song);
 }
