@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import trimFixture from '../fixtures/trim-pickup-tie-tuplet.musicxml?raw';
 import { clickDownload } from "./testDownload";
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -6,6 +7,7 @@ import { App } from './main';
 import type { Song } from './music';
 import { parseMusicXml } from './musicxml';
 import { parseProject } from './project';
+import { serializeProject } from './projectFormat';
 import { SONGS_KEY } from './songLibrary';
 import { stubDialogs } from './testDialog';
 
@@ -242,4 +244,44 @@ it('invalidates a pending import when a whole-chord duration is applied', async 
   expect(draft.notes.filter(n => n.start === 0 && n.hand === 'right').map(n => [n.pitch, n.duration])).toEqual([[60, 1], [67, 1]]);
   expect(saved()).toEqual([original]);
   expect(music(parseMusicXml(draft.scoreXml!).song)).toEqual(music(draft));
+});
+
+
+it('keeps a saved Studio finger through a clipped tie, separate passage save and both export round trips', async () => {
+  const view = render(<App />);
+  choose(view.container, file(trimFixture, 'original-tie-study.musicxml'));
+  await screen.findByRole('heading', { name: 'Release Pickup Tie Tuplet' });
+  const original = saved()[0];
+  const tiedIndex = original.notes.findIndex(note => note.sourceNoteIds?.includes('0:1:0'));
+  fireEvent.change(screen.getByRole('combobox', { name: 'Note' }), { target: { value: String(tiedIndex) } });
+  fireEvent.change(screen.getByRole('combobox', { name: 'Finger' }), { target: { value: '4' } });
+  fireEvent.click(button('Save'));
+  await screen.findByText('Saved to your library on this device.');
+  const fullPiece = saved()[0];
+  expect(fullPiece.notes[tiedIndex].finger).toBe(4);
+  fireEvent.change(screen.getByRole('combobox', { name: 'First measure' }), { target: { value: '2' } });
+  fireEvent.change(screen.getByRole('combobox', { name: 'Last measure' }), { target: { value: '2' } });
+  fireEvent.click(button('Trim score passage'));
+  await screen.findByText(/Passage created. Score and playback trimmed together/);
+  const passage = parseProject(await exportProject());
+  expect(passage.notes.find(note => note.sourceNoteIds?.includes('0:0:0'))?.finger).toBe(4);
+  expect(passage.scoreXml).toContain('<fingering>4</fingering>');
+  expect(passage.scoreXml).not.toContain('<tie ');
+  expect(passage.id).not.toBe(fullPiece.id);
+  expect(saved()).toEqual([fullPiece]);
+  clickDownload(button('Export MusicXML'));
+  const exportedXml = await downloadText();
+  expect(exportedXml).toBe(passage.scoreXml);
+  expect(music(parseMusicXml(exportedXml).song)).toEqual(music(passage));
+  fireEvent.click(button('Save'));
+  await screen.findByText('Saved to your library on this device.');
+  expect(saved().find(song => song.id === fullPiece.id)).toEqual(fullPiece);
+  expect(saved().find(song => song.id === passage.id)).toEqual(passage);
+  choose(view.container, file(exportedXml, 'trimmed-tie.musicxml'));
+  await waitFor(() => expect(saved()).toHaveLength(3));
+  expect(music(saved()[0])).toEqual(music(passage));
+  choose(view.container, file(serializeProject(passage), 'trimmed-tie.piano.json'));
+  await waitFor(() => expect(saved()).toHaveLength(4));
+  expect(music(saved()[0])).toEqual(music(passage));
+  expect(saved().find(song => song.id === fullPiece.id)).toEqual(fullPiece);
 });
