@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App } from "./main";
@@ -23,7 +24,7 @@ function advance(seconds: number) {
 }
 const button = (name: string | RegExp) => screen.getByRole("button", { name });
 const click = (name: string | RegExp) => fireEvent.click(button(name));
-const setup = () => click("Practice setup");
+const setup = () => { openPracticeRoom(); click("Practice setup"); };
 const close = () => click("Done");
 function results() {
   const opener = button("Results"); opener.focus(); fireEvent.click(opener);
@@ -32,13 +33,13 @@ function results() {
 const history = () => parsePracticeHistory(localStorage.getItem(HISTORY_KEY)!);
 const position = () => Number((screen.getByRole("slider", { name: "Playback position" }) as HTMLInputElement).value);
 function openStudy(mode: "listen" | "melody" | "rhythm" = "listen", hand = "Right") {
-  render(<App />); click("My library"); click(/Synthetic short study/); setup();
+  renderPractice(<App />); click("My library"); click(/Synthetic short study/); setup();
   click(hand);
   click(mode === "listen" ? /^Listen & explore/ : mode === "melody" ? /^Melody practice/ : /^Rhythm practice/);
   fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" })); close();
 }
 function complete(mode: "listen" | "melody" | "rhythm") {
-  click("Play");
+  openPracticeRoom(); click("Play");
   if (mode !== "listen") click("Play C4");
   advance(2.2);
   expect(button("Play")).toBeTruthy();
@@ -86,8 +87,8 @@ it.each(["mode", "count-in", "seek"])("clears completed-pass suggestions after a
 });
 
 it("bases next-step speed on the finishing speed while retaining the actual pass speed range", () => {
-  openStudy("rhythm"); click("Play"); click("Play C4"); advance(.4);
-  setup(); click("75%"); close(); click("Play"); advance(1.2);
+  openStudy("rhythm"); openPracticeRoom(); click("Play"); click("Play C4"); advance(.4);
+  setup(); click("75%"); close(); openPracticeRoom(); click("Play"); advance(1.2);
   results();
   expect(screen.getByText(/Last completed pass: Right hand · Rhythm · 50–75%/)).toBeTruthy();
   expect(history()[0]).toMatchObject({ speedMin: 50, speedMax: 75, tempo: 120 });

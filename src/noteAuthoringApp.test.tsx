@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { clickDownload } from "./testDownload";
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -40,14 +41,14 @@ async function open(container: HTMLElement, song = source) {
 const button = (name: string) => screen.getByRole('button', { name });
 const change = (name: string, value: string) => fireEvent.change(screen.getByRole('spinbutton', { name: new RegExp(`^${name}`) }), { target: { value } });
 const value = (name: string) => (screen.getByRole('spinbutton', { name: new RegExp(`^${name}`) }) as HTMLInputElement).value;
-function prepare() { fireEvent.click(button('Practice setup')); fireEvent.click(button('Prepare a song')); }
+function prepare() { openPracticeRoom(); fireEvent.click(button('Practice setup')); fireEvent.click(button('Prepare a song')); }
 async function exportProject() {
   clickDownload(button('Export project + fingers'));
   return new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsText(downloads.at(-1)!); });
 }
 
 it('imports actual MIDI, retimes and inserts, preserves hands/fingers, saves, reloads and round trips project export', async () => {
-  let view = render(<App />);
+  let view = renderPractice(<App />);
   choose(view.container, file(exportMidi(source), 'Synthetic MIDI.mid'));
   await screen.findByRole('heading', { name: 'Synthetic MIDI' });
   await screen.findByRole('heading', { name: 'Add, delete & retime notes' });
@@ -71,7 +72,7 @@ it('imports actual MIDI, retimes and inserts, preserves hands/fingers, saves, re
   expect(authored.notes[0]).toMatchObject({ pitch: 65, start: .5, duration: .75, hand: 'left', finger: 5 });
   expect(authored.notes[2]).toMatchObject({ pitch: 60, start: 3, duration: 1.5, finger: 3, hand: 'right' });
   expect(authored.notes[1]).toEqual(original.notes[1]);
-  view.unmount(); view = render(<App />);
+  view.unmount(); view = renderPractice(<App />);
   fireEvent.click(button('My library'));
   fireEvent.click(screen.getByRole('button', { name: /Synthetic MIDI/ })); prepare();
   const serialized = await exportProject();
@@ -82,7 +83,7 @@ it('imports actual MIDI, retimes and inserts, preserves hands/fingers, saves, re
 });
 
 it('shares note selection, confirms deletion, survives navigation, and can author an empty piece', async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   fireEvent.change(screen.getByRole('combobox', { name: 'Note' }), { target: { value: '1' } });
   expect(value('Start')).toBe('2');
   fireEvent.click(button('Delete note')); fireEvent.click(button('Keep note'));
@@ -98,7 +99,7 @@ it('shares note selection, confirms deletion, survives navigation, and can autho
 });
 
 it('rejects invalid timing without touching playback and resets paused playback on valid changes', async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   fireEvent.change(screen.getByRole('slider', { name: 'Playback position' }), { target: { value: '2' } });
   change('Duration', '0'); fireEvent.click(button('Apply note changes'));
   expect(screen.getByRole('alert').textContent).toMatch(/greater than zero/);
@@ -112,7 +113,7 @@ it('rejects invalid timing without touching playback and resets paused playback 
 });
 
 it('offers written-slot MusicXML authoring and preserves reference XML explicitly', async () => {
-  const view = render(<App />); await open(view.container, { ...source, scoreOrigin: 'musicxml', scoreXml: xml });
+  const view = renderPractice(<App />); await open(view.container, { ...source, scoreOrigin: 'musicxml', scoreXml: xml });
   expect(screen.getByRole('heading', { name: 'Add, delete & resize written notes' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Add a note' })).toBeNull();
   expect(screen.getByRole('combobox', { name: 'Finger' })).toBeTruthy();
@@ -125,7 +126,7 @@ it('offers written-slot MusicXML authoring and preserves reference XML explicitl
 });
 
 it('invalidates a pending import when structural edits apply and keeps the newer draft', async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   let resolve!: (value: string) => void;
   const pending = new Promise<string>(r => { resolve = r; });
   const delayed = file('', 'late.json'); delayed.text = vi.fn(() => pending);
@@ -147,7 +148,7 @@ it('invalidates a pending import when structural edits apply and keeps the newer
 });
 
 it('preserves a structural draft and external data when saving meets a stale-tab conflict', async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   const external = { ...saved()[0], title: 'Changed elsewhere' };
   change('Start', '1'); fireEvent.click(button('Apply note changes'));
   localStorage.setItem(SONGS_KEY, JSON.stringify([external]));
@@ -162,7 +163,7 @@ it('preserves a structural draft and external data when saving meets a stale-tab
 });
 
 it('authors a trimmed passage without changing the saved full piece or its fingerings', async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   const original = saved()[0];
   change('Trim start', '1'); change('Trim end', '4');
   fireEvent.click(button('Trim passage'));
@@ -177,7 +178,7 @@ it('authors a trimmed passage without changing the saved full piece or its finge
 });
 
 it('keeps edited notes exportable after quota failure and does not replace stored data', async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   const original = localStorage.getItem(SONGS_KEY);
   change('Duration', '2'); fireEvent.click(button('Apply note changes'));
   vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Full', 'QuotaExceededError'); });

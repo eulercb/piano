@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 // @ts-expect-error Node builtin is available to Vitest; production uses browser crypto.
@@ -53,16 +54,16 @@ async function refreshFolder() {
 it("asks before importing a changed source after session-only reconnect", async () => {
   const files = [{name:"song.mxl",content:"one"}]; folderFiles(files);
   vi.mocked(importScoreFile).mockResolvedValue(imported("Original"));
-  const first = render(<App />); await openFolder(); const before = localStorage.getItem(SONGS_KEY);
+  const first = renderPractice(<App />); await openFolder(); const before = localStorage.getItem(SONGS_KEY);
   first.unmount(); files[0].content = "two";
-  render(<App />); await openFolder();
+  renderPractice(<App />); await openFolder();
   expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("separate copy"));
   expect(localStorage.getItem(SONGS_KEY)).toBe(before);
 });
 it("does not request permission after a pending query was canceled by navigation", async () => {
   const query = deferred<PermissionState>();
   const handle = folderFiles([]); handle.queryPermission.mockReturnValue(query.promise);
-  render(<App />);
+  renderPractice(<App />);
   fireEvent.click(screen.getByRole("button", { name: "My library" }));
   fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
   await act(async () => {});
@@ -73,7 +74,7 @@ it("does not request permission after a pending query was canceled by navigation
 it("never removes library pieces missing from the refreshed directory", async () => {
   const files = [{name:"song.mxl",content:"one"}]; folderFiles(files);
   vi.mocked(importScoreFile).mockResolvedValue(imported("Original"));
-  render(<App />); await openFolder(); const before = localStorage.getItem(SONGS_KEY);
+  renderPractice(<App />); await openFolder(); const before = localStorage.getItem(SONGS_KEY);
   files.length = 0;
   fireEvent.click(screen.getByRole("button", { name: "My library" }));
   fireEvent.click(screen.getByRole("button", { name: "Refresh / reconnect folder" }));

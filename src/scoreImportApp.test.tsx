@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from './main';
@@ -11,7 +12,7 @@ const result = { format: 'mxl' as const, scoreTimeline: { entries: [], measures:
 beforeEach(() => { localStorage.clear(); vi.mocked(importScoreFile).mockReset(); vi.mocked(importScoreFile).mockResolvedValue(result as Awaited<ReturnType<typeof importScoreFile>>); });
 afterEach(() => { cleanup(); localStorage.clear(); vi.unstubAllGlobals(); });
 it('offers .mxl and routes a chosen compressed score through the bounded reader', async () => {
-  const { container } = render(<App />);
+  const { container } = renderPractice(<App />);
   const input = container.querySelector('input[type="file"]')!;
   expect(input.getAttribute('accept')).toContain('.mxl');
   const file = new File(['synthetic'], 'study.mxl');
@@ -23,7 +24,7 @@ it('offers .mxl and routes a chosen compressed score through the bounded reader'
 });
 it('keeps the current song and library intact when compressed input is rejected', async () => {
   vi.mocked(importScoreFile).mockRejectedValue(new Error('Invalid compressed score.'));
-  const { container } = render(<App />);
+  const { container } = renderPractice(<App />);
   fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [new File(['bad'], 'bad.MXL')] } });
   await screen.findByText('Invalid compressed score.');
   expect(screen.getByRole('heading', { name: 'Morning Light' })).toBeTruthy();
@@ -33,7 +34,7 @@ it('includes compressed scores from an explicitly selected read-only folder', as
   const file = new File(['synthetic'], 'study.mxl');
   const picker = vi.fn().mockResolvedValue({ async *values() { yield { kind: 'file', name: file.name, getFile: async () => file }; } });
   vi.stubGlobal('showDirectoryPicker', picker);
-  render(<App />);
+  renderPractice(<App />);
   fireEvent.click(screen.getByRole('button', { name: 'My library' }));
   fireEvent.click(screen.getByRole('button', { name: 'Open song folder' }));
   await waitFor(() => expect(importScoreFile).toHaveBeenCalledWith(file));
@@ -47,7 +48,7 @@ it('reports rejected folder scores without claiming successful import', async ()
   vi.stubGlobal('showDirectoryPicker', vi.fn().mockResolvedValue({
     async *values() { yield {kind: 'file', name: file.name, getFile: async () => file}; }
   }));
-  render(<App />);
+  renderPractice(<App />);
   fireEvent.click(screen.getByRole('button', {name: 'My library'}));
   fireEvent.click(screen.getByRole('button', {name: 'Open song folder'}));
   await screen.findByText(/Folder refresh: 0 imported.*1 rejected.*Invalid compressed score/);

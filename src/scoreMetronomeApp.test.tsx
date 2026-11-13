@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App } from "./main";
@@ -46,8 +47,8 @@ function prepare(options: { reference?: boolean; melody?: boolean; countIn?: boo
   const saved = options.reference ? { ...song, scoreOrigin: undefined } : song;
   localStorage.setItem("piano-songs", JSON.stringify([saved]));
   const before = localStorage.getItem("piano-songs");
-  render(<App />); click("My library"); fireEvent.click(screen.getByRole("button", { name: new RegExp(title) }));
-  click("Practice setup"); click("Both");
+  renderPractice(<App />); click("My library"); fireEvent.click(screen.getByRole("button", { name: new RegExp(title) }));
+  openPracticeRoom(); click("Practice setup"); click("Both");
   fireEvent.click(screen.getByRole("button", { name: options.melody ? /^Melody practice/ : /^Listen/ }));
   if (!options.countIn) fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" }));
   fireEvent.change(screen.getByRole("slider", { name: "Tempo percentage" }), { target: { value: String(options.speed ?? 100) } });
@@ -69,7 +70,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.runAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.clear(); });
 
 it.each([100, 50])("follows persisted source tempos at %s%% speed without changing songs, hands or history", speed => {
-  const before = prepare({ speed }); click("Play"); expect(clicks()).toBe(1);
+  const before = prepare({ speed }); openPracticeRoom(); click("Play"); expect(clicks()).toBe(1);
   const notes = context().pitches.filter(f => f < 1000);
   expect(notes).toHaveLength(2);
   advance(.5 * 100 / speed); expect(clicks()).toBe(2);
@@ -82,34 +83,34 @@ it.each([100, 50])("follows persisted source tempos at %s%% speed without changi
 
 it("keeps reference-only XML inert and the default-off choice silent", () => {
   const before = prepare({ reference: true, enabled: false });
-  click("Play"); advance(1); expect(clicks()).toBe(0);
-  click("Practice setup"); fireEvent.click(screen.getByRole("checkbox", { name: "Metronome" })); click("Done");
-  click("Play"); expect(clicks()).toBe(1);
+  openPracticeRoom(); click("Play"); advance(1); expect(clicks()).toBe(0);
+  openPracticeRoom(); click("Practice setup"); fireEvent.click(screen.getByRole("checkbox", { name: "Metronome" })); click("Done");
+  openPracticeRoom(); click("Play"); expect(clicks()).toBe(1);
   advance(.5); expect(clicks()).toBe(2);
   advance(.5); expect(clicks()).toBe(3); // Still 120 BPM, unlike source-linked playback.
   expect(localStorage.getItem("piano-songs")).toBe(before);
 });
 
 it("continues at the stopped source tempo while Melody waits for both written hands", () => {
-  prepare({ melody: true }); click("Play"); advance(1); expect(clicks()).toBe(3); expect(position()).toBe(0);
+  prepare({ melody: true }); openPracticeRoom(); click("Play"); advance(1); expect(clicks()).toBe(3); expect(position()).toBe(0);
   click("Play C4"); advance(.5); expect(clicks()).toBe(4); expect(position()).toBe(0);
   click("Play C3"); advance(.5); expect(clicks()).toBe(5); expect(position()).toBeCloseTo(.5);
   advance(.5); expect(clicks()).toBe(5); advance(.5); expect(clicks()).toBe(6);
 });
 
 it("retains source-tempo phase across mute and audio interruption without backlog", () => {
-  const before = prepare(); click("Play"); advance(.7); expect(clicks()).toBe(2);
+  const before = prepare(); openPracticeRoom(); click("Play"); advance(.7); expect(clicks()).toBe(2);
   click("Mute"); advance(1); expect(clicks()).toBe(2);
   click("Unmute"); advance(.2); expect(clicks()).toBe(2);
   act(() => context().change("interrupted")); advance(10);
   expect(position()).toBeCloseTo(1.9); expect(clicks()).toBe(2);
-  act(() => context().change("running")); click("Play"); expect(clicks()).toBe(2);
+  act(() => context().change("running")); openPracticeRoom(); click("Play"); expect(clicks()).toBe(2);
   advance(.5); expect(clicks()).toBe(2); advance(.1); expect(clicks()).toBe(3);
   expect(localStorage.getItem("piano-songs")).toBe(before);
 });
 
 it("hands off starting-tempo count-in to source-tempo clicks once", () => {
-  prepare({ countIn: true }); click("Play"); advance(1.9); expect(clicks()).toBe(4);
+  prepare({ countIn: true }); openPracticeRoom(); click("Play"); advance(1.9); expect(clicks()).toBe(4);
   advance(.1); expect(clicks()).toBe(5); expect(position()).toBeCloseTo(0);
   advance(.5); expect(clicks()).toBe(6); advance(.5); expect(clicks()).toBe(6);
   advance(.5); expect(clicks()).toBe(7);

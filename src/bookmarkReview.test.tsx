@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 // @ts-expect-error Node built-in is available to Vitest; the app intentionally has no Node typings.
@@ -19,9 +20,9 @@ const bookmark: PracticeBookmark = { id: "bookmark", name: "Slow recital", songI
 beforeEach(() => { stubDialogs(); localStorage.clear(); localStorage.setItem(SONGS_KEY, JSON.stringify([song])); localStorage.setItem(BOOKMARKS_KEY, exportBookmarks([bookmark])); vi.spyOn(window, "confirm").mockReturnValue(false); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); localStorage.clear(); });
 function library() { fireEvent.click(screen.getByRole("button", { name: "My library" })); }
-function setup() { fireEvent.click(screen.getByRole("button", { name: "Practice setup" })); }
+function setup() { openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Practice setup" })); }
 it("review: does not save a bookmark against a library revision changed during digest", async () => {
-  render(<App />); library(); fireEvent.click(screen.getByRole("button", { name: /Saved passage.*BPM/ }));
+  renderPractice(<App />); library(); fireEvent.click(screen.getByRole("button", { name: /Saved passage.*BPM/ }));
   setup();
   let resolve!: (value: ArrayBuffer) => void;
   const bytes = Uint8Array.from(revision.match(/../g)!, value => parseInt(value, 16)).buffer;
@@ -38,7 +39,7 @@ it("review: refuses a bookmark removed during its asynchronous revision check", 
   let resolve!: (value: ArrayBuffer) => void;
   const bytes = Uint8Array.from(revision.match(/../g)!, value => parseInt(value, 16)).buffer;
   vi.spyOn(crypto.subtle, "digest").mockImplementationOnce(() => new Promise<ArrayBuffer>(r => { resolve = r; }));
-  render(<App />); library(); fireEvent.click(screen.getByRole("button", { name: "Open Slow recital" }));
+  renderPractice(<App />); library(); fireEvent.click(screen.getByRole("button", { name: "Open Slow recital" }));
   localStorage.setItem(BOOKMARKS_KEY, exportBookmarks([])); resolve(bytes);
   await screen.findByText(/bookmark changed while opening/);
   expect(screen.getByRole("heading", { name: "On your music stand" })).toBeTruthy();
@@ -51,7 +52,7 @@ it("review: rechecks recovered music after confirmation and rejects replaced byt
     localStorage.setItem(SONGS_KEY, JSON.stringify([{ ...song, id: "recovered", tempo: 99 }]));
     return true;
   });
-  render(<App />); library(); fireEvent.click(screen.getByRole("button", { name: "Open Slow recital" }));
+  renderPractice(<App />); library(); fireEvent.click(screen.getByRole("button", { name: "Open Slow recital" }));
   await screen.findByText(/changed while confirming/);
   expect(screen.getByRole("heading", { name: "On your music stand" })).toBeTruthy();
   expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
@@ -64,7 +65,7 @@ it("review: cancels a bookmark save still waiting for the storage lock after nav
     return new Promise<boolean>(resolve => { finish = resolve; });
   } } });
   try {
-    render(<App />); setup();
+    renderPractice(<App />); setup();
     fireEvent.change(screen.getByRole("textbox", { name: "Bookmark name" }), { target: { value: "Canceled save" } });
     fireEvent.click(screen.getByRole("button", { name: "Save practice bookmark" }));
     await waitFor(() => expect(commit).toBeTypeOf("function"));

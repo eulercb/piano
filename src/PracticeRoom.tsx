@@ -32,22 +32,25 @@ export function PracticePanel({ open, title, onClose, children }: {
 }
 
 export function PracticeRoom({ title, hand, mode, speed, guide, settings, results, showScore,
-  hasScore, showFingers, onScore, onFingers, onNavigate, onConnection, onSetup }: {
+  hasScore, showFingers, onScore, onFingers, onNavigate, onConnection, onSetup, onPlan }: {
   title: string; hand: PracticeHand; mode: PracticeMode; speed: number;
   guide: ReactNode; settings: ReactNode; results?: (onClose: () => void) => ReactNode;
   showScore: boolean; hasScore: boolean; showFingers: boolean;
   onScore: () => void; onFingers: () => void; onNavigate: (page: string) => void;
-  onConnection: () => void; onSetup: () => void;
+  onConnection: () => void; onSetup: () => void; onPlan?: () => void;
 }) {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { titleRef.current?.focus(); }, []);
   const [panel, setPanel] = useState<"setup" | "results" | null>(null);
   const modeLabel = mode === "melody" ? "Wait for notes" : mode === "rhythm" ? "Rhythm" : mode === "recital" ? "Recital" : "Listen";
   return <section className="practice-room" aria-label="Practice room">
     <div className="room-heading">
       <button className="room-button" aria-label="My library" onClick={() => onNavigate("library")}><Library size={18} /><span>Library</span></button>
-      <div className="room-piece"><h1 title={title}>{title}</h1><p>{hand === "both" ? "Both hands" : `${hand === "left" ? "Left" : "Right"} hand`} · {speed}% · {modeLabel}</p></div>
+      <div className="room-piece"><h1 title={title} ref={titleRef} tabIndex={-1}>{title}</h1><p>{hand === "both" ? "Both hands" : `${hand === "left" ? "Left" : "Right"} hand`} · {speed}% · {modeLabel}</p></div>
       <button className="room-button" aria-label="Piano connection" onClick={onConnection}><Piano size={18} /><span>Piano</span></button>
     </div>
     <div className="room-tools" aria-label="Practice view">
+      {onPlan && <button className="room-button" onClick={onPlan}>Change plan</button>}
       <button className="room-button" aria-label="Practice setup" onClick={() => { onSetup(); setPanel("setup"); }}><Settings2 size={18} /><span>Setup</span></button>
       <button className="room-button" aria-label={showScore ? "Falling notes" : "Reading score"} aria-pressed={showScore} onClick={onScore}><BookOpen size={18} /><span>{showScore ? "Falling notes" : "Reading score"}</span></button>
       <button className="room-button" aria-label="Finger hints on falling notes" aria-pressed={showFingers} disabled={showScore} onClick={onFingers}><Hand size={18} /><span>Fingers</span></button>

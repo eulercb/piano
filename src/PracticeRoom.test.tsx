@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App } from "./main";
@@ -46,7 +47,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); localStorage.clear(); });
 
 it("opens a focused room, with setup/score unmounted or hidden and only one persistent transport", () => {
-  const { container } = render(<App />);
+  const { container } = renderPractice(<App />);
   expect(container.querySelector(".practice-shell")).toBeTruthy();
   expect(screen.getByRole("heading", { name: "Morning Light" })).toBeTruthy();
   expect(screen.queryByRole("dialog")).toBeNull();
@@ -60,7 +61,7 @@ it("opens a focused room, with setup/score unmounted or hidden and only one pers
 });
 
 it("repeatedly opens setup, restores focus, cancels with Escape and retains chosen settings", () => {
-  render(<App />);
+  renderPractice(<App />);
   for (let attempt = 0; attempt < 3; attempt++) {
     const panel = setup();
     expect(panel.contains(document.activeElement)).toBe(true);
@@ -78,34 +79,34 @@ it("repeatedly opens setup, restores focus, cancels with Escape and retains chos
 });
 
 it("pauses on panel entry and resumes from the same position without resetting the passage", () => {
-  render(<App />); setup();
+  renderPractice(<App />); setup();
   fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" })); close();
-  fireEvent.click(button("Play")); advance(1); const before = position();
+  openPracticeRoom(); fireEvent.click(button("Play")); advance(1); const before = position();
   setup(); advance(2); expect(position()).toBe(before); close();
   expect(button("Play")).toBeTruthy();
-  fireEvent.click(button("Play")); advance(1); expect(position()).toBeGreaterThan(before);
+  openPracticeRoom(); fireEvent.click(button("Play")); advance(1); expect(position()).toBeGreaterThan(before);
   fireEvent.click(button("Restart")); expect(position()).toBe(0);
 });
 
 it("keeps the MIDI component mounted across device dismissal and Library/Studio navigation", () => {
-  render(<App />);
+  renderPractice(<App />);
   const opener = button("Piano connection"); opener.focus(); fireEvent.click(opener);
   expect(button("Connect piano")).toBeTruthy(); close();
   expect(document.activeElement).toBe(opener);
   fireEvent.click(opener); close();
   fireEvent.click(button("My library"));
   fireEvent.click(button("Prepare a song"));
-  fireEvent.click(button("Practice room"));
+  fireEvent.click(button("Practice room")); openPracticeRoom();
   expect(midi.mounts).toBe(1); expect(midi.unmounts).toBe(0);
 });
 
 it("replaces falling notes with a bounded score surface without duplicating transport", () => {
   const song: Song = { ...demoSong, id: "score-fixture", title: "Synthetic score", scoreXml: "<score-partwise/>" };
   localStorage.setItem("piano-songs", JSON.stringify([song]));
-  const { container } = render(<App />);
+  const { container } = renderPractice(<App />);
   fireEvent.click(button("My library"));
   fireEvent.click(screen.getByRole("button", { name: /Synthetic score/ }));
-  fireEvent.click(button("Reading score"));
+  openPracticeRoom(); fireEvent.click(button("Reading score"));
   expect(container.querySelector(".roll")).toBeNull();
   expect(screen.getByRole("region", { name: "Reading score" }).getAttribute("data-compact")).toBe("true");
   expect((button("Finger hints on falling notes") as HTMLButtonElement).disabled).toBe(true);
@@ -117,36 +118,36 @@ it("replaces falling notes with a bounded score surface without duplicating tran
 
 it("explains a missing score and returns to notes, while finger hints toggle without changing notes", () => {
   localStorage.setItem("piano-songs", JSON.stringify([{ ...demoSong, id: "finger-fixture", title: "Finger study", notes: demoSong.notes.map(note => ({ ...note, finger: 2 })) }]));
-  const { container } = render(<App />);
-  fireEvent.click(button("My library")); fireEvent.click(screen.getByRole("button", { name: /Finger study/ }));
+  const { container } = renderPractice(<App />);
+  fireEvent.click(button("My library")); fireEvent.click(screen.getByRole("button", { name: /Finger study/ })); openPracticeRoom();
   const before = [...container.querySelectorAll(".fall-note")].map(note => note.textContent);
   expect(before.some(text => /^[1-5]$/.test(text ?? ""))).toBe(true);
   fireEvent.click(button("Finger hints on falling notes"));
   expect([...container.querySelectorAll(".fall-note")].some(note => /^[1-5]$/.test(note.textContent ?? ""))).toBe(false);
   fireEvent.click(button("Finger hints on falling notes"));
   expect([...container.querySelectorAll(".fall-note")].map(note => note.textContent)).toEqual(before);
-  fireEvent.click(button("Reading score"));
+  openPracticeRoom(); fireEvent.click(button("Reading score"));
   expect(screen.getByText(/No reading score attached/)).toBeTruthy();
   fireEvent.click(button("Falling notes"));
   expect(container.querySelectorAll(".fall-note")).toHaveLength(before.length);
 });
 
 it("preserves wait-for-note melody behavior in the focused route and ignores shortcuts in panels", () => {
-  render(<App />); const panel = setup();
+  renderPractice(<App />); const panel = setup();
   fireEvent.keyDown(within(panel).getByRole("button", { name: "Right" }), { key: "a" });
   expect(oscillatorStarts).toBe(0);
   fireEvent.click(button("Right"));
   fireEvent.click(screen.getByRole("button", { name: /^Melody practice · wait for notes/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" })); close();
-  fireEvent.click(button("Play")); advance(1); expect(position()).toBe(0);
+  openPracticeRoom(); fireEvent.click(button("Play")); advance(1); expect(position()).toBe(0);
   fireEvent.click(button("Play C♯4")); advance(.2); expect(position()).toBe(0);
   fireEvent.click(button("Play E4")); advance(.2); expect(position()).toBeGreaterThan(0);
-  fireEvent.click(button("My library")); fireEvent.click(button("Practice room"));
+  fireEvent.click(button("My library")); fireEvent.click(button("Practice room")); openPracticeRoom();
   expect(screen.getByText("Right hand · 50% · Wait for notes")).toBeTruthy();
 });
 
 it("keeps rhythm results on demand and restores the guide after closing them", () => {
-  render(<App />); setup();
+  renderPractice(<App />); setup();
   fireEvent.click(screen.getByRole("button", { name: /^Rhythm practice/ })); close();
   expect(screen.queryByRole("region", { name: "Rhythm feedback" })).toBeNull();
   fireEvent.click(button("Results"));

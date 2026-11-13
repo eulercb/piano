@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App } from "./main";
@@ -45,7 +46,7 @@ const readBlob = (blob: Blob, binary = false) => new Promise<string | ArrayBuffe
 });
 
 it("fails before Blob/download, keeps repeated attempts and dirty fingers intact, and exports a complete project", async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   const savedBefore = localStorage.getItem(SONGS_KEY);
   fireEvent.change(screen.getByRole("combobox", { name: "Finger" }), { target: { value: "4" } });
   for (let i = 0; i < 2; i++) {
@@ -69,7 +70,7 @@ it("fails before Blob/download, keeps repeated attempts and dirty fingers intact
 });
 
 it("exports actual mapped MIDI for the currently selected piece after an earlier refusal", async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   fireEvent.click(button("Export MIDI")); expect(downloads).toHaveLength(0);
   const next: Song = { ...source, id: "second", title: "Representable second piece", tempo: 120,
     midiTempoMap: [{ seconds: 0, microsecondsPerQuarter: 500000 }, { seconds: 1, microsecondsPerQuarter: 750000 }],

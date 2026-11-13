@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 // @ts-expect-error Node built-in is available to Vitest; the app intentionally has no Node typings.
@@ -48,8 +49,8 @@ it.each([
       { id: "second", pitch: 62, start: 0.5, duration: 0.5, hand: "right", velocity: 0.7 }],
   }), id: "original", title, folderSource });
   localStorage.setItem(SONGS_KEY, JSON.stringify([original]));
-  const view = render(<App />);
-  click("My library"); click(/YOUR COLLECTION/); click("Practice setup"); click("Prepare a song");
+  const view = renderPractice(<App />);
+  click("My library"); click(/YOUR COLLECTION/); openPracticeRoom(); click("Practice setup"); click("Prepare a song");
   click("Select the beginning half");
   click(kind === "measures" ? "Trim score passage" : "Trim passage");
   fireEvent.change(screen.getByRole("combobox", { name: "Finger" }), { target: { value: "5" } });

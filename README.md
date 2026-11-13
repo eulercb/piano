@@ -40,6 +40,16 @@ Reload update also asks before discarding unsaved song changes or temporary prac
 
 The workflow tests and builds PRs, then deploys successful main pushes through GitHub Pages. Set repository Settings → Pages → Source to **GitHub Actions**, custom domain `piano.zen.dev.br`, and enable HTTPS when GitHub provisions its certificate. The custom domain is included in `public/CNAME`. DNS must point to this repository's GitHub Pages host. Workflow configuration alone is not proof of a live deployment. When a new version is waiting, the app offers **Reload update** with a save/export warning. It never reloads automatically to apply an update; existing local library data is not cleared. A deployed desktop browser update cycle preserved saved songs and fingerings; Android installed-PWA behavior remains unverified.
 
+## Plan a practice session
+
+The app opens on a preparation screen: choose a saved piece or keep the current draft, choose the first hand, pick Listen / Wait for notes / Rhythm / Recital, and set a comfortable starting pace. Hand choices without notes are disabled. Start practice opens the focused room and starts the selected session through the existing audio and optional count-in flow. Nothing plays or requests MIDI permission merely by opening the plan. The on-screen keyboard and typing demo are available in the room; the plan itself does not sound keyboard shortcuts.
+
+Change plan stops the attempt and returns to the beginning without changing the piece or discarding Studio edits. Returning from Library, Studio or a saved bookmark also opens the plan paused; bookmarks retain their exact saved hand, mode, speed, count-in and repeat choices. The summary discloses any retained repeat/metronome setting, which can be changed in room Setup. No points, ranks, mastery claims or automatic progression are added. Travel practice works without a connected piano; physical Android/Casio acceptance remains pending.
+
+See [the preparation-screen acceptance record](docs/practice-launch-acceptance.md) for actual desktop-browser checks and explicit device/offline limitations.
+
+The optional `scripts/browser-release.py` native-browser harness has been adapted for preparation-first entry and cached reload. That harness has not been run for this change; synthetic UI/style tests do not establish installed/offline PWA, screen-reader or physical-device acceptance.
+
 ## Focused practice room
 
 The Practice room is a viewport-contained piano guide, with a compact piece/hand/speed/mode header and permanent play, pause, restart, position and mute controls. Falling notes scale to the available height in portrait and landscape. Library, Studio preparation and history keep their own pages.

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 // @ts-expect-error Node builtin is available to Vitest; production uses browser crypto.
@@ -53,7 +54,7 @@ async function refreshFolder() {
 it("skips unchanged files and preserves locally saved finger edits", async () => {
   folderFiles([{name:"song.mxl",content:"one"}]);
   vi.mocked(importScoreFile).mockResolvedValue(imported("Folder piece"));
-  render(<App />); await openFolder(); finger("5");
+  renderPractice(<App />); await openFolder(); finger("5");
   fireEvent.click(screen.getByRole("button", {name:"Save"}));
   await screen.findByText("Saved to your library on this device.");
   await refreshFolder();
@@ -63,7 +64,7 @@ it("skips unchanged files and preserves locally saved finger edits", async () =>
 it("keeps changed sources on Cancel, then imports a separate updated copy on explicit confirmation", async () => {
   const files = [{name:"song.mxl",content:"one"}]; folderFiles(files);
   vi.mocked(importScoreFile).mockResolvedValue(imported("Original"));
-  render(<App />); await openFolder(); const original = saved()[0];
+  renderPractice(<App />); await openFolder(); const original = saved()[0];
   files[0].content = "two";
   await refreshFolder(); expect(saved()).toHaveLength(1);
   expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("separate copy"));
@@ -75,7 +76,7 @@ it("keeps changed sources on Cancel, then imports a separate updated copy on exp
 it("does not read files after denied reconnect and requests read-only permission", async () => {
   const handle = folderFiles([{name:"song.mxl",content:"one"}]);
   vi.mocked(importScoreFile).mockResolvedValue(imported("Original"));
-  render(<App />); await openFolder();
+  renderPractice(<App />); await openFolder();
   handle.queryPermission.mockResolvedValue("prompt"); handle.requestPermission.mockResolvedValue("denied");
   fireEvent.click(screen.getByRole("button", {name:"My library"}));
   fireEvent.click(screen.getByRole("button", {name:"Refresh / reconnect folder"}));
@@ -88,7 +89,7 @@ it("cancels delayed folder reads after navigation", async () => {
   vi.stubGlobal("showDirectoryPicker", vi.fn().mockResolvedValue({ name:"Songs", async *values() {
     yield {kind:"file",name:"song.mxl",getFile:()=>pending.promise};
   }}));
-  render(<App />); fireEvent.click(screen.getByRole("button",{name:"My library"}));
+  renderPractice(<App />); fireEvent.click(screen.getByRole("button",{name:"My library"}));
   fireEvent.click(screen.getByRole("button",{name:"Open song folder"}));
   await act(async()=>{});
   fireEvent.click(screen.getByRole("button",{name:"Practice room"}));
@@ -99,7 +100,7 @@ it("cancels delayed folder reads after navigation", async () => {
 it("restores a saved shortcut without reading files or requesting permissions on mount", async () => {
   const handle = folderFiles([]); const values = vi.spyOn(handle,"values");
   vi.spyOn(folderModule,"storedFolder").mockResolvedValue({id:"saved",handle});
-  render(<App />); fireEvent.click(screen.getByRole("button",{name:"My library"}));
+  renderPractice(<App />); fireEvent.click(screen.getByRole("button",{name:"My library"}));
   await screen.findByRole("button",{name:"Refresh / reconnect folder"});
   expect(values).not.toHaveBeenCalled(); expect(handle.queryPermission).not.toHaveBeenCalled();
   expect(handle.requestPermission).not.toHaveBeenCalled();
@@ -109,7 +110,7 @@ it("does not let a late saved shortcut replace a newly selected folder", async (
   vi.spyOn(folderModule,"storedFolder").mockReturnValue(pending.promise);
   const selected = folderFiles([{name:"song.mxl",content:"one"}]);
   vi.mocked(importScoreFile).mockResolvedValue(imported("Original"));
-  render(<App />); await openFolder();
+  renderPractice(<App />); await openFolder();
   await act(async()=> pending.resolve({id:"old",handle:{...selected,name:"Old folder"}}));
   fireEvent.click(screen.getByRole("button",{name:"My library"}));
   expect(screen.getByText(/Folder: My songs/)).toBeTruthy();
@@ -128,7 +129,7 @@ it("calls the picker synchronously with Window and read-only options", async () 
     return Promise.resolve(handle);
   });
   vi.stubGlobal("showDirectoryPicker", picker);
-  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  renderPractice(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
   inClick = true;
   fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
   inClick = false;
@@ -142,7 +143,7 @@ it.each([undefined, {}])("falls back to file import with a restored shortcut and
   vi.stubGlobal("showDirectoryPicker", picker);
   const click = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
   vi.mocked(importScoreFile).mockResolvedValue(imported("Fallback original"));
-  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  renderPractice(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
   await screen.findByRole("button", { name: "Refresh / reconnect folder" });
   fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
   await screen.findByText(/Folder access is unavailable/);
@@ -158,7 +159,7 @@ it("reconnects a restored shortcut even when the native picker is unavailable", 
   const handle = folderFiles([]), values = vi.spyOn(handle, "values");
   vi.spyOn(folderModule, "storedFolder").mockResolvedValue({ id: "saved", handle });
   vi.stubGlobal("showDirectoryPicker", undefined);
-  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  renderPractice(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
   await screen.findByRole("button", { name: "Refresh / reconnect folder" });
   expect(values).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Refresh / reconnect folder" }));
@@ -178,7 +179,7 @@ it.each([
   vi.stubGlobal("showDirectoryPicker", picker);
   localStorage.setItem(SONGS_KEY, JSON.stringify([song("Saved original")]));
   const before = localStorage.getItem(SONGS_KEY);
-  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  renderPractice(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
   fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
   await screen.findByText(message);
   expect(document.body.textContent).not.toContain("synthetic-secret");
@@ -193,7 +194,7 @@ it("reports a vanished saved directory without claiming the chooser failed", asy
   const handle = folderFiles([]);
   vi.spyOn(handle, "values").mockImplementation(async function* () { throw new DOMException("/private/synthetic-secret", "NotFoundError"); });
   vi.spyOn(folderModule, "storedFolder").mockResolvedValue({ id: "saved", handle });
-  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  renderPractice(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
   await screen.findByRole("button", { name: "Refresh / reconnect folder" });
   fireEvent.click(screen.getByRole("button", { name: "Refresh / reconnect folder" }));
   await screen.findByText(/Folder refresh stopped before finishing/);
@@ -204,7 +205,7 @@ it("reports a vanished saved directory without claiming the chooser failed", asy
 it("keeps an unsaved finger draft when folder selection is not completed", async () => {
   folderFiles([{ name: "original.mxl", content: "original" }]);
   vi.mocked(importScoreFile).mockResolvedValue(imported("Draft keeper"));
-  render(<App />); await openFolder(); finger("5");
+  renderPractice(<App />); await openFolder(); finger("5");
   const before = localStorage.getItem(SONGS_KEY);
   const picker = vi.fn().mockRejectedValue(new DOMException("Canceled", "AbortError"));
   vi.stubGlobal("showDirectoryPicker", picker);
@@ -222,7 +223,7 @@ it("keeps an unsaved finger draft when folder selection is not completed", async
 it("ignores a picker rejection after navigation instead of replacing the latest notice", async () => {
   let reject!: (reason: unknown) => void;
   vi.stubGlobal("showDirectoryPicker", vi.fn(() => new Promise((_, fail) => { reject = fail; })));
-  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  renderPractice(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
   fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
   fireEvent.click(screen.getByRole("button", { name: "Practice room" }));
   await act(async () => reject(new DOMException("blocked", "SecurityError")));
@@ -237,7 +238,7 @@ it("keeps earlier imports when folder enumeration later fails", async () => {
     throw new DOMException("/private/synthetic-secret", "NotReadableError");
   });
   vi.mocked(importScoreFile).mockResolvedValue(imported("Imported before interruption"));
-  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  renderPractice(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
   fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
   await screen.findByText(/Folder refresh stopped before finishing. Already saved songs are kept/);
   expect(saved()).toHaveLength(1);
@@ -258,7 +259,7 @@ it("suppresses native per-file paths while retaining parser guidance and success
   });
   vi.mocked(importScoreFile).mockResolvedValueOnce(imported("Good partial import"))
     .mockRejectedValueOnce(new Error("Unsupported synthetic notation. Choose a supported score."));
-  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  renderPractice(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
   fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
   await screen.findByText(/Folder refresh: 1 imported, 0 unchanged, 0 kept existing/);
   expect(document.body.textContent).toContain("unreadable.mxl: Could not read this file.");

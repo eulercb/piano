@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { clickDownload } from "./testDownload";
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -179,7 +180,7 @@ function blobText(blob: Blob): Promise<string> {
 
 describe('existing import → Studio → practice workflow', () => {
   it.each(['musicxml', 'mxl'] as const)('round trips actual %s through finger edits, measure trimming, save/reload, export and project reimport', async format => {
-    let view = render(<App />);
+    let view = renderPractice(<App />);
     await importStudy(view.container, format);
     const original = savedSongs()[0];
     expect(original.scoreXml).toBe(xml);
@@ -205,10 +206,10 @@ describe('existing import → Studio → practice workflow', () => {
     expect(passage.notes.find(note => note.pitch === 62)).toMatchObject({ finger: 5, start: 0, hand: 'right' });
     expect(parseMusicXml(passage.scoreXml!).song.notes).toEqual(passage.notes);
 
-    view.unmount(); view = render(<App />);
+    view.unmount(); view = renderPractice(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'My library' }));
     fireEvent.click(screen.getByRole('button', { name: new RegExp(`${title} · passage`) }));
-    fireEvent.click(screen.getByRole('button', { name: 'Practice setup' }));
+    openPracticeRoom(); fireEvent.click(screen.getByRole('button', { name: 'Practice setup' }));
     fireEvent.click(screen.getByRole('button', { name: 'Prepare a song' }));
     await screen.findByRole('checkbox', { name: 'Follow score while playing' });
     expect(screen.getByText('Reading position: measure 1 of 1')).toBeTruthy();
@@ -227,43 +228,43 @@ describe('existing import → Studio → practice workflow', () => {
     expect(savedSongs()).toHaveLength(3);
 
     setupPractice('Right', 'Listen & explore');
-    fireEvent.click(screen.getByRole('button', { name: 'Play' })); advance(2.1);
+    openPracticeRoom(); fireEvent.click(screen.getByRole('button', { name: 'Play' })); advance(2.1);
     expect(completedPasses()).toHaveLength(1);
     expect(completedPasses()[0]).toMatchObject({ pieceId: imported.id, pieceTitle: passage.title, hand: 'right', mode: 'listen', noteCount: 2, endSeconds: 2 });
   });
 
   it('carries real score pitch/finger edits into focused practice and back to Studio', async () => {
-    const view = render(<App />); await importStudy(view.container, 'mxl');
+    const view = renderPractice(<App />); await importStudy(view.container, 'mxl');
     const noteSelect = screen.getByRole('combobox', { name: 'Note' }) as HTMLSelectElement;
     const firstRight = [...noteSelect.options].find(option => option.textContent?.includes('C4'))!;
     fireEvent.change(noteSelect, { target: { value: firstRight.value } });
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Pitch (MIDI)' }), { target: { value: '65' } });
     fireEvent.change(screen.getByRole('combobox', { name: 'Finger' }), { target: { value: '5' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Start practising' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start practising' })); openPracticeRoom();
     expect(view.container.querySelector('.practice-shell')).toBeTruthy();
     expect([...view.container.querySelectorAll('.fall-note[title="F4"]')].some(note => note.textContent === '5')).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Practice setup' }));
+    openPracticeRoom(); fireEvent.click(screen.getByRole('button', { name: 'Practice setup' }));
     setupPractice('Right', 'Melody practice');
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Reading score' }));
+    openPracticeRoom(); fireEvent.click(screen.getByRole('button', { name: 'Reading score' }));
     await screen.findByRole('checkbox', { name: 'Follow score while playing' });
     expect(view.container.querySelector('.roll')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Play' })); advance(.5);
+    openPracticeRoom(); fireEvent.click(screen.getByRole('button', { name: 'Play' })); advance(.5);
     expect(position()).toBe(0); press('C4'); advance(.2); expect(position()).toBe(0);
     press('F4'); advance(.5); expect(position()).toBeCloseTo(.5);
     fireEvent.click(screen.getByRole('button', { name: 'Falling notes' }));
     expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Practice setup' }));
+    openPracticeRoom(); fireEvent.click(screen.getByRole('button', { name: 'Practice setup' }));
     fireEvent.click(screen.getByRole('button', { name: 'Prepare a song' }));
     expect((screen.getByRole('spinbutton', { name: 'Pitch (MIDI)' }) as HTMLInputElement).value).toBe('65');
     expect((screen.getByRole('combobox', { name: 'Finger' }) as HTMLSelectElement).value).toBe('5');
   });
 
   it('keeps count-in off the score clock and preserves the full score for one-hand listening', async () => {
-    const view = render(<App />); await importStudy(view.container, 'mxl');
+    const view = renderPractice(<App />); await importStudy(view.container, 'mxl');
     fireEvent.click(screen.getByRole('button', { name: 'Right' }));
     fireEvent.change(screen.getByRole('slider', { name: 'Tempo percentage' }), { target: { value: '100' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Play' })); advance(3);
+    openPracticeRoom(); fireEvent.click(screen.getByRole('button', { name: 'Play' })); advance(3);
     expect(position()).toBe(0); expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
     advance(2.5); expect(position()).toBeCloseTo(1.5);
     expect(screen.getByRole('checkbox', { name: 'Follow score while playing' })).toBeTruthy();
@@ -273,14 +274,14 @@ describe('existing import → Studio → practice workflow', () => {
   });
 
   it('waits for selected-hand melody input, ignores the other hand, and preserves progress across pause/resume', async () => {
-    const view = render(<App />); await importStudy(view.container, 'mxl');
+    const view = renderPractice(<App />); await importStudy(view.container, 'mxl');
     setupPractice('Right', 'Melody practice');
-    fireEvent.click(screen.getByRole('button', { name: 'Play' })); advance(1);
+    openPracticeRoom(); fireEvent.click(screen.getByRole('button', { name: 'Play' })); advance(1);
     expect(position()).toBe(0); press('C3'); advance(.2); expect(position()).toBe(0);
     press('C4'); advance(1); expect(position()).toBeCloseTo(1);
     fireEvent.click(screen.getByRole('button', { name: 'Pause' })); advance(1);
     expect(position()).toBeCloseTo(1); expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    openPracticeRoom(); fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     for (const pitch of ['D4', 'E4', 'F4', 'G4']) { press(pitch); advance(1); }
     advance(.1); // Let the next animation frame cross the final duration boundary.
     expect(position()).toBe(5);
@@ -292,9 +293,9 @@ describe('existing import → Studio → practice workflow', () => {
   });
 
   it('grades only selected-hand rhythm starts and saves the actual completed timing summary', async () => {
-    const view = render(<App />); await importStudy(view.container, 'musicxml');
+    const view = renderPractice(<App />); await importStudy(view.container, 'musicxml');
     setupPractice('Left', 'Rhythm practice');
-    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    openPracticeRoom(); fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     press('C3'); press('C4'); advance(1); press('D3'); advance(4.1);
     const [pass] = completedPasses();
     expect(pass).toMatchObject({ mode: 'rhythm', hand: 'left', noteCount: 3, endSeconds: 5,
@@ -304,10 +305,10 @@ describe('existing import → Studio → practice workflow', () => {
   });
 
   it('rejects corrupt compressed input without replacing the current library, playback or later history completion', async () => {
-    const view = render(<App />); await importStudy(view.container, 'mxl');
+    const view = renderPractice(<App />); await importStudy(view.container, 'mxl');
     const saved = localStorage.getItem('piano-songs');
     setupPractice('Right', 'Listen & explore');
-    fireEvent.click(screen.getByRole('button', { name: 'Play' })); advance(.5);
+    openPracticeRoom(); fireEvent.click(screen.getByRole('button', { name: 'Play' })); advance(.5);
     chooseFile(view.container, localFile(new Uint8Array([1, 2, 3]), 'broken.mxl'));
     await screen.findByText(/not a complete ZIP archive/);
     expect(localStorage.getItem('piano-songs')).toBe(saved);

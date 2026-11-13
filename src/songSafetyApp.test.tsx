@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { clickDownload } from "./testDownload";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -23,7 +24,7 @@ function chooseFiles(container: HTMLElement, ...names: string[]) {
   fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: names.map(name => new File(["synthetic"], name)) } });
 }
 function prepare() {
-  fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
   fireEvent.click(screen.getByRole("button", { name: "Prepare a song" }));
 }
 async function importOne(container: HTMLElement, name = "first") {
@@ -59,7 +60,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); localS
 
 it("preserves unreadable saved bytes and keeps a failed import open for export", async () => {
   const source = JSON.stringify([song("valid"), { id: "corrupt" }]); localStorage.setItem(SONGS_KEY, source);
-  const view = render(<App />); await importOne(view.container);
+  const view = renderPractice(<App />); await importOne(view.container);
   expect(localStorage.getItem(SONGS_KEY)).toBe(source);
   expect(screen.getByText(/Import is open but not saved/)).toBeTruthy();
   await waitFor(() => expect(beforeUnload()).toBe(true));
@@ -73,7 +74,7 @@ it("stops a multiple-file import on failed persistence instead of replacing the 
     return setItem.call(this, key, value);
   });
   vi.mocked(importScoreFile).mockResolvedValue(imported("First unsaved import"));
-  const view = render(<App />); chooseFiles(view.container, "first.mxl", "second.mxl");
+  const view = renderPractice(<App />); chooseFiles(view.container, "first.mxl", "second.mxl");
   await screen.findByRole("heading", { name: "First unsaved import" });
   expect(importScoreFile).toHaveBeenCalledTimes(1); expect(localStorage.getItem(SONGS_KEY)).toBeNull();
   expect(screen.getByText(/Remaining files were not imported/)).toBeTruthy();
@@ -84,14 +85,14 @@ it("stops a folder import on failed persistence without claiming success", async
   vi.stubGlobal("showDirectoryPicker", vi.fn().mockResolvedValue({ async *values() {
     for (const name of ["first.mxl", "second.mxl"]) yield { kind: "file", name, getFile: async () => new File(["synthetic"], name) };
   } }));
-  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  renderPractice(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
   fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
   await screen.findByRole("heading", { name: "Unsaved folder import" });
   expect(importScoreFile).toHaveBeenCalledTimes(1); expect(localStorage.getItem(SONGS_KEY)).toBe("unreadable");
   expect(screen.queryByText(/Imported 1 of/)).toBeNull();
 });
 it("merges another tab's new piece and rejects its conflicting edit while preserving this draft", async () => {
-  const view = render(<App />); await importOne(view.container);
+  const view = renderPractice(<App />); await importOne(view.container);
   const original = saved()[0]; finger("5");
   localStorage.setItem(SONGS_KEY, JSON.stringify([song("other-tab"), original]));
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -107,7 +108,7 @@ it("merges another tab's new piece and rejects its conflicting edit while preser
   await waitFor(() => expect(beforeUnload()).toBe(true));
 });
 it("keeps unsaved edits across navigation and lets the user cancel switching pieces or importing", async () => {
-  const view = render(<App />); await importOne(view.container); finger("5");
+  const view = renderPractice(<App />); await importOne(view.container); finger("5");
   expect(beforeUnload()).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "My library" }));
   fireEvent.click(screen.getByRole("button", { name: /Morning Light/ }));
@@ -127,7 +128,7 @@ it("keeps unsaved edits across navigation and lets the user cancel switching pie
   expect(update).toHaveBeenCalledTimes(1);
 });
 it("allows an explicitly confirmed piece change and clears the old unsaved warning", async () => {
-  const view = render(<App />); await importOne(view.container); finger("5");
+  const view = renderPractice(<App />); await importOne(view.container); finger("5");
   vi.mocked(window.confirm).mockReturnValue(true);
   fireEvent.click(screen.getByRole("button", { name: "My library" }));
   fireEvent.click(screen.getByRole("button", { name: /Morning Light/ }));
@@ -137,7 +138,7 @@ it("allows an explicitly confirmed piece change and clears the old unsaved warni
 it("does not let an older import replace a newer one", async () => {
   const slow = deferred<Awaited<ReturnType<typeof importScoreFile>>>();
   vi.mocked(importScoreFile).mockReturnValueOnce(slow.promise).mockResolvedValueOnce(imported("New choice"));
-  const view = render(<App />); chooseFiles(view.container, "old.mxl");
+  const view = renderPractice(<App />); chooseFiles(view.container, "old.mxl");
   await waitFor(() => expect(importScoreFile).toHaveBeenCalledTimes(1));
   chooseFiles(view.container, "new.mxl");
   await screen.findByRole("heading", { name: "New choice" });
@@ -148,7 +149,7 @@ it("does not let an older import replace a newer one", async () => {
 it("cancels pending batch imports when a newer navigation occurs", async () => {
   const slow = deferred<Awaited<ReturnType<typeof importScoreFile>>>();
   vi.mocked(importScoreFile).mockReturnValue(slow.promise);
-  const view = render(<App />); chooseFiles(view.container, "pending.mxl", "later.mxl");
+  const view = renderPractice(<App />); chooseFiles(view.container, "pending.mxl", "later.mxl");
   await waitFor(() => expect(importScoreFile).toHaveBeenCalledTimes(1));
   fireEvent.click(screen.getByRole("button", { name: "My library" }));
   await act(async () => slow.resolve(imported("Late import")));
@@ -158,7 +159,7 @@ it("cancels pending batch imports when a newer navigation occurs", async () => {
 it("does not let a pending import overwrite a newer Studio edit", async () => {
   const slow = deferred<Awaited<ReturnType<typeof importScoreFile>>>();
   vi.mocked(importScoreFile).mockReturnValue(slow.promise);
-  const view = render(<App />); prepare(); chooseFiles(view.container, "pending.mxl");
+  const view = renderPractice(<App />); prepare(); chooseFiles(view.container, "pending.mxl");
   await waitFor(() => expect(importScoreFile).toHaveBeenCalledTimes(1));
   finger("5");
   await act(async () => slow.resolve(imported("Late import")));
@@ -169,7 +170,7 @@ it("does not let a pending import overwrite a newer Studio edit", async () => {
 it("ignores a folder picker that finishes after the user has navigated away", async () => {
   const slow = deferred<unknown>();
   vi.stubGlobal("showDirectoryPicker", vi.fn().mockReturnValue(slow.promise));
-  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  renderPractice(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
   fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
   fireEvent.click(screen.getByRole("button", { name: "Prepare a song" }));
   await act(async () => slow.resolve({ async *values() { yield { kind: "file", name: "pending.mxl", getFile: async () => new File(["synthetic"], "pending.mxl") }; } }));
@@ -177,7 +178,7 @@ it("ignores a folder picker that finishes after the user has navigated away", as
   expect(screen.getByRole("heading", { name: "Morning Light" })).toBeTruthy();
 });
 it("keeps edits made during a pending save dirty and lets them save against that completed revision", async () => {
-  const view = render(<App />); await importOne(view.container); finger("4");
+  const view = renderPractice(<App />); await importOne(view.container); finger("4");
   let complete!: () => void;
   const request = vi.fn((_name, action) => new Promise(resolve => { complete = () => resolve(action()); }));
   vi.stubGlobal("navigator", { locks: { request } });
@@ -193,7 +194,7 @@ it("keeps edits made during a pending save dirty and lets them save against that
   });
 });
 it("does not rebase a reopened old draft when an earlier pending save completes", async () => {
-  const view = render(<App />); await importOne(view.container); finger("4");
+  const view = renderPractice(<App />); await importOne(view.container); finger("4");
   let complete!: () => void;
   vi.stubGlobal("navigator", { locks: { request: vi.fn((_name, action) => new Promise(resolve => { complete = () => resolve(action()); })) } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -207,7 +208,7 @@ it("does not rebase a reopened old draft when an earlier pending save completes"
   expect(saved()[0].notes[0].finger).toBe(4);
 });
 it("asks before replacing an unsaved full-piece draft with a trimmed passage", async () => {
-  render(<App />); prepare(); finger("5");
+  renderPractice(<App />); prepare(); finger("5");
   fireEvent.click(screen.getByRole("button", { name: "Select the beginning half" }));
   fireEvent.click(screen.getByRole("button", { name: "Trim passage" }));
   expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("full-piece draft"));
@@ -221,7 +222,7 @@ it("asks before replacing an unsaved full-piece draft with a trimmed passage", a
 it("saves built-in demo edits as a new copy and never overwrites an older saved demo", async () => {
   const legacy = { ...demoSong, notes: demoSong.notes.map(n => ({ ...n, finger: 3 })) };
   localStorage.setItem(SONGS_KEY, JSON.stringify([legacy]));
-  render(<App />); prepare(); finger("5");
+  renderPractice(<App />); prepare(); finger("5");
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await screen.findByText("Saved to your library on this device.");
   expect(saved()).toHaveLength(2); expect(saved()[0].id).not.toBe(demoSong.id);
@@ -237,10 +238,10 @@ it("protects temporary practice history on reload and close even when the song i
     if (key === HISTORY_KEY) throw new DOMException("Full", "QuotaExceededError");
     return setItem.call(this, key, value);
   });
-  const view = render(<App />); await importOne(view.container);
+  const view = renderPractice(<App />); await importOne(view.container);
   fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" }));
   fireEvent.change(screen.getByRole("slider", { name: "Tempo percentage" }), { target: { value: "100" } });
-  fireEvent.click(screen.getByRole("button", { name: "Play" }));
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Play" }));
   advance(12);
   await screen.findByText(/These passes are temporary until saved/);
   await waitFor(() => expect(beforeUnload()).toBe(true));
@@ -254,9 +255,9 @@ it("protects temporary practice history on reload and close even when the song i
 });
 
 it("stops and resets playback when saving the built-in demo as a new library copy", async () => {
-  const advance = playbackClock(); render(<App />); prepare();
+  const advance = playbackClock(); renderPractice(<App />); prepare();
   fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" }));
-  fireEvent.click(screen.getByRole("button", { name: "Play" })); advance(2);
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Play" })); advance(2);
   expect(Number((screen.getByRole("slider", { name: "Playback position" }) as HTMLInputElement).value)).toBeGreaterThan(0);
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await screen.findByText("Saved to your library on this device.");

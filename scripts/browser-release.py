@@ -67,6 +67,10 @@ try:
         page.wait_for_function("JSON.parse(localStorage.getItem('piano-songs') || '[]').some(s => s.notes[0].finger === 3)")
         saved = page.evaluate("localStorage.getItem('piano-songs')")
         page.get_by_role('button', name='Practice room', exact=True).click()
+        expect(page.get_by_role('heading', name='Let’s play a little.', exact=True)).to_be_visible()
+        page.get_by_role('button', name='Mute', exact=True).click()
+        page.get_by_role('button', name='Start practice', exact=False).click()
+        page.get_by_role('button', name='Restart', exact=True).click()
         for width, height in [(390, 844), (844, 390), (360, 640), (640, 360)]:
             page.set_viewport_size({'width': width, 'height': height})
             for selector in ['.keyboard', '.transport', '.roll']:
@@ -96,7 +100,7 @@ try:
         passed.append('Native modal keyboard focus trap/return and keyboard piano activation')
         context.set_offline(True)
         page.reload()
-        expect(page.get_by_role('region', name='Practice room', exact=True)).to_be_visible()
+        expect(page.get_by_role('heading', name='Let’s play a little.', exact=True)).to_be_visible()
         assert page.evaluate("localStorage.getItem('piano-songs')") == saved
         passed.append('Offline cached reload preserves saved demo/fingering bytes')
         context.set_offline(False)
