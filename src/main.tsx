@@ -40,6 +40,7 @@ import { Score } from "./Score";
 import { DeferredStudioNoteAuthoring } from "./DeferredStudioNoteAuthoring";
 import { ScorePreparationGuide } from "./ScorePreparationGuide";
 import { PracticeLaunch } from "./PracticeLaunch";
+import { formatPracticeInterval, noteStartsInRange, type PracticeRange } from "./practiceRange";
 import { PracticeRoom, PracticePanel } from "./PracticeRoom";
 import { MidiConnection } from "./MidiConnection";
 import { initialMidiSnapshot, type MidiSnapshot } from "./midiInput";
@@ -82,7 +83,7 @@ export function App() {
   const [startingAudio, setStartingAudio] = useState(false);
   const startingAudioRef = useRef(false), playbackGeneration = useRef(0);
   function silence() { audio.silence(); }
-  function sound(pitch: number, length?: number, velocity?: number) { audio.sound(pitch, length, velocity); }
+  function sound(pitch: number, length?: number, velocity?: number, maximumDuration?: number) { audio.sound(pitch, length, velocity, maximumDuration); }
   function cancelAudioStart() {
     playbackGeneration.current++;
     startingAudioRef.current = false;
@@ -138,7 +139,14 @@ export function App() {
     [firstMeasure, setFirstMeasure] = useState(0),
     [lastMeasure, setLastMeasure] = useState(0),
     [repeatPassage, setRepeatPassage] = useState(false);
-  const bookmarkSettings = JSON.stringify({ hand, mode, speed, countIn, repeatPassage });
+  // A practice window is never a Song edit. Bind it to this exact snapshot so
+  // Studio changes cannot leave a stale selection on different note timings.
+  const [selectedRange, setSelectedRange] = useState<{ song: Song; range: PracticeRange }>();
+  const practiceRange = selectedRange?.song === song ? selectedRange.range : undefined;
+  // Studio always previews/edits the full source. Visiting it does not discard
+  // the plan; changing the source invalidates that plan's temporary window.
+  const activeRange = page === "prepare" ? undefined : practiceRange;
+  const bookmarkSettings = JSON.stringify({ hand, mode, speed, countIn, repeatPassage, range: practiceRange });
   const currentBookmarkSettings = useRef(bookmarkSettings);
   currentBookmarkSettings.current = bookmarkSettings;
   const currentSong = useRef(song);
@@ -178,15 +186,15 @@ export function App() {
   const tempoMap = useMemo(() => songTempoMap(song), [song]);
   const session = useMemo(() => new PracticeSession({
     notes: song.notes, duration: duration(song), tempo: song.tempo,
-    hand, mode, countIn, metronome, tempoMap,
-  }), [song, hand, mode, countIn, metronome, tempoMap]);
+    hand, mode, countIn, metronome, tempoMap, range: activeRange,
+  }), [song, hand, mode, countIn, metronome, tempoMap, activeRange]);
   const recorder = useMemo(() => new PracticePassRecorder(session, song), [session, song]);
   const notes = session.notes, total = duration(song),
-    time = Math.min(total, session.position);
+    time = Math.min(session.rangeEnd, session.position);
   function redraw() {
     refreshSession((v) => v + 1);
   }
-  function reset(t = 0) {
+  function reset(t = session.rangeStart) {
     cancelAudioStart();
     silence();
     session.restart(t);
@@ -212,6 +220,7 @@ export function App() {
     // State events can arrive after an already-queued frame or piano input.
     if (session.running && !muted && !audio.running) { pauseForAudio(); return; }
     const wasRunning = session.running;
+    const previousPosition = session.position;
     const timing = frameTime(last.current, now);
     const result = recorder.advanceFrame(timing.seconds, speed, repeatPassage);
     if (result.completedPass) {
@@ -225,14 +234,15 @@ export function App() {
       setPlaying(false);
       setNotice("Practice paused after an interruption. Press Play to continue from here.");
     }
-    if (result.looped) silence();
+    if (result.looped || (activeRange && previousPosition < session.rangeEnd && session.position >= session.rangeEnd)) silence();
     if (!muted) {
       // A delayed frame should not produce a burst of old count-in clicks.
+      const remaining = activeRange ? Math.max(0, session.rangeEnd - session.position) / (speed / 100) : undefined;
       if ((result.countBeats.length && session.countingIn) || result.metronomeBeat)
-        sound(84, 0.045, 0.5);
+        sound(84, 0.045, 0.5, session.countingIn ? undefined : remaining);
       if (!result.looped)
         for (const n of result.audioNotes)
-          sound(n.pitch, n.duration / (speed / 100), n.velocity);
+          sound(n.pitch, n.duration / (speed / 100), n.velocity, remaining);
     }
     if (wasRunning && session.completed) {
       setPlaying(false);
@@ -312,6 +322,7 @@ export function App() {
     reset();
     if (saved || s.id !== song.id) savedVersion.current = songs.find(item => item.id === s.id) ?? null;
     if (saved) setCleanSong(s);
+    setSelectedRange(undefined);
     setSong(s);
     setPracticeScore(false);
     setFrom(0);
@@ -334,6 +345,7 @@ export function App() {
     const generation = importGeneration.current, playback = playbackGeneration.current;
     const current = () => generation === importGeneration.current && playback === playbackGeneration.current && currentSong.current === song && currentBookmarkSettings.current === bookmarkSettings;
     try {
+      if (practiceRange) throw Error("Temporary practice ranges are not stored in bookmarks. Choose Whole piece before saving a bookmark; your song is unchanged.");
       const saved = savedBookmarkSong(song.id);
       if (dirty || !saved) throw Error("Save this piece in Studio before bookmarking it. Your draft is unchanged.");
       const revision = await songRevision(saved), draftRevision = await songRevision(song);
@@ -494,6 +506,7 @@ export function App() {
         reset();
         const updated = currentSong.current === s ? result.song
           : { ...currentSong.current, id: result.song.id, title: result.song.title };
+        setSelectedRange(undefined);
         setSong(updated);
         setCleanSong(result.song);
         if (currentSong.current === s) setNotice("Saved to your library on this device.");
@@ -724,6 +737,10 @@ export function App() {
     }
   }
   function navigate(next: string) { importGeneration.current++; reset(); setPage(next === "practice" ? "launch" : next); }
+  function changePracticeRange(range?: PracticeRange) {
+    reset();
+    setSelectedRange(range ? { song, range } : undefined);
+  }
   function startPractice() {
     if (!notes.length) return;
     importGeneration.current++;
@@ -735,7 +752,7 @@ export function App() {
     setHand(step.hand);
     setMode(step.mode);
     setSpeed(step.speed);
-    setNotice(`Ready from the beginning: ${practiceHandName(step.hand)} · ${step.speed}% · ${practiceModeName(step.mode)}. Press Play when you’re ready.`);
+    setNotice(`Ready from ${practiceRange ? "the selected passage start" : "the beginning"}: ${practiceHandName(step.hand)} · ${step.speed}% · ${practiceModeName(step.mode)}. Press Play when you’re ready.`);
   }
   const practiceStage = (
     <section className="stage-card">
@@ -802,11 +819,11 @@ export function App() {
           .filter(
             (n) =>
               n.start - time < ROLL_LOOKAHEAD_SECONDS &&
-              n.start + n.duration - time > -0.1,
+              Math.min(n.start + n.duration, session.rangeEnd) - time > -0.1,
           )
           .map((n) => {
             const key = keysByPitch.get(n.pitch)!;
-            const vertical = fallingNoteGeometry(n, time);
+            const vertical = fallingNoteGeometry({ start: n.start, duration: Math.min(n.duration, session.rangeEnd - n.start) }, time);
             return (
               <div
                 title={noteName(n.pitch)}
@@ -868,14 +885,15 @@ export function App() {
         <span className="time">{formatTime(time)}</span>
         <input
           aria-label="Playback position"
+          aria-valuetext={activeRange ? `${time} seconds at original speed, within ${activeRange.start} to ${activeRange.end} seconds` : undefined}
           type="range"
-          min="0"
-          max={total}
-          step=".01"
+          min={session.rangeStart}
+          max={session.rangeEnd}
+          step={activeRange ? "any" : ".01"}
           value={time}
           onChange={(e) => reset(Number(e.target.value))}
         />
-        <span className="time">{formatTime(total)}</span>
+        <span className="time">{formatTime(session.rangeEnd)}</span>
         <button
           className={"icon-button " + (muted ? "muted" : "")}
           aria-label={muted ? "Unmute" : "Mute"}
@@ -890,6 +908,7 @@ export function App() {
   const practiceSettings = (
     <section className="settings">
       <h3>Your practice, your pace</h3>
+      {activeRange && <p className="coming">Temporary passage: {formatPracticeInterval(activeRange.start, activeRange.end)} at original speed. Only notes starting in this range are included. Change it on the plan; your full piece stays unchanged.</p>}
       <label className="control-label">
         01 <span>Choose your hands</span>
       </label>
@@ -903,6 +922,7 @@ export function App() {
             key={id}
             className={hand === id ? "selected" : ""}
             aria-pressed={hand === id}
+            disabled={!!activeRange && !song.notes.some(note => noteStartsInRange(note, activeRange) && (id === "both" || note.hand === id))}
             onClick={() => {
               reset();
               setHand(id as PracticeHand);
@@ -1028,7 +1048,8 @@ export function App() {
         Completed passes appear in Practice history. Recital saves feedback for the end so you can keep going.
       </p>
       <PracticeBookmarks store={bookmarks} onSave={saveBookmark} onRestore={restoreBookmark}
-        canSave={!dirty && (song.id === demoSong.id || songs.some(item => item.id === song.id))} />
+        cannotSaveReason={practiceRange ? "Temporary practice ranges are not stored in bookmarks. Choose Whole piece on the plan to bookmark its settings." : undefined}
+        canSave={!practiceRange && !dirty && (song.id === demoSong.id || songs.some(item => item.id === song.id))} />
     </section>
   );
   const recitalPanel = (
@@ -1227,18 +1248,18 @@ export function App() {
             <div className="notice" role="status">{historySnapshot.message}</div>
           )}
           </div>
-          {page === "launch" ? <PracticeLaunch song={song} dirty={dirty} hand={hand} mode={mode} speed={speed} countIn={countIn} muted={muted} repeat={repeatPassage} metronome={metronome}
+          {page === "launch" ? <PracticeLaunch song={song} range={practiceRange} onRange={changePracticeRange} dirty={dirty} hand={hand} mode={mode} speed={speed} countIn={countIn} muted={muted} repeat={repeatPassage} metronome={metronome}
             onHand={value => { reset(); setHand(value); }} onMode={value => { reset(); setMode(value); }}
             onSpeed={changeSpeed} onCountIn={value => { reset(); setCountIn(value); }} onMute={toggleMute}
             onStart={startPractice} onLibrary={() => navigate("library")} onPrepare={() => navigate("prepare")} /> : page === "practice" ? (
-            <PracticeRoom title={song.title} hand={hand} mode={mode} speed={speed}
+            <PracticeRoom title={song.title} rangeLabel={practiceRange ? `${formatPracticeInterval(practiceRange.start, practiceRange.end)} passage` : undefined} hand={hand} mode={mode} speed={speed}
               showScore={practiceScore} hasScore={!!song.scoreXml} showFingers={showFingers}
               onScore={() => setPracticeScore(value => !value)}
               onFingers={() => setShowFingers(value => !value)}
               onNavigate={navigate} onConnection={() => { pauseForPanel(); setConnectionOpen(true); }}
               onPlan={() => navigate("launch")} onSetup={pauseForPanel} settings={practiceSettings} guide={practiceStage}
               results={close => <>
-                {lastCompletedPass ? <PracticeNextSteps pass={lastCompletedPass} song={song} speed={speed}
+                {lastCompletedPass ? <PracticeNextSteps pass={lastCompletedPass} song={song} speed={speed} range={practiceRange}
                   onChoose={step => { chooseNextStep(step); close(); }}
                   onPrepare={() => { close(); navigate("prepare"); }} />
                   : mode !== "rhythm" && mode !== "recital" && <p>Complete a listening or wait-for-notes pass to see gentle next-step choices here. Pauses and unfinished attempts are not failures.</p>}
@@ -1529,6 +1550,7 @@ export function App() {
                   onChange={(updated, change) => {
                     importGeneration.current++;
                     reset();
+                    setSelectedRange(undefined);
                     setSong(updated);
                     setEditIndex(Math.max(0, updated.notes.findIndex(note => note.id === change.noteId)));
                     // Keep a full-piece trim selection inclusive after extending playback.
@@ -1576,6 +1598,7 @@ export function App() {
                           ? x.sourceNoteIds?.includes(sourceId)
                           : x.id === n.id);
                         setEditIndex(Math.max(0, nextIndex));
+                        setSelectedRange(undefined);
                         setSong(updated);
                       } catch (e) {
                         setNotice((e as Error).message);
