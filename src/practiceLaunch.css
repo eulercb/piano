@@ -1,0 +1,75 @@
+.practice-launch { max-width: 1120px; margin: 0 auto; padding-bottom: 24px; }
+.launch-intro { margin: 4px 0 28px; }
+.launch-intro h1 { font-size: clamp(30px, 5vw, 46px); letter-spacing: -1.5px; margin: 8px 0; }
+.launch-intro p, .launch-piece p, .launch-start p { color: #526257; line-height: 1.6; }
+.launch-layout { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(0, 1.6fr); gap: 26px; align-items: start; }
+.launch-piece { background: #fffef9; border: 1px solid #d5dccf; padding: 22px; border-radius: 24px; overflow-wrap: anywhere; }
+.launch-art { height: 140px; border-radius: 16px; background: #e5edda; color: #325139; display: flex; align-items: center; justify-content: center; gap: 26px; margin-bottom: 22px; }
+.launch-art span { font-size: 42px; transform: rotate(12deg); }
+.launch-art i { font-size: 30px; transform: rotate(-12deg); }
+.launch-step { display: block; font-size: 11px; font-weight: 750; letter-spacing: 1.4px; color: #526648; margin-bottom: 9px; }
+.launch-piece h2 { font-size: 27px; line-height: 1.2; margin: 0; }
+.launch-piece .button { width: 100%; min-height: 44px; white-space: normal; }
+.launch-text-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; border: 0; background: transparent; color: #325139; text-align: center; margin-top: 10px; font: inherit; cursor: pointer; }
+.launch-piece .launch-tip { font-size: 12px; margin-bottom: 0; }
+.launch-draft { padding: 10px; background: #fff0d6; border-radius: 10px; }
+.launch-choices { display: grid; gap: 23px; min-width: 0; }
+.launch-choices fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.launch-choices legend { font-size: 19px; font-weight: 650; margin-bottom: 12px; }
+.launch-hand-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.launch-choice { min-height: 90px; background: #fffef9; border: 1px solid #798b71; border-radius: 15px; padding: 14px 12px; color: #263d36; cursor: pointer; font: inherit; text-align: left; overflow-wrap: anywhere; }
+.launch-choice[aria-pressed="true"] { border: 2px solid #365d42; background: #e5edda; padding: 13px 11px; box-shadow: 0 3px 0 #b5c8a8; }
+.launch-choice:disabled { opacity: .55; cursor: not-allowed; }
+.launch-choice strong, .launch-choice small { display: block; }
+.launch-choice strong { font-size: 14px; margin: 5px 0; }
+.launch-choice small { font-size: 12px; line-height: 1.45; color: #526257; }
+.launch-mode-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.launch-mode-options .launch-choice { display: flex; gap: 10px; align-items: start; }
+.launch-mode-options svg { flex-shrink: 0; margin-top: 7px; }
+.launch-pace > label { display: flex; justify-content: space-between; font-size: 14px; }
+.launch-pace > input { width: 100%; min-height: 32px; accent-color: #365d42; }
+.launch-speeds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 6px 0 12px; }
+.launch-speeds button { min-height: 48px; border: 1px solid #798b71; border-radius: 10px; background: #fffef9; color: #263d36; font: inherit; cursor: pointer; }
+.launch-speeds button[aria-pressed="true"] { background: #e5edda; border: 2px solid #365d42; font-weight: 700; }
+.launch-speeds small { display: block; font-size: 10px; }
+.launch-pace .launch-count { justify-content: start; align-items: center; gap: 8px; min-height: 44px; }
+.launch-count input { width: 18px; height: 18px; accent-color: #365d42; }
+.launch-start { display: flex; align-items: center; gap: 16px; padding: 22px; margin-top: 26px; border: 1px solid #c7d3bf; border-radius: 18px; background: #eef2e8; }
+.launch-start > div { flex: 1; min-width: 0; }
+.launch-start p { margin: 5px 0 0; font-size: 12px; }
+.launch-start-button { min-height: 54px; white-space: nowrap; }
+.practice-launch button:focus-visible, .practice-launch input:focus-visible { outline: 3px solid #80520c; outline-offset: 4px; }
+.launch-shell .heading, .launch-shell footer { display: none; }
+@media (max-width: 760px) {
+  .launch-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .launch-piece { padding: 18px; }
+  .launch-art { display: none; }
+  .launch-piece h2 { font-size: 23px; }
+  .launch-start { flex-wrap: wrap; padding: 16px; }
+  .launch-start > div { flex-basis: calc(100% - 120px); }
+  .launch-start-button { width: 100%; justify-content: center; }
+  .launch-intro { margin-bottom: 22px; }
+}
+@media (max-width: 380px) {
+  .launch-hand-options { gap: 6px; }
+  .launch-choice { padding: 10px 8px; }
+  .launch-choice[aria-pressed="true"] { padding: 9px 7px; }
+  .launch-mode-options { grid-template-columns: 1fr; }
+}
+@media (forced-colors: active) {
+  .launch-choice[aria-pressed="true"], .launch-speeds button[aria-pressed="true"] { border-color: Highlight; }
+  .practice-launch button:focus-visible, .practice-launch input:focus-visible { outline-color: Highlight; }
+}
+@media (max-width: 760px) {
+  .launch-shell { display: block; }
+  .launch-shell > aside { position: static; width: 100%; height: auto; padding: 10px 16px; display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid #d5dccf; }
+  .launch-shell .brand { display: none; }
+  .launch-shell .nav-label, .launch-shell .sidebar-bottom { display: none; }
+  .launch-shell nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; gap: 4px; }
+  .launch-shell .nav { display: flex; flex-direction: column; justify-content: center; gap: 3px; font-size: 10px; padding: 6px 2px; margin: 0; min-width: 0; }
+  .launch-shell .nav-dot { display: none; }
+  .launch-shell main { margin-left: 0; }
+  .launch-shell main > header { padding: 8px 16px; min-height: 0; flex-direction: row; justify-content: flex-end; }
+  .launch-shell .breadcrumb { display: none; }
+  .launch-shell .content { padding: 16px; }
+}

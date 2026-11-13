@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App } from "./main";
@@ -36,7 +37,8 @@ function advance(steps: number) {
 }
 const click = (name: string) => fireEvent.click(screen.getByRole("button", { name }));
 function open() {
-  const view = render(<App />); click("My library"); fireEvent.click(screen.getByRole("button", { name: /Keyboard geometry/ }));
+  const view = renderPractice(<App />); click("My library"); fireEvent.click(screen.getByRole("button", { name: /Keyboard geometry/ }));
+  openPracticeRoom();
   return view;
 }
 function element(container: HTMLElement, selector: string) { return container.querySelector<HTMLElement>(selector)!; }
@@ -89,15 +91,15 @@ it("rebuilds shared geometry safely across hand changes and the entire MIDI rang
     expect(parseFloat(keys.at(-1)!.style.left) + parseFloat(keys.at(-1)!.style.width)).toBeCloseTo(100);
   };
   verify(128, "0", "127");
-  click("Practice setup"); click("Left"); click("Done"); verify(84, "0", "83");
-  click("Practice setup"); click("Right"); click("Done"); verify(80, "48", "127");
-  click("Practice setup"); click("Both"); click("Done"); verify(128, "0", "127");
+  openPracticeRoom(); click("Practice setup"); click("Left"); click("Done"); verify(84, "0", "83");
+  openPracticeRoom(); click("Practice setup"); click("Right"); click("Done"); verify(80, "48", "127");
+  openPracticeRoom(); click("Practice setup"); click("Both"); click("Done"); verify(128, "0", "127");
 });
 it.each([25, 75, 125])("passes the onset seam on the first audio frame at %i%% speed, including overshoot", speed => {
-  const { container } = open(); click("Practice setup");
+  const { container } = open(); openPracticeRoom(); click("Practice setup");
   fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" }));
   fireEvent.change(screen.getByRole("slider", { name: "Tempo percentage" }), { target: { value: String(speed) } }); click("Done");
-  click("Play");
+  openPracticeRoom(); click("Play");
   const frequency = 440 * 2 ** ((61 - 69) / 12);
   const steps = Math.ceil(1.25 / (.25 * speed / 100));
   advance(steps - 1);

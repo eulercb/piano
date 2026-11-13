@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import xml from '../fixtures/transpose-cues.musicxml?raw';
@@ -43,7 +44,7 @@ function downloadText() {
 async function exportProject() { clickDownload(button('Export project + fingers')); return downloadText(); }
 
 it('transposes silent cues through Studio, repeated edits, MusicXML/project export, Save and reimport', async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   const original = saved()[0];
   expect(original.notes).toHaveLength(5);
   fireEvent.click(button('+ Semitone')); fireEvent.click(button('+ Semitone'));
@@ -73,7 +74,7 @@ it.each([
   { replacement: '<step>G</step><octave>9</octave>', reason: /outside the piano MIDI range/ },
 ])('keeps the open draft, saved source and exports unchanged after refusing $replacement', async ({ replacement, reason }) => {
   const input = xml.replace('<step>F</step><alter>1</alter><octave>4</octave>', replacement);
-  const view = render(<App />); await open(view.container, input);
+  const view = renderPractice(<App />); await open(view.container, input);
   const original = saved()[0];
   fireEvent.click(button('+ Semitone'));
   expect(screen.getByText(reason)).toBeTruthy();

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App } from "./main";
@@ -52,7 +53,7 @@ const study: Song = { id: "written-parts", title: "Synthetic both-hand study", t
 const click = (name: string | RegExp) => fireEvent.click(screen.getByRole("button", { name }));
 function openBothHandStudy(mode: "rhythm" | "recital", repeat = false) {
   localStorage.setItem(SONGS_KEY, JSON.stringify([study]));
-  render(<App />); click("My library"); click(/Synthetic both-hand study/); click("Practice setup");
+  renderPractice(<App />); click("My library"); click(/Synthetic both-hand study/); openPracticeRoom(); click("Practice setup");
   click(mode === "rhythm" ? /^Rhythm practice/ : /^Recital practice/);
   fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" }));
   fireEvent.change(screen.getByRole("slider", { name: "Tempo percentage" }), { target: { value: "100" } });
@@ -63,7 +64,7 @@ function openBothHandStudy(mode: "rhythm" | "recital", repeat = false) {
 it.each(["rhythm", "recital"] as const)("saves both-hand %s written counts only after completion, preserves pauses, and reloads them in History", (mode) => {
   openBothHandStudy(mode);
   const savedSong = localStorage.getItem(SONGS_KEY);
-  click("Play"); click("Play C4"); click("Play C♯4"); advance(0.2);
+  openPracticeRoom(); click("Play"); click("Play C4"); click("Play C♯4"); advance(0.2);
   expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
   click("Results");
   const results = screen.getByRole("dialog", { name: "Practice results" });
@@ -74,7 +75,7 @@ it.each(["rhythm", "recital"] as const)("saves both-hand %s written counts only 
   expect(screen.queryByRole("group", { name: "Written left part" })).toBeNull();
   click("Done"); advance(2);
   expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
-  click("Play"); advance(0.5); click("Play D4"); advance(0.4);
+  openPracticeRoom(); click("Play"); advance(0.5); click("Play D4"); advance(0.4);
   const passes = parsePracticeHistory(localStorage.getItem(HISTORY_KEY)!);
   expect(passes).toHaveLength(1);
   expect(passes[0]).toMatchObject({ mode, hand: "both", noteCount: 4,
@@ -85,7 +86,7 @@ it.each(["rhythm", "recital"] as const)("saves both-hand %s written counts only 
     },
   });
   const savedHistory = localStorage.getItem(HISTORY_KEY);
-  cleanup(); render(<App />); click("Practice setup"); click("Practice history");
+  cleanup(); renderPractice(<App />); openPracticeRoom(); click("Practice setup"); click("Practice history");
   const left = within(screen.getByRole("group", { name: "Written left part" }));
   const right = within(screen.getByRole("group", { name: "Written right part" }));
   expect(left.getByText("On time").nextElementSibling?.textContent).toBe("1 / 2");
@@ -98,7 +99,7 @@ it.each(["rhythm", "recital"] as const)("saves both-hand %s written counts only 
 
 it.each(["rhythm", "recital"] as const)("keeps completed %s loop parts separate from the next unfinished attempt", (mode) => {
   openBothHandStudy(mode, true);
-  click("Play"); click("Play C4"); advance(1.1);
+  openPracticeRoom(); click("Play"); click("Play C4"); advance(1.1);
   const first = parsePracticeHistory(localStorage.getItem(HISTORY_KEY)!);
   expect(first).toHaveLength(1);
   expect(first[0].writtenHands).toEqual({
@@ -106,7 +107,7 @@ it.each(["rhythm", "recital"] as const)("keeps completed %s loop parts separate 
     right: { total: 2, onTime: 1, early: 0, late: 0, missed: 1 },
   });
   click("Play C♯4"); advance(0.2);
-  click("Practice setup"); click("Practice history");
+  openPracticeRoom(); click("Practice setup"); click("Practice history");
   expect(parsePracticeHistory(localStorage.getItem(HISTORY_KEY)!)).toEqual(first);
   expect(screen.getByText(/1 completed pass · saved locally/)).toBeTruthy();
   expect(screen.getAllByText("1 / 2")).toHaveLength(2);
@@ -114,43 +115,43 @@ it.each(["rhythm", "recital"] as const)("keeps completed %s loop parts separate 
 });
 
 it("saves a real playback completion once, preserves pauses, and displays history from navigation", () => {
-  render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
+  renderPractice(<App />);
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" }));
   fireEvent.change(screen.getByRole("slider", { name: "Tempo percentage" }), { target: { value: "100" } });
   if (screen.queryByRole("dialog", { name: "Practice setup" })) fireEvent.click(screen.getByRole("button", { name: "Done" }));
-  fireEvent.click(screen.getByRole("button", { name: "Play" }));
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Play" }));
   advance(1);
   fireEvent.click(screen.getByRole("button", { name: "Pause" }));
   advance(30);
   expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
   if (screen.queryByRole("dialog", { name: "Practice setup" })) fireEvent.click(screen.getByRole("button", { name: "Done" }));
-  fireEvent.click(screen.getByRole("button", { name: "Play" }));
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Play" }));
   advance(22);
   const passes = parsePracticeHistory(localStorage.getItem(HISTORY_KEY)!);
   expect(passes).toHaveLength(1);
   expect(passes[0]).toMatchObject({ mode: "listen", hand: "both", speedMin: 100, speedMax: 100, startSeconds: 0, pieceTitle: "Morning Light" });
   advance(30);
   expect(parsePracticeHistory(localStorage.getItem(HISTORY_KEY)!)).toHaveLength(1);
-  fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
   fireEvent.click(screen.getByRole("button", { name: "Practice history" }));
   expect(screen.getByText("Small steps, remembered.")).toBeTruthy();
   expect(screen.getByText(/Listening pass.*no performance score/)).toBeTruthy();
 });
 
 it("navigation and restarts discard unfinished attempts rather than adding records", () => {
-  render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
+  renderPractice(<App />);
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" }));
   if (screen.queryByRole("dialog", { name: "Practice setup" })) fireEvent.click(screen.getByRole("button", { name: "Done" }));
-  fireEvent.click(screen.getByRole("button", { name: "Play" }));
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Play" }));
   advance(1);
   fireEvent.click(screen.getByRole("button", { name: "Restart" }));
   expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
   if (screen.queryByRole("dialog", { name: "Practice setup" })) fireEvent.click(screen.getByRole("button", { name: "Done" }));
-  fireEvent.click(screen.getByRole("button", { name: "Play" }));
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Play" }));
   advance(1);
-  fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
   fireEvent.click(screen.getByRole("button", { name: "Practice history" }));
   expect(screen.getByText("Ready for your first pass.")).toBeTruthy();
   expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
@@ -158,16 +159,16 @@ it("navigation and restarts discard unfinished attempts rather than adding recor
 
 it("keeps playback usable when history storage is full and warns before closing", () => {
   vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("full", "QuotaExceededError"); });
-  render(<App />);
-  fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
+  renderPractice(<App />);
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Count in 4 beats" }));
   fireEvent.change(screen.getByRole("slider", { name: "Tempo percentage" }), { target: { value: "100" } });
   if (screen.queryByRole("dialog", { name: "Practice setup" })) fireEvent.click(screen.getByRole("button", { name: "Done" }));
-  fireEvent.click(screen.getByRole("button", { name: "Play" }));
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Play" }));
   advance(22);
   expect(screen.getByText(/These passes are temporary/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
   fireEvent.click(screen.getByRole("button", { name: "Practice history" }));
   expect(screen.getByText(/1 completed pass · temporary/)).toBeTruthy();
   expect((screen.getByRole("button", { name: "Export history" }) as HTMLButtonElement).disabled).toBe(false);

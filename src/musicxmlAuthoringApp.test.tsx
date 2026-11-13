@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import trimFixture from '../fixtures/trim-pickup-tie-tuplet.musicxml?raw';
 import { clickDownload } from "./testDownload";
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -39,7 +40,7 @@ function downloadText() {
 async function exportProject() { clickDownload(button('Export project + fingers')); return downloadText(); }
 
 it('shows optional preparation guidance near import without changing songs or appearing in the practice room', () => {
-  const view = render(<App />);
+  const view = renderPractice(<App />);
   expect(view.container.querySelector('.score-preparation-guide')).toBeNull();
   fireEvent.click(button('My library'));
   const guide = view.container.querySelector<HTMLDetailsElement>('.score-preparation-guide')!;
@@ -48,11 +49,11 @@ it('shows optional preparation guidance near import without changing songs or ap
   const snapshot = localStorage.getItem(SONGS_KEY);
   guide.open = true; fireEvent(guide, new Event('toggle'));
   expect(localStorage.getItem(SONGS_KEY)).toBe(snapshot);
-  fireEvent.click(button('Practice room')); expect(view.container.querySelector('.score-preparation-guide')).toBeNull();
+  fireEvent.click(button('Practice room')); openPracticeRoom(); expect(view.container.querySelector('.score-preparation-guide')).toBeNull();
 });
 
 it('inserts a written note, preserves saved music until Save, and round trips linked score and both hands', async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   const original = saved()[0];
   slot('0:0:1');
   fireEvent.change(screen.getByRole('spinbutton', { name: 'New pitch (MIDI)' }), { target: { value: '65' } });
@@ -80,7 +81,7 @@ it('inserts a written note, preserves saved music until Save, and round trips li
 });
 
 it('extends into adjacent rest, retains fingering, and confirms deletion without moving the other hand', async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   const original = saved()[0];
   slot('0:0:0'); beats('2'); fireEvent.click(button('Apply written duration'));
   let draft = parseProject(await exportProject());
@@ -97,7 +98,7 @@ it('extends into adjacent rest, retains fingering, and confirms deletion without
 });
 
 it('cancels a pending replacement import when a newer written-duration edit applies', async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   const original = saved()[0];
   let resolve!: (text: string) => void;
   const pending = new Promise<string>(done => { resolve = done; });
@@ -113,7 +114,7 @@ it('cancels a pending replacement import when a newer written-duration edit appl
 });
 
 it('retains the authored score after dirty replacement is declined and a stale-tab Save conflicts', async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   const original = saved()[0];
   slot('0:0:0'); beats('.5'); fireEvent.click(button('Apply written duration'));
   choose(view.container, file(xml.replace('Synthetic slots', 'Replacement'), 'replacement.musicxml'));
@@ -129,7 +130,7 @@ it('retains the authored score after dirty replacement is declined and a stale-t
 });
 
 it('adds and removes chord tones in the App, round trips source and saves only the explicit draft', async () => {
-  const view = render(<App />);
+  const view = renderPractice(<App />);
   const positioned = xml.replace('<note>', '<note default-x="20" default-y="-40">');
   choose(view.container, file(positioned, 'positioned.musicxml'));
   await screen.findByRole('heading', { name: 'Synthetic slots' });
@@ -169,7 +170,7 @@ it('adds and removes chord tones in the App, round trips source and saves only t
 });
 
 it('retains an unsaved resized chord when a stale-tab save fails and a replacement is canceled', async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   const original = saved()[0];
   fireEvent.change(screen.getByRole('spinbutton', { name: 'New chord pitch (MIDI)' }), { target: { value: '67' } });
   fireEvent.click(button('Add chord tone'));
@@ -189,7 +190,7 @@ it('retains an unsaved resized chord when a stale-tab save fails and a replaceme
 
 
 it('resizes a whole chord from its follower, preserves the saved original and round trips both hands through export and Save', async () => {
-  const view = render(<App />);
+  const view = renderPractice(<App />);
   const chordXml = xml.replace('</note>', '</note><note default-x="20" default-y="-20"><chord/><pitch><step>G</step><alter>-1</alter><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>quarter</type><accidental>flat</accidental><staff>1</staff><notations><technical><fingering>4</fingering></technical></notations></note>');
   choose(view.container, file(chordXml, 'original-chord.musicxml'));
   await screen.findByRole('heading', { name: 'Synthetic slots' });
@@ -228,7 +229,7 @@ it('resizes a whole chord from its follower, preserves the saved original and ro
 });
 
 it('invalidates a pending import when a whole-chord duration is applied', async () => {
-  const view = render(<App />); await open(view.container);
+  const view = renderPractice(<App />); await open(view.container);
   const original = saved()[0];
   fireEvent.change(screen.getByLabelText('New chord pitch (MIDI)'), { target: { value: '67' } });
   fireEvent.click(button('Add chord tone'));
@@ -248,7 +249,7 @@ it('invalidates a pending import when a whole-chord duration is applied', async 
 
 
 it('keeps a saved Studio finger through a clipped tie, separate passage save and both export round trips', async () => {
-  const view = render(<App />);
+  const view = renderPractice(<App />);
   choose(view.container, file(trimFixture, 'original-tie-study.musicxml'));
   await screen.findByRole('heading', { name: 'Release Pickup Tie Tuplet' });
   const original = saved()[0];

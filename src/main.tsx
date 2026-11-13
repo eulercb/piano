@@ -39,6 +39,7 @@ import "./style.css";
 import { Score } from "./Score";
 import { DeferredStudioNoteAuthoring } from "./DeferredStudioNoteAuthoring";
 import { ScorePreparationGuide } from "./ScorePreparationGuide";
+import { PracticeLaunch } from "./PracticeLaunch";
 import { PracticeRoom, PracticePanel } from "./PracticeRoom";
 import { MidiConnection } from "./MidiConnection";
 import { initialMidiSnapshot, type MidiSnapshot } from "./midiInput";
@@ -116,7 +117,7 @@ export function App() {
   }, []);
   const editingSession = useRef(0);
   const [song, setSong] = useState<Song>(demoSong),
-    [page, setPage] = useState("practice"),
+    [page, setPage] = useState("launch"),
     [hand, setHand] = useState<PracticeHand>("both"),
     [mode, setMode] = useState<PracticeMode>("listen"),
     [speed, setSpeed] = useState(50),
@@ -386,11 +387,12 @@ export function App() {
         throw Error("The bookmark changed while opening. Choose it again.");
       select(confirmed, true);
       setHand(bookmark.hand); setMode(bookmark.mode); setSpeed(bookmark.speed);
-      setCountIn(bookmark.countIn); setRepeatPassage(bookmark.repeat); setPage("practice");
-      setNotice("Bookmark opened at the beginning, paused. Close Setup if open, then press Play when ready.");
+      setCountIn(bookmark.countIn); setRepeatPassage(bookmark.repeat); setPage("launch");
+      setNotice("Bookmark opened at the beginning, paused. Review your plan, then Start practice when ready.");
     } catch (error) { if (current()) setNotice(error instanceof Error ? error.message : "Bookmark could not be opened."); }
   }
   function input(p: number) {
+    if (page === "launch") return;
     if (!muted) {
       if (session.running && !audio.running) pauseForAudio();
       audio.preview(p);
@@ -721,7 +723,13 @@ export function App() {
       redraw();
     }
   }
-  function navigate(next: string) { importGeneration.current++; reset(); setPage(next); }
+  function navigate(next: string) { importGeneration.current++; reset(); setPage(next === "practice" ? "launch" : next); }
+  function startPractice() {
+    if (!notes.length) return;
+    importGeneration.current++;
+    setPage("practice");
+    togglePlayback();
+  }
   function chooseNextStep(step: PracticeStep) {
     reset();
     setHand(step.hand);
@@ -1061,7 +1069,7 @@ export function App() {
     </section>
   );
   return (
-    <div className={page === "practice" ? "shell practice-shell" : "shell"}>
+    <div className={page === "practice" ? "shell practice-shell" : page === "launch" ? "shell launch-shell" : "shell"}>
       <PracticePanel open={connectionOpen} title="Piano connection" onClose={() => setConnectionOpen(false)}>
         <MidiConnection onNote={(pitch) => inputRef.current(pitch)} onStateChange={midiStateChanged} />
       </PracticePanel>
@@ -1082,13 +1090,13 @@ export function App() {
           ].map(([id, label, Icon]: any) => (
             <button
               key={id}
-              className={page === id ? "nav active" : "nav"}
-              aria-current={page === id ? "page" : undefined}
+              className={(page === id || (page === "launch" && id === "practice")) ? "nav active" : "nav"}
+              aria-current={(page === id || (page === "launch" && id === "practice")) ? "page" : undefined}
               onClick={() => navigate(id)}
             >
               <Icon size={19} />
               {label}
-              {page === id && <span className="nav-dot" />}
+              {(page === id || (page === "launch" && id === "practice")) && <span className="nav-dot" />}
             </button>
           ))}
         </nav>
@@ -1110,7 +1118,7 @@ export function App() {
           <div className="breadcrumb">
             Your workspace <ChevronRight size={14} />{" "}
             <span>
-              {page === "practice"
+              {page === "practice" || page === "launch"
                 ? "Practice room"
                 : page === "prepare"
                   ? "Prepare a song"
@@ -1142,7 +1150,7 @@ export function App() {
           }}
         />
         <div className="content">
-          {page !== "practice" && <div className="heading">
+          {page !== "practice" && page !== "launch" && <div className="heading">
             <div>
               <div className="eyebrow">MAKE ROOM FOR MUSIC</div>
               <h1>
@@ -1219,13 +1227,16 @@ export function App() {
             <div className="notice" role="status">{historySnapshot.message}</div>
           )}
           </div>
-          {page === "practice" ? (
+          {page === "launch" ? <PracticeLaunch song={song} dirty={dirty} hand={hand} mode={mode} speed={speed} countIn={countIn} muted={muted} repeat={repeatPassage} metronome={metronome}
+            onHand={value => { reset(); setHand(value); }} onMode={value => { reset(); setMode(value); }}
+            onSpeed={changeSpeed} onCountIn={value => { reset(); setCountIn(value); }} onMute={toggleMute}
+            onStart={startPractice} onLibrary={() => navigate("library")} onPrepare={() => navigate("prepare")} /> : page === "practice" ? (
             <PracticeRoom title={song.title} hand={hand} mode={mode} speed={speed}
               showScore={practiceScore} hasScore={!!song.scoreXml} showFingers={showFingers}
               onScore={() => setPracticeScore(value => !value)}
               onFingers={() => setShowFingers(value => !value)}
               onNavigate={navigate} onConnection={() => { pauseForPanel(); setConnectionOpen(true); }}
-              onSetup={pauseForPanel} settings={practiceSettings} guide={practiceStage}
+              onPlan={() => navigate("launch")} onSetup={pauseForPanel} settings={practiceSettings} guide={practiceStage}
               results={close => <>
                 {lastCompletedPass ? <PracticeNextSteps pass={lastCompletedPass} song={song} speed={speed}
                   onChoose={step => { chooseNextStep(step); close(); }}
@@ -1254,7 +1265,7 @@ export function App() {
                     onClick={() => {
                       if (!mayReplaceCurrent()) return;
                       select(s, true);
-                      setPage("practice");
+                      setPage("launch");
                     }}
                   >
                     <div className={"cover cover-" + (i % 3)}>
@@ -1269,7 +1280,7 @@ export function App() {
                       {s.tempo} BPM
                     </p>
                     <span className="card-link">
-                      Open in practice room <ArrowRight size={16} />
+                      Plan practice <ArrowRight size={16} />
                     </span>
                   </button>
                 ))}
@@ -1661,7 +1672,7 @@ export function App() {
               </div>
             </>
           )}
-          {page !== "practice" && <footer>
+          {page !== "practice" && page !== "launch" && <footer>
             <span>
               Piano studio <span className="footer-dot">•</span> Made for the
               joy of learning

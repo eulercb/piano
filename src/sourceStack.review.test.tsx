@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 // @ts-expect-error Node built-in is available to Vitest; the app intentionally has no Node typings.
@@ -19,19 +20,19 @@ const bookmark: PracticeBookmark = { id: "bookmark", name: "Slow recital", songI
 beforeEach(() => { stubDialogs(); localStorage.clear(); localStorage.setItem(SONGS_KEY, JSON.stringify([song])); localStorage.setItem(BOOKMARKS_KEY, exportBookmarks([bookmark])); vi.spyOn(window, "confirm").mockReturnValue(false); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); localStorage.clear(); });
 function library() { fireEvent.click(screen.getByRole("button", { name: "My library" })); }
-function setup() { fireEvent.click(screen.getByRole("button", { name: "Practice setup" })); }
+function setup() { openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Practice setup" })); }
 
 it("opens a safe saved bookmark despite an unrelated unsafe cached score", async () => {
   localStorage.setItem(SONGS_KEY, JSON.stringify([{ ...song, id: "legacy", title: "Legacy", scoreXml: "https://example.invalid/score.xml" }, song]));
   const before = localStorage.getItem(SONGS_KEY);
-  render(<App />); library(); fireEvent.click(screen.getByRole("button", { name: "Open Slow recital" }));
+  renderPractice(<App />); library(); fireEvent.click(screen.getByRole("button", { name: "Open Slow recital" }));
   expect(await screen.findByText(/Bookmark opened at the beginning, paused/)).toBeTruthy();
   expect(localStorage.getItem(SONGS_KEY)).toBe(before);
 });
 it("saves a demo bookmark despite an unrelated unsafe cached score", async () => {
   localStorage.setItem(SONGS_KEY, JSON.stringify([{ ...song, id: "legacy", title: "Legacy", scoreXml: "https://example.invalid/score.xml" }, song]));
   const before = localStorage.getItem(SONGS_KEY);
-  render(<App />); setup(); fireEvent.change(screen.getByRole("textbox", { name: "Bookmark name" }), { target: { value: "Demo safe" } });
+  renderPractice(<App />); setup(); fireEvent.change(screen.getByRole("textbox", { name: "Bookmark name" }), { target: { value: "Demo safe" } });
   fireEvent.click(screen.getByRole("button", { name: "Save practice bookmark" }));
   await waitFor(() => expect(parseBookmarks(localStorage.getItem(BOOKMARKS_KEY))).toHaveLength(2));
   expect(localStorage.getItem(SONGS_KEY)).toBe(before);
@@ -40,7 +41,7 @@ it("finds a safe renamed-id bookmark match past an unrelated unsafe candidate", 
   localStorage.setItem(SONGS_KEY, JSON.stringify([{ ...song, id: "legacy", title: "Legacy", scoreXml: "https://example.invalid/score.xml" }, { ...song, id: "replacement" }]));
   vi.mocked(window.confirm).mockReturnValue(true);
   const before = localStorage.getItem(SONGS_KEY);
-  render(<App />); library(); fireEvent.click(screen.getByRole("button", { name: "Open Slow recital" }));
+  renderPractice(<App />); library(); fireEvent.click(screen.getByRole("button", { name: "Open Slow recital" }));
   expect(await screen.findByText(/Bookmark opened at the beginning, paused/)).toBeTruthy();
   expect(localStorage.getItem(SONGS_KEY)).toBe(before);
 });
@@ -49,7 +50,7 @@ it.each([undefined, 'musicxml'] as const)("refuses a selected unsafe source with
   localStorage.setItem(SONGS_KEY, JSON.stringify([{ ...song, scoreXml: "https://example.invalid/score.xml", scoreOrigin }, { ...song, id: "replacement" }]));
   vi.mocked(window.confirm).mockReturnValue(true);
   const before = localStorage.getItem(SONGS_KEY);
-  render(<App />); library(); fireEvent.click(screen.getByRole("button", { name: "Open Slow recital" }));
+  renderPractice(<App />); library(); fireEvent.click(screen.getByRole("button", { name: "Open Slow recital" }));
   expect(await screen.findByText(/expected well-formed inline MusicXML/)).toBeTruthy();
   expect(screen.queryByText(/Bookmark opened at the beginning, paused/)).toBeNull();
   expect(window.confirm).not.toHaveBeenCalled();

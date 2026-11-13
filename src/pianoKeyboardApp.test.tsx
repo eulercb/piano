@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -18,7 +19,7 @@ class SilentAudio extends EventTarget {
 beforeEach(()=>{vi.useFakeTimers();localStorage.clear(); start.mockClear(); vi.stubGlobal("AudioContext",SilentAudio)});
 afterEach(()=>{cleanup();vi.useRealTimers();localStorage.clear();vi.unstubAllGlobals()});
 it("plays native keyboard/assistive clicks once and ignores duplicate pointer click",()=>{
- render(<App/>);
+ renderPractice(<App/>);
  const key=screen.getByRole("button",{name:"Play C4"});
  fireEvent.click(key,{detail:0});
  expect(start).toHaveBeenCalledTimes(1);
@@ -32,7 +33,7 @@ it("plays native keyboard/assistive clicks once and ignores duplicate pointer cl
  expect(start).toHaveBeenCalledTimes(2);
 });
 it("preserves browser modifier shortcuts while allowing plain demo notes",()=>{
- render(<App/>);
+ renderPractice(<App/>);
  const modified=new KeyboardEvent("keydown",{key:"a",ctrlKey:true,bubbles:true,cancelable:true});
  window.dispatchEvent(modified);
  expect(modified.defaultPrevented).toBe(false);
@@ -41,7 +42,7 @@ it("preserves browser modifier shortcuts while allowing plain demo notes",()=>{
  expect(start).toHaveBeenCalledTimes(1);
 });
 it("keeps a repeated pitch highlighted until 180 ms after the latest input",()=>{
- render(<App/>);
+ renderPractice(<App/>);
  const key=screen.getByRole("button",{name:"Play C4"});
  fireEvent.click(key,{detail:0});
  expect(key.classList.contains("pressed")).toBe(true);
@@ -57,7 +58,7 @@ it("keeps a repeated pitch highlighted until 180 ms after the latest input",()=>
  expect(vi.getTimerCount()).toBe(0);
 });
 it("expires different pitch highlights independently",()=>{
- render(<App/>);
+ renderPractice(<App/>);
  const c=screen.getByRole("button",{name:"Play C4"});
  const d=screen.getByRole("button",{name:"Play D4"});
  fireEvent.keyDown(window,{key:"a"});
@@ -71,7 +72,9 @@ it("expires different pitch highlights independently",()=>{
  expect(vi.getTimerCount()).toBe(0);
 });
 it("cancels pending highlights on unmount and supports a fresh StrictMode mount",()=>{
- const view=render(<StrictMode><App/></StrictMode>);
+ const view=renderPractice(<StrictMode><App/></StrictMode>);
+ // Settle the launch/start/reset transition before measuring note-highlight timers.
+ act(()=>vi.advanceTimersByTime(0));
  fireEvent.keyDown(window,{key:"a"});
  fireEvent.keyDown(window,{key:"s"});
  expect(vi.getTimerCount()).toBe(2);
@@ -79,7 +82,8 @@ it("cancels pending highlights on unmount and supports a fresh StrictMode mount"
  expect(vi.getTimerCount()).toBe(0);
  // Advancing the old lifetime must have nothing left to call after teardown.
  act(()=>vi.advanceTimersByTime(180));
- const next=render(<StrictMode><App/></StrictMode>);
+ const next=renderPractice(<StrictMode><App/></StrictMode>);
+ act(()=>vi.advanceTimersByTime(0));
  const key=screen.getByRole("button",{name:"Play C4"});
  fireEvent.click(key,{detail:0});
  expect(key.classList.contains("pressed")).toBe(true);

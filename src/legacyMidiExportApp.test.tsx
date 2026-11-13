@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from './main';
@@ -27,7 +28,7 @@ const button=(name:string)=>screen.getByRole('button',{name});
 const change=(name:string,value:string)=>fireEvent.change(screen.getByRole('spinbutton',{name:new RegExp(`^${name}`)}),{target:{value}});
 function read(blob:Blob,asText=false):Promise<string|ArrayBuffer>{return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result as string|ArrayBuffer);r.onerror=reject;if(asText)r.readAsText(blob);else r.readAsArrayBuffer(blob);});}
 it.each([true, false])('refuses an incompatible Studio MIDI download and preserves project/reference-score recovery and saved original (reference score: %s)',async(withScore)=>{
-  const view=render(<App/>);
+  const view=renderPractice(<App/>);
   const serialized=JSON.stringify({version:1,song:{ ...source, scoreXml: withScore ? xml : undefined }});
   const input=Object.assign(new File([serialized],'audit.piano.json'),{text:async()=>serialized});
   fireEvent.change(view.container.querySelector('input[type="file"]')!,{target:{files:[input]}});

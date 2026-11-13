@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { renderPractice, openPracticeRoom } from "./testPracticeLaunch";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 // @ts-expect-error Node crypto supplies the browser digest API in these DOM tests.
@@ -44,7 +45,7 @@ it("gives repeated MIDI parses distinct piece identities even within the same wa
 });
 
 it("persists every file in a same-tick MIDI batch without conflicting or stopping early", async () => {
-  const view = render(<App />);
+  const view = renderPractice(<App />);
   const files = [midiFile("First MIDI", 60), midiFile("Second MIDI", 64), midiFile("Third MIDI", 67)];
   choose(view.container, ...files);
   await waitFor(() => expect(saved()).toHaveLength(4));
@@ -58,7 +59,7 @@ it("persists every file in a same-tick MIDI batch without conflicting or stoppin
 });
 
 it("keeps explicit repeated imports as separate copies instead of silently deduplicating a clock collision", async () => {
-  const view = render(<App />), file = midiFile("Repeated MIDI");
+  const view = renderPractice(<App />), file = midiFile("Repeated MIDI");
   choose(view.container, file);
   await waitFor(() => expect(saved()).toHaveLength(2));
   const first = saved()[0];
@@ -74,7 +75,7 @@ it("still ignores an interrupted MIDI read when a newer same-tick file has been 
   const pending = new Promise<ArrayBuffer>(resolve => { finish = resolve; });
   const older = midiFile("Interrupted MIDI"), newer = midiFile("Current MIDI", 72);
   older.arrayBuffer.mockReturnValue(pending);
-  const view = render(<App />);
+  const view = renderPractice(<App />);
   choose(view.container, older);
   choose(view.container, newer);
   await screen.findByRole("heading", { name: "Current MIDI" });
@@ -93,7 +94,7 @@ it("keeps folder content identities stable across refresh, preserving saved MIDI
     kind: "directory", name: "Synthetic folder", queryPermission: async () => "granted",
     async *values() { yield { kind: "file", name: file.name, getFile: async () => file }; },
   }));
-  render(<App />);
+  renderPractice(<App />);
   fireEvent.click(screen.getByRole("button", { name: "My library" }));
   fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
   await screen.findByText(/Folder refresh: 1 imported/);
@@ -115,16 +116,16 @@ it("retains an imported changing tempo schedule when saved and reopened", async 
   const track = [0,144,60,100,129,112,255,81,3,15,66,64,131,96,128,60,0,129,112,255,47,0];
   const bytes = new Uint8Array([77,84,104,100,0,0,0,6,0,0,0,1,1,224,77,84,114,107,0,0,0,track.length,...track]);
   const file = Object.assign(new File([bytes], "Changing tempo.mid"), { arrayBuffer: async () => bytes.buffer });
-  let view = render(<App />); choose(view.container, file);
+  let view = renderPractice(<App />); choose(view.container, file);
   await screen.findByRole("heading", { name: "Changing tempo" });
   expect(saved()[0]).toMatchObject({ duration: 1.75, midiTempoMap: [
     { seconds: 0, microsecondsPerQuarter: 500000 }, { seconds: .25, microsecondsPerQuarter: 1000000 },
   ] });
   const before = localStorage.getItem(SONGS_KEY);
-  view.unmount(); view = render(<App />);
+  view.unmount(); view = renderPractice(<App />);
   fireEvent.click(screen.getByRole("button", { name: "My library" }));
   fireEvent.click(screen.getByRole("button", { name: /YOUR COLLECTION Changing tempo/ }));
-  fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
+  openPracticeRoom(); fireEvent.click(screen.getByRole("button", { name: "Practice setup" }));
   expect(screen.getByText(/follow retained MIDI tempo changes/)).toBeTruthy();
   expect(localStorage.getItem(SONGS_KEY)).toBe(before);
 });
@@ -139,7 +140,7 @@ it("does not backfill tempo metadata into an unchanged legacy folder import", as
     kind: "directory", name: "Synthetic folder", queryPermission: async () => "granted",
     async *values() { yield { kind: "file", name: file.name, getFile: async () => file }; },
   }));
-  render(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
+  renderPractice(<App />); fireEvent.click(screen.getByRole("button", { name: "My library" }));
   fireEvent.click(screen.getByRole("button", { name: "Open song folder" }));
   await screen.findByText(/Folder refresh: 0 imported, 1 unchanged/);
   expect(localStorage.getItem(SONGS_KEY)).toBe(before); expect(saved()[0]).not.toHaveProperty("midiTempoMap");
