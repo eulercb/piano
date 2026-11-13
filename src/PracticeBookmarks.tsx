@@ -2,9 +2,9 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { exportBookmarks, MAX_BOOKMARK_BYTES, parseBookmarks, PracticeBookmarksStore, type PracticeBookmark } from "./practiceBookmarks";
 import { practiceHandName, practiceModeName } from "./practiceNextSteps";
 import "./practiceBookmarks.css";
-export function PracticeBookmarks({ store, onSave, onRestore, canSave }: {
+export function PracticeBookmarks({ store, onSave, onRestore, canSave, cannotSaveReason }: {
   store: PracticeBookmarksStore; onSave?: (name: string) => Promise<boolean>;
-  onRestore: (bookmark: PracticeBookmark) => void; canSave?: boolean;
+  onRestore: (bookmark: PracticeBookmark) => void; canSave?: boolean; cannotSaveReason?: string;
 }) {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [name, setName] = useState(""), [message, setMessage] = useState("");
@@ -29,7 +29,7 @@ export function PracticeBookmarks({ store, onSave, onRestore, canSave }: {
       <button className="button light" disabled={busy || !canSave || !name.trim() || state.blocked} onClick={async () => {
         setBusy(true); try { if (await onSave(name.trim())) setName(""); } finally { setBusy(false); }
       }}>Save practice bookmark</button>
-      {!canSave && <p>Save this piece in Studio before bookmarking its settings.</p>}
+      {!canSave && <p>{cannotSaveReason ?? "Save this piece in Studio before bookmarking its settings."}</p>}
     </div>}
     {state.message && <p role="status">{state.message}</p>}{message && <p role="status">{message}</p>}
     {!state.bookmarks.length && <p>No bookmarks yet. Save one in Practice setup.</p>}

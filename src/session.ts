@@ -2,6 +2,7 @@ import type { Note } from "./music";
 import { matchMelodyPitch, melodyPosition } from "./practice";
 import { PracticeMetronome, type TempoSegment } from "./metronome";
 import { RecitalAttempt } from "./recital";
+import { isPracticeRange, noteStartsInRange, type PracticeRange } from "./practiceRange";
 
 export type PracticeMode = "listen" | "melody" | "rhythm" | "recital";
 export type PracticeHand = "left" | "right" | "both";
@@ -26,6 +27,8 @@ export type RhythmSummary = NoteStartCounts & {
 export type SessionOptions = {
   notes: Note[];
   duration: number;
+  /** Optional playback window on the unmodified source timeline. */
+  range?: PracticeRange;
   tempo: number;
   hand: PracticeHand;
   mode: PracticeMode;
@@ -55,6 +58,9 @@ export class PracticeSession {
   readonly sounded = new Set<string>();
   readonly grades = new Map<string, TimingGrade>();
   readonly options: SessionOptions;
+  readonly rangeStart: number;
+  readonly rangeEnd: number;
+  private readonly playbackNotes: Note[];
   position: number;
   running = false;
   completed = false;
@@ -73,12 +79,19 @@ export class PracticeSession {
   private readonly metronome: PracticeMetronome;
 
   constructor(options: SessionOptions, startAt = 0) {
+    if (options.range && !isPracticeRange(options.range, options.duration))
+      throw new RangeError("Practice range must have an end after its start, within the piece.");
     this.options = options;
+    this.rangeStart = options.range?.start ?? 0;
+    this.rangeEnd = options.range?.end ?? options.duration;
+    this.playbackNotes = options.range
+      ? options.notes.filter(note => noteStartsInRange(note, options.range))
+      : options.notes;
     this.metronome = new PracticeMetronome(options.tempo, options.tempoMap);
-    this.notes = options.notes
+    this.notes = this.playbackNotes
       .filter((n) => options.hand === "both" || n.hand === options.hand)
       .sort((a, b) => a.start - b.start);
-    this.position = this.startAt = Math.max(0, Math.min(options.duration, startAt));
+    this.position = this.startAt = Math.max(this.rangeStart, Math.min(this.rangeEnd, startAt));
     this.countRemaining = options.countIn ? this.beatLength * 4 : 0;
     this.skipEarlierNotes();
     this.resetRecital();
@@ -134,7 +147,7 @@ export class PracticeSession {
   start() {
     // A paused final late-hit window is still part of this attempt, even when
     // the visible progress bar has reached the written end of the piece.
-    if (this.completed || (!this.hasStarted && this.position >= this.options.duration))
+    if (this.completed || (!this.hasStarted && this.position >= this.rangeEnd))
       this.restart();
     this.hasStarted = true;
     this.running = true;
@@ -145,7 +158,7 @@ export class PracticeSession {
   }
 
   private skipEarlierNotes() {
-    for (const note of this.options.notes) {
+    for (const note of this.playbackNotes) {
       if (note.start < this.startAt) {
         this.matched.add(note.id);
         this.sounded.add(note.id);
@@ -154,10 +167,10 @@ export class PracticeSession {
   }
 
   /** Restart also clears old chord matches, misses, count-in and pass results. */
-  restart(startAt = 0) {
+  restart(startAt = this.rangeStart) {
     this.running = false;
     this.completed = false;
-    this.position = this.startAt = Math.max(0, Math.min(this.options.duration, startAt));
+    this.position = this.startAt = Math.max(this.rangeStart, Math.min(this.rangeEnd, startAt));
     this.countRemaining = this.options.countIn ? this.beatLength * 4 : 0;
     this.sentCountBeat = 0;
     this.metronome.reset();
@@ -253,7 +266,7 @@ export class PracticeSession {
     if (this.options.mode === "melody")
       this.position = melodyPosition(this.notes, this.matched, this.position);
     if (this.options.mode === "rhythm") this.markMissed(speed);
-    for (const note of this.options.notes) {
+    for (const note of this.playbackNotes) {
       if (note.start <= this.position && !this.sounded.has(note.id)) {
         this.sounded.add(note.id);
         const selected = this.options.hand === "both" || note.hand === this.options.hand;
@@ -262,12 +275,15 @@ export class PracticeSession {
       }
     }
     // A very short final note still gets its full late-hit window.
-    const lastOnset = this.notes.at(-1)?.start ?? 0;
+    const lastTarget = this.notes.at(-1)?.start;
+    const lastOnset = this.options.range
+      ? lastTarget !== undefined && lastTarget >= this.startAt ? lastTarget : -Infinity
+      : lastTarget ?? 0;
     const end = this.recital
-      ? Math.max(this.options.duration, this.recital.endPosition(speed / 100))
+      ? Math.max(this.rangeEnd, this.recital.endPosition(speed / 100))
       : this.options.mode === "rhythm"
-      ? Math.max(this.options.duration, lastOnset + RHYTHM_WINDOW * speed / 100 + EPSILON * 2)
-      : this.options.duration;
+      ? Math.max(this.rangeEnd, lastOnset + RHYTHM_WINDOW * speed / 100 + EPSILON * 2)
+      : this.rangeEnd;
     if (this.position >= end) {
       this.position = end;
       // Recital has no live grades, misses, matches or feedback. Publish only
@@ -298,7 +314,8 @@ export class PracticeSession {
     // Integrate movement through source tempos; any Melody wait uses the tempo
     // at its stopped position. Count-in consumed its own time above. A repeat
     // starts a fresh clock on its next frame, never a second click in this one.
-    if (this.running && !result.looped && this.options.metronome)
+    if (this.running && !result.looped && this.options.metronome &&
+      (!this.options.range || this.position < this.rangeEnd))
       result.metronomeBeat = this.metronome.advance(delta, previousPosition, this.position);
     return result;
   }
