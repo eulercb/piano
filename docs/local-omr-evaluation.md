@@ -43,6 +43,12 @@ this evaluation. Warning counts are returned, rather than suppressed as success.
 
 ## Expanded synthetic matrix
 
+The separate [fingering attachment experiment](omr-fingering-evaluation.md) adds
+an original two-staff marked/unmarked fixture and compares the default with the
+supported fingering override. Both actual captures fail exact acceptance; the
+adapter/default remains unchanged. Note accuracy alone does not establish that
+printed fingers were preserved or attached to the intended notes.
+
 `fixtures/omr/matrix/` adds two original two-bar exercises and one fixed image
 perturbation. The PNGs were visually checked before recognition. Exactly three
 actual Audiveris 5.11.0 invocations were made, with no retry, manual correction,
