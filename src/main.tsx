@@ -625,7 +625,9 @@ export function App() {
         const result = await importer.importScoreFile(f);
         s = { ...result.song, id: crypto.randomUUID() };
         message = result.warnings.length ? result.warnings.join(" ")
-          : "Score imported with playable notes, hands and printed fingerings.";
+          : s.notes.some(note => note.finger !== undefined)
+            ? "Score imported with playable notes, hands and printed fingerings."
+            : "Score imported with playable notes and hands.";
       } else if (/\.json$/i.test(f.name)) {
         s = { ...parseProject(await f.text()), id: crypto.randomUUID() };
         message = "Practice project imported with its saved hands and fingerings.";
