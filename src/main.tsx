@@ -50,6 +50,7 @@ import { practiceHandName, practiceModeName, type PracticeStep } from "./practic
 import { parseProject } from "./project";
 import { passageTitle } from "./songTitle";
 import { storedFolder, fileDigest, contentDigest, readPermission, supportedSong, type FolderConnection, type FolderSource } from "./songFolder";
+import { readSnapshotFile, selectFolderSnapshot } from "./folderSnapshot";
 import { SongLibrary } from "./songLibrary";
 import { PracticeBookmarks } from "./PracticeBookmarks";
 import { PracticeBookmarksStore, songRevision, type PracticeBookmark } from "./practiceBookmarks";
@@ -105,6 +106,15 @@ export function App() {
   const savedVersion = useRef<Song | null>(null);
   const [saving, setSaving] = useState(false);
   const importGeneration = useRef(0);
+  const folderSnapshotGeneration = useRef<number | undefined>(undefined);
+  const folderSnapshotInput = useRef<HTMLInputElement | null>(null);
+  const [canImportFolderOnce] = useState(() => "webkitdirectory" in document.createElement("input"));
+  useEffect(() => {
+    const input = folderSnapshotInput.current;
+    const cancel = () => { folderSnapshotGeneration.current = undefined; };
+    input?.addEventListener("cancel", cancel);
+    return () => input?.removeEventListener("cancel", cancel);
+  }, []);
   const [folder, setFolder] = useState<FolderConnection>();
   const folderRef = useRef<FolderConnection | undefined>(undefined);
   const folderStorageHealthy = useRef(true);
@@ -510,6 +520,57 @@ export function App() {
   function startImport() {
     if (!mayReplaceCurrent()) return;
     return ++importGeneration.current;
+  }
+  function chooseFolderSnapshot() {
+    if (!canImportFolderOnce || !folderSnapshotInput.current) return;
+    const generation = startImport();
+    if (generation === undefined) return;
+    folderSnapshotGeneration.current = generation;
+    try {
+      folderSnapshotInput.current.value = "";
+      folderSnapshotInput.current.click();
+    } catch {
+      folderSnapshotGeneration.current = undefined;
+      if (generation === importGeneration.current)
+        setNotice("The one-time folder chooser could not open. Use Import song to select files instead. Your saved songs are unchanged.");
+    }
+  }
+  async function importFolderSnapshot(files: ArrayLike<File>, generation: number) {
+    const current = () => generation === importGeneration.current;
+    if (!current() || !files.length) return;
+    let selection: ReturnType<typeof selectFolderSnapshot>;
+    try {
+      // Validate every path before reading anything. This also bounds the batch
+      // before the native input is cleared; only selected File objects survive.
+      selection = selectFolderSnapshot(files);
+    } catch {
+      if (current()) setNotice("This folder selection has missing or ambiguous paths, or is too large. No files were read or imported. Choose one smaller folder, or use Import song to select files instead.");
+      return;
+    }
+    let count = 0;
+    const failures: string[] = [];
+    for (const source of selection.files) {
+      if (!current()) return;
+      let copy: File;
+      try { copy = await readSnapshotFile(source); }
+      catch {
+        if (!current()) return;
+        failures.push("A selected file could not be read. Select it again with Import song.");
+        continue;
+      }
+      if (!current()) return;
+      // Ordinary new-copy import: no folder handle, source identity or refresh
+      // metadata is invented for this one-time selection.
+      const result = await importFile(copy, generation);
+      if (!current()) return;
+      if (result.ok) count++;
+      else {
+        if (result.stop) return; // Keep existing unsaved-import/storage guidance.
+        failures.push(result.error);
+      }
+    }
+    if (!current()) return;
+    setNotice(`Folder snapshot: ${count} imported as new local copies. ${selection.nested} in subfolders, ${selection.unsupported} unsupported and ${selection.overLimit} over the 50-file limit skipped; ${selection.oversized} over 10 MB rejected. ${failures.length ? `${failures.length} could not be imported. ${failures.slice(0, 3).join(" ")} ` : ""}Source files and any remembered folder shortcut are unchanged. This is a one-time import, not a folder connection.`);
   }
   async function chooseFolder(reconnect = false) {
     const picker = (window as any).showDirectoryPicker;
@@ -1149,6 +1210,16 @@ export function App() {
             }
           }}
         />
+        <input
+          ref={element => { folderSnapshotInput.current = element; element?.setAttribute("webkitdirectory", ""); }}
+          hidden multiple type="file" aria-label="One-time song folder selection"
+          onChange={event => {
+            const generation = folderSnapshotGeneration.current;
+            folderSnapshotGeneration.current = undefined;
+            if (generation !== undefined) void importFolderSnapshot(event.currentTarget.files ?? [], generation);
+            event.currentTarget.value = "";
+          }}
+        />
         <div className="content">
           {page !== "practice" && page !== "launch" && <div className="heading">
             <div>
@@ -1252,9 +1323,11 @@ export function App() {
                 <button className="button light" onClick={() => chooseFolder()}>
                   Open song folder
                 </button>
+                {canImportFolderOnce && <button className="button light" onClick={chooseFolderSnapshot}>Import folder once</button>}
                 {folder && <button className="button light" onClick={() => chooseFolder(true)}>Refresh / reconnect folder</button>}
                 <span>{songs.length + 1} pieces</span>
               </div>
+              {canImportFolderOnce && <p>Import folder once makes new local copies of up to 50 supported files directly inside your chosen folder, not its subfolders. It does not remember access or refresh files. Selecting it again creates new copies.</p>}
               {folder && <p role="status">Folder: {folder.handle.name || "Selected folder"}. Read-only, manual refresh. Changed sources are offered as separate copies; saved edits are never overwritten.</p>}
               <PracticeBookmarks store={bookmarks} onRestore={restoreBookmark} />
               <div className="song-grid">
