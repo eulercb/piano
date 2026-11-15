@@ -3,9 +3,9 @@ import type { PracticePass } from "./practiceHistory";
 import { formatPracticeInterval, type PracticeRange } from "./practiceRange";
 import { practiceHandName, practiceModeName, practiceNextSteps, type PracticeStep } from "./practiceNextSteps";
 
-export function PracticeNextSteps({ pass, song, speed, range, onChoose, onPrepare }: {
+export function PracticeNextSteps({ pass, song, speed, range, onChoose, onPlan }: {
   pass: PracticePass; song: Song; speed: number; range?: PracticeRange;
-  onChoose: (step: PracticeStep) => void; onPrepare: () => void;
+  onChoose: (step: PracticeStep) => void; onPlan: () => void;
 }) {
   return <section className="practice-next-steps" aria-label="Next practice step">
     <h3>A small next step</h3>
@@ -20,7 +20,7 @@ export function PracticeNextSteps({ pass, song, speed, range, onChoose, onPrepar
         <b>{step.title}</b>
         <span>{practiceHandName(step.hand)} · {step.speed}% · {practiceModeName(step.mode)}</span>
       </button>)}</div>
-    <button type="button" className="text-button" onClick={onPrepare}>Choose a shorter passage in Studio</button>
+    <button type="button" className="text-button" onClick={onPlan}>Choose a shorter passage</button>
     <p className="room-hint">{range ? "These choices restart the selected passage from its start." : "These choices restart the selected piece or prepared passage from its beginning."} Nothing starts automatically: press Play when ready. Your song, source tempo and saved passes stay unchanged. New hand combinations use wait-for-notes practice at 50% or slower.</p>
   </section>;
 }

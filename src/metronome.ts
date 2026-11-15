@@ -24,6 +24,11 @@ export class PracticeMetronome {
     return this.map[low];
   }
 
+  /** Same verified source lookup for a fresh count-in; does not advance the clock. */
+  tempoAt(seconds: number): number {
+    return this.segmentAt(seconds).bpm;
+  }
+
   private beatsAt(seconds: number, segment = this.segmentAt(seconds)): number {
     return segment.beat + (seconds - segment.seconds) * segment.bpm / 60;
   }

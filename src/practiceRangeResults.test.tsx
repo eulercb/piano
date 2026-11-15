@@ -33,7 +33,7 @@ it("offers only hands with attacks in the selected range, including the start bu
 
 it("labels temporary-range repetition explicitly and leaves the selected step to the caller", () => {
   const choose = vi.fn();
-  render(<PracticeNextSteps pass={pass} song={song} speed={50} range={range} onChoose={choose} onPrepare={() => {}} />);
+  render(<PracticeNextSteps pass={pass} song={song} speed={50} range={range} onChoose={choose} onPlan={() => {}} />);
   expect(screen.getByText(/restart the selected passage from its start/)).toBeTruthy();
   expect(screen.queryByRole("button", { name: /Explore the other hand|Bring both hands together/ })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: /Repeat selected passage/ }));
@@ -61,7 +61,7 @@ it("shows a recorded interval even when the pass starts at zero, without rewriti
 it("distinguishes short source-time endpoints in both Results and History", () => {
   const brief = { ...pass, startSeconds: .25, endSeconds: .75 };
   const storage = { getItem: vi.fn(() => exportPracticeHistory([brief])), setItem: vi.fn(), removeItem: vi.fn() };
-  render(<><PracticeNextSteps pass={brief} song={song} speed={50} onChoose={() => {}} onPrepare={() => {}} />
+  render(<><PracticeNextSteps pass={brief} song={song} speed={50} onChoose={() => {}} onPlan={() => {}} />
     <PracticeHistory store={new PracticeHistoryStore(() => storage)} /></>);
   expect(screen.getByText(/Last completed pass:.*0:00\.250–0:00\.750/)).toBeTruthy();
   expect(screen.getByText(/Recorded interval · 0:00\.250–0:00\.750 at original speed/)).toBeTruthy();

@@ -132,6 +132,33 @@ it('records a completed wait-for-notes range only after its selected note is rea
   expect(parsePracticeHistory(localStorage.getItem(HISTORY_KEY)!)[0]).toMatchObject({ pieceId: original.id, startSeconds: 1, endSeconds: 1.2, mode: 'melody', noteCount: 1 });
 });
 
+it.each(['Listen & explore', 'Find the rhythm', 'Play a recital', 'Wait for notes'])('returns %s Results to the same stopped range plan without rewriting history', async label => {
+  render(<App />); chooseOriginal(); range('1', '2.2'); click(/Right hand One part/);
+  click(new RegExp(`^${label}`)); click('75%'); muteAndStart();
+  if (label === 'Wait for notes') {
+    click('Play D4'); await advance(1.4); click('Play E4'); await advance(0.7);
+  } else await advance(2.5);
+  await waitFor(() => expect(localStorage.getItem(HISTORY_KEY)).not.toBeNull());
+  const savedHistory = localStorage.getItem(HISTORY_KEY);
+  click('Results'); click('Choose a shorter passage');
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Let’s play a little.' }));
+  expect((screen.getByRole('spinbutton', { name: 'Start (seconds)' }) as HTMLInputElement).value).toBe('1');
+  expect((screen.getByRole('spinbutton', { name: 'End (seconds)' }) as HTMLInputElement).value).toBe('2.2');
+  expect(screen.getByRole('button', { name: /Right hand One part/ }).getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByRole('button', { name: new RegExp(`^${label}`) }).getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByRole('button', { name: '75%' }).getAttribute('aria-pressed')).toBe('true');
+  expect((screen.getByRole('checkbox', { name: 'Count in 4 beats' }) as HTMLInputElement).checked).toBe(false);
+  expect(screen.getByRole('button', { name: 'Unmute' })).toBeTruthy();
+  await advance(5);
+  expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+  expect(localStorage.getItem(HISTORY_KEY)).toBe(savedHistory);
+  expect(localStorage.getItem(SONGS_KEY)).toBe(bytes);
+  click('Start practice'); click('Change plan');
+  expect((screen.getByRole('spinbutton', { name: 'Start (seconds)' }) as HTMLInputElement).value).toBe('1');
+  expect(localStorage.getItem(HISTORY_KEY)).toBe(savedHistory);
+});
+
 it('cancels pending audio before selecting a different range and ignores the stale unlock', async () => {
   let finish!: () => void;
   class PendingAudio extends EventTarget {
@@ -152,4 +179,32 @@ it('cancels pending audio before selecting a different range and ignores the sta
   click('Start practice');
   expect(screen.getByRole('slider', { name: 'Playback position' }).getAttribute('value')).toBe('2');
   expect(screen.getByRole('status').textContent).toMatch(/E4/);
+});
+
+it('keeps the Results-to-plan route stopped after a delayed audio restart resolves', async () => {
+  let finish!: () => void;
+  const startVoice = vi.fn();
+  class PendingAudio extends EventTarget {
+    state = 'suspended'; currentTime = 0; destination = {};
+    resume() { return new Promise<void>(resolve => { finish = () => { this.state = 'running'; resolve(); }; }); }
+    close() { return Promise.resolve(); }
+    createOscillator() { return { frequency: { value: 0 }, connect() {}, disconnect() {}, start: startVoice, stop() {}, onended: null }; }
+    createGain() { return { connect() {}, disconnect() {}, gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} } }; }
+  }
+  vi.stubGlobal('AudioContext', PendingAudio);
+  render(<App />); chooseOriginal(); range('1', '1.2'); click(/Right hand One part/); click(/^Listen & explore/);
+  muteAndStart(); await advance(1);
+  await waitFor(() => expect(localStorage.getItem(HISTORY_KEY)).not.toBeNull());
+  const savedHistory = localStorage.getItem(HISTORY_KEY);
+  click('Unmute'); click('Play');
+  expect(screen.getByRole('button', { name: 'Cancel audio start' })).toBeTruthy();
+  click('Results'); click('Choose a shorter passage');
+  await act(async () => { finish(); await Promise.resolve(); }); await advance(5);
+  expect((screen.getByRole('spinbutton', { name: 'Start (seconds)' }) as HTMLInputElement).value).toBe('1');
+  expect((screen.getByRole('spinbutton', { name: 'End (seconds)' }) as HTMLInputElement).value).toBe('1.2');
+  expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+  expect(screen.queryByText(/Starting audio/)).toBeNull();
+  expect(startVoice).not.toHaveBeenCalled();
+  expect(localStorage.getItem(HISTORY_KEY)).toBe(savedHistory);
+  expect(localStorage.getItem(SONGS_KEY)).toBe(bytes);
 });

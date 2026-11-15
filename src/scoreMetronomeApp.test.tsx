@@ -115,3 +115,21 @@ it("hands off starting-tempo count-in to source-tempo clicks once", () => {
   advance(.5); expect(clicks()).toBe(6); advance(.5); expect(clicks()).toBe(6);
   advance(.5); expect(clicks()).toBe(7);
 });
+
+it("uses the seeked source tempo for count-in at 50% and labels the opening BPM honestly", () => {
+  const before = prepare({ countIn: true, speed: 50 });
+  click("Practice setup");
+  expect(screen.getByText("Piece start: 60 BPM")).toBeTruthy();
+  expect(screen.getByText(/source tempo where you start/)).toBeTruthy();
+  click("Done");
+  fireEvent.change(screen.getByRole("slider", { name: "Playback position" }), { target: { value: "1" } });
+  click("Play"); expect(clicks()).toBe(1);
+  advance(1.9); expect(clicks()).toBe(1); expect(position()).toBe(1);
+  advance(0.1); expect(clicks()).toBe(2);
+  advance(4); expect(clicks()).toBe(4); expect(position()).toBe(1);
+  advance(1.9); expect(clicks()).toBe(4); expect(position()).toBe(1);
+  advance(0.1); expect(clicks()).toBe(5); expect(position()).toBeCloseTo(1);
+  advance(0.2); expect(clicks()).toBe(5); expect(position()).toBeCloseTo(1.1);
+  expect(localStorage.getItem("piano-songs")).toBe(before);
+  expect(localStorage.getItem(HISTORY_KEY)).toBeNull();
+});
