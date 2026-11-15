@@ -1,0 +1,85 @@
+{
+  "scope": "One original clean digital engraving, not a photograph or general recognition accuracy.",
+  "main_base": "e9207adc9713fb74d87af802a7747b143d6e2bb3",
+  "engine": "Audiveris 5.11.0",
+  "engine_package_sha256": "ae714594f40e54b1a4951fc3f914f08ae38fe5d07b7f2283b1a904fdb6e0a318",
+  "enabled_cli_override": [
+    "-constant",
+    "org.audiveris.omr.sheet.ProcessingSwitches.fingerings=true"
+  ],
+  "runs_per_case": 1,
+  "manual_corrections": 0,
+  "runtime_network_isolation": "not provided or verified; no retry of previously denied isolation/observation",
+  "private_input_used": false,
+  "renderer": {
+    "verovio": "6.4.0-cb5fcfa",
+    "cairosvg": "2.9.1",
+    "warning": "Fontconfig no writable cache; PNG visually inspected before recognition"
+  },
+  "gold_sha256": "7b5059a8fd788c9e3112b6478ed7898a8591fc39e5fc9bfbcaa0b6d77f05a881",
+  "image_sha256": "20881cad01d40af408a9a9b331d3c88efd4281795b90ad404a13043876818d18",
+  "image_dimensions": [
+    1916,
+    956
+  ],
+  "png_chunk_types": [
+    "IDAT",
+    "IEND",
+    "IHDR",
+    "bKGD"
+  ],
+  "expected": {
+    "notes": 17,
+    "marked": 13,
+    "unmarked": 4,
+    "direction_numeral": 3
+  },
+  "captured": [
+    {
+      "case": "default",
+      "adapter_exit": 0,
+      "output_created": true,
+      "fingerings_override": false,
+      "metrics": {
+        "elapsed_seconds": 8.893,
+        "output_bytes": 9653,
+        "child_max_rss_kib_linux": 489016,
+        "engine_warning_lines": 3,
+        "review_required": true,
+        "network_isolation": "not provided or verified",
+        "limits": "1536 MiB Java heap and 2 JVM processors via pinned HotSpot/Zulu options; CPU/wall timeout, 64 MiB per file; not total RSS/disk quotas"
+      },
+      "raw_export_sha256": "b26ee501f9fcbffa654d2036df6d4cdd9142c0c6f2ff9a060cda9e9cb19219d0",
+      "public_export_sha256": "6b26bc2f8672cfa1104d17fa4fdb73fa388f3d1d18c6f28cd0265debf22218e8",
+      "musical_part_sha256": "3986dd72eb4fe19b6b22da8025cdc599e2f8b3907b463dcbc9d27e226d34600f",
+      "public_copy": "Derived copy: source path, miscellaneous source fields and encoding date removed; all musical content unchanged."
+    },
+    {
+      "case": "fingerings-enabled",
+      "adapter_exit": 0,
+      "output_created": true,
+      "fingerings_override": true,
+      "metrics": {
+        "elapsed_seconds": 7.25,
+        "output_bytes": 10707,
+        "child_max_rss_kib_linux": 499236,
+        "engine_warning_lines": 3,
+        "review_required": true,
+        "network_isolation": "not provided or verified",
+        "limits": "1536 MiB Java heap and 2 JVM processors via pinned HotSpot/Zulu options; CPU/wall timeout, 64 MiB per file; not total RSS/disk quotas"
+      },
+      "raw_export_sha256": "e843ddf4ca256dc30da4daa5753b3844db3551b3edcde459b6706a75ee475f6b",
+      "public_export_sha256": "9f803d1c476687bc6559de2199f590106a92115f097c6c3c592192e31c2c89b2",
+      "musical_part_sha256": "0328426b5587d9c91cb9700380fc456b9b8afe2d4861ebba44841bb615460cac",
+      "public_copy": "Derived copy: source path, miscellaneous source fields and encoding date removed; all musical content unchanged."
+    }
+  ],
+  "acceptance": "Both cases fail exact events and exact finger attachment. Keep default unchanged. No runtime private-score or Android claim.",
+  "verified_package_member_sha256": {
+    "opt/audiveris/bin/Audiveris": "64ad1b8f8a528efc9234b90000480df4510588fa905014ebffa64746e50623c3",
+    "opt/audiveris/lib/app/Audiveris.cfg": "0a1d7e0da10724ac61999a4d9646db4bccb8530ea13b71d2aa3dc25b7060244a",
+    "opt/audiveris/lib/app/audiveris.jar": "9b35257edea808ec80a8bcd48882d174b107152d9640b5ca33e1365593cff2a5",
+    "opt/audiveris/lib/runtime/bin/java": "9d2c3cd83a1cdea4bc6b0e68d37648d5258fe6c4d67937854514028b31b46971",
+    "opt/audiveris/lib/runtime/lib/server/libjvm.so": "a0269046208df486d50df3053a09bfe6f40d023fbef413b93ab01d99868a61d9"
+  }
+}

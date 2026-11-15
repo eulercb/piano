@@ -1,0 +1,838 @@
+{
+  "passes": false,
+  "events_pass": false,
+  "events": {
+    "comparable": true,
+    "voice_partition_matches": false,
+    "gold_events": 17,
+    "recognized_events": 17,
+    "exact_pitch_onset_duration_staff_measure_matches": 9,
+    "precision": 0.5294117647058824,
+    "recall": 0.5294117647058824,
+    "exact_written_type_dot_tie_matches": 9,
+    "written_type_dot_tie_matches": false,
+    "missing_events": [
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "0",
+          "1",
+          "('G', '0', '4')"
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "1",
+          "1",
+          "('E', '0', '4')"
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "1",
+          "1",
+          "('G', '0', '4')"
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "2",
+          "1",
+          "('F', '0', '4')"
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "3",
+          "1",
+          "('E', '0', '4')"
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "2",
+          "1",
+          "1",
+          "('E', '0', '3')"
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "2",
+          "2",
+          "1",
+          "('D', '0', '3')"
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "2",
+          "3",
+          "1",
+          "('C', '0', '3')"
+        ],
+        "count": 1
+      }
+    ],
+    "unexpected_events": [
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "0",
+          "2/3",
+          "('G', '0', '4')"
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "2",
+          "1",
+          "('E', '0', '4')"
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "2/3",
+          "2/3",
+          "('E', '0', '4')"
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "2/3",
+          "2/3",
+          "('G', '0', '4')"
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "4/3",
+          "2/3",
+          "('F', '0', '4')"
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "2",
+          "2",
+          "2/3",
+          "('C', '0', '3')"
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "2",
+          "2/3",
+          "2/3",
+          "('E', '0', '3')"
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "2",
+          "4/3",
+          "2/3",
+          "('D', '0', '3')"
+        ],
+        "count": 1
+      }
+    ],
+    "missing_written_events": [
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "0",
+          "1",
+          "('G', '0', '4')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "1",
+          "1",
+          "('E', '0', '4')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "1",
+          "1",
+          "('G', '0', '4')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "2",
+          "1",
+          "('F', '0', '4')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "3",
+          "1",
+          "('E', '0', '4')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "2",
+          "1",
+          "1",
+          "('E', '0', '3')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "2",
+          "2",
+          "1",
+          "('D', '0', '3')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "2",
+          "3",
+          "1",
+          "('C', '0', '3')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      }
+    ],
+    "unexpected_written_events": [
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "0",
+          "2/3",
+          "('G', '0', '4')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "2",
+          "1",
+          "('E', '0', '4')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "2/3",
+          "2/3",
+          "('E', '0', '4')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "2/3",
+          "2/3",
+          "('G', '0', '4')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "1",
+          "4/3",
+          "2/3",
+          "('F', '0', '4')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "2",
+          "2",
+          "2/3",
+          "('C', '0', '3')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "2",
+          "2/3",
+          "2/3",
+          "('E', '0', '3')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      },
+      {
+        "event": [
+          0,
+          1,
+          "2",
+          "4/3",
+          "2/3",
+          "('D', '0', '3')",
+          "quarter",
+          0,
+          [],
+          []
+        ],
+        "count": 1
+      }
+    ],
+    "voice_mapping": {
+      "(0, '1', '1')": [
+        "1"
+      ],
+      "(0, '2', '2')": [
+        "5"
+      ]
+    },
+    "scope": "Event multiset, measure index, staff and voice correspondence; written type, dot count, sound ties and visible ties. Not full notation/engraving equivalence."
+  },
+  "fingerings": {
+    "comparable": true,
+    "passes": false,
+    "counts": {
+      "correct_marks": 0,
+      "missing_marks": 13,
+      "incorrect_marks": 0,
+      "extra_marks": 0,
+      "correct_unmarked": 2,
+      "missing_notes": 7,
+      "unexpected_notes": 7,
+      "unassessable_notes": 0
+    },
+    "details": {
+      "correct_marks": [],
+      "missing_marks": [
+        {
+          "part": 1,
+          "measure": 1,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "0",
+          "pitch": {
+            "step": "C",
+            "alter": 0,
+            "octave": 4
+          },
+          "expected_mark": 1
+        },
+        {
+          "part": 1,
+          "measure": 1,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "1",
+          "pitch": {
+            "step": "D",
+            "alter": 0,
+            "octave": 4
+          },
+          "expected_mark": 2
+        },
+        {
+          "part": 1,
+          "measure": 1,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "3",
+          "pitch": {
+            "step": "F",
+            "alter": 0,
+            "octave": 4
+          },
+          "expected_mark": 4
+        },
+        {
+          "part": 1,
+          "measure": 1,
+          "staff": 2,
+          "written_hand": "left",
+          "onset_quarters": "0",
+          "pitch": {
+            "step": "C",
+            "alter": 0,
+            "octave": 3
+          },
+          "expected_mark": 5
+        },
+        {
+          "part": 1,
+          "measure": 1,
+          "staff": 2,
+          "written_hand": "left",
+          "onset_quarters": "1",
+          "pitch": {
+            "step": "B",
+            "alter": 0,
+            "octave": 2
+          },
+          "expected_mark": 4
+        },
+        {
+          "part": 1,
+          "measure": 1,
+          "staff": 2,
+          "written_hand": "left",
+          "onset_quarters": "3",
+          "pitch": {
+            "step": "G",
+            "alter": 0,
+            "octave": 2
+          },
+          "expected_mark": 2
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "0",
+          "pitch": {
+            "step": "G",
+            "alter": 0,
+            "octave": 4
+          },
+          "expected_mark": 5
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "1",
+          "pitch": {
+            "step": "E",
+            "alter": 0,
+            "octave": 4
+          },
+          "expected_mark": 1
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "1",
+          "pitch": {
+            "step": "G",
+            "alter": 0,
+            "octave": 4
+          },
+          "expected_mark": 3
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "3",
+          "pitch": {
+            "step": "E",
+            "alter": 0,
+            "octave": 4
+          },
+          "expected_mark": 2
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 2,
+          "written_hand": "left",
+          "onset_quarters": "0",
+          "pitch": {
+            "step": "F",
+            "alter": 0,
+            "octave": 3
+          },
+          "expected_mark": 1
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 2,
+          "written_hand": "left",
+          "onset_quarters": "1",
+          "pitch": {
+            "step": "E",
+            "alter": 0,
+            "octave": 3
+          },
+          "expected_mark": 2
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 2,
+          "written_hand": "left",
+          "onset_quarters": "2",
+          "pitch": {
+            "step": "D",
+            "alter": 0,
+            "octave": 3
+          },
+          "expected_mark": 3
+        }
+      ],
+      "incorrect_marks": [],
+      "extra_marks": [],
+      "correct_unmarked": [
+        {
+          "part": 1,
+          "measure": 1,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "2",
+          "pitch": {
+            "step": "E",
+            "alter": 0,
+            "octave": 4
+          }
+        },
+        {
+          "part": 1,
+          "measure": 1,
+          "staff": 2,
+          "written_hand": "left",
+          "onset_quarters": "2",
+          "pitch": {
+            "step": "A",
+            "alter": 0,
+            "octave": 2
+          }
+        }
+      ],
+      "missing_notes": [
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "1",
+          "pitch": {
+            "step": "E",
+            "alter": 0,
+            "octave": 4
+          }
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "1",
+          "pitch": {
+            "step": "G",
+            "alter": 0,
+            "octave": 4
+          }
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "2",
+          "pitch": {
+            "step": "F",
+            "alter": 0,
+            "octave": 4
+          }
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "3",
+          "pitch": {
+            "step": "E",
+            "alter": 0,
+            "octave": 4
+          }
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 2,
+          "written_hand": "left",
+          "onset_quarters": "1",
+          "pitch": {
+            "step": "E",
+            "alter": 0,
+            "octave": 3
+          }
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 2,
+          "written_hand": "left",
+          "onset_quarters": "2",
+          "pitch": {
+            "step": "D",
+            "alter": 0,
+            "octave": 3
+          }
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 2,
+          "written_hand": "left",
+          "onset_quarters": "3",
+          "pitch": {
+            "step": "C",
+            "alter": 0,
+            "octave": 3
+          }
+        }
+      ],
+      "unexpected_notes": [
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "2/3",
+          "pitch": {
+            "step": "E",
+            "alter": 0,
+            "octave": 4
+          }
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "2/3",
+          "pitch": {
+            "step": "G",
+            "alter": 0,
+            "octave": 4
+          }
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "4/3",
+          "pitch": {
+            "step": "F",
+            "alter": 0,
+            "octave": 4
+          }
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 1,
+          "written_hand": "right",
+          "onset_quarters": "2",
+          "pitch": {
+            "step": "E",
+            "alter": 0,
+            "octave": 4
+          }
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 2,
+          "written_hand": "left",
+          "onset_quarters": "2/3",
+          "pitch": {
+            "step": "E",
+            "alter": 0,
+            "octave": 3
+          }
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 2,
+          "written_hand": "left",
+          "onset_quarters": "4/3",
+          "pitch": {
+            "step": "D",
+            "alter": 0,
+            "octave": 3
+          }
+        },
+        {
+          "part": 1,
+          "measure": 2,
+          "staff": 2,
+          "written_hand": "left",
+          "onset_quarters": "2",
+          "pitch": {
+            "step": "C",
+            "alter": 0,
+            "octave": 3
+          }
+        }
+      ],
+      "unassessable_notes": []
+    }
+  },
+  "scope": "Synthetic single-part piano. Exact measure-relative onset, staff and written pitch; duration and voice identifiers are not attachment keys. Written hand is staff assignment."
+}
