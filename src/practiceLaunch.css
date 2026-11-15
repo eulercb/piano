@@ -16,6 +16,17 @@
 .launch-choices { display: grid; gap: 23px; min-width: 0; }
 .launch-choices fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .launch-choices legend { font-size: 19px; font-weight: 650; margin-bottom: 12px; }
+.launch-range-options, .launch-range-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.launch-range-options button { min-height: 44px; border: 1px solid #798b71; border-radius: 10px; padding: 6px; background: #fffef9; color: #263d36; font: inherit; font-size: 14px; cursor: pointer; overflow-wrap: anywhere; }
+.launch-range-options button[aria-pressed="true"] { border: 2px solid #365d42; background: #e5edda; font-weight: 700; }
+.launch-range-options button:disabled { opacity: .55; cursor: not-allowed; }
+.launch-range-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.launch-range-fields label { display: grid; gap: 5px; min-width: 0; font-size: 14px; }
+.launch-range-fields input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; padding: 6px 8px; border: 1px solid #798b71; border-radius: 8px; color: #263d36; background: #fffef9; font: inherit; font-size: 16px; }
+.launch-range-fields input[aria-invalid="true"] { border-color: #912a24; }
+.launch-range-help, .launch-range-summary, .launch-range-error { font-size: 13px; margin: 8px 0 0; line-height: 1.45; overflow-wrap: anywhere; }
+.launch-range-help, .launch-range-summary { color: #526257; }
+.launch-range-error { color: #912a24; }
 .launch-hand-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .launch-choice { min-height: 90px; background: #fffef9; border: 1px solid #798b71; border-radius: 15px; padding: 14px 12px; color: #263d36; cursor: pointer; font: inherit; text-align: left; overflow-wrap: anywhere; }
 .launch-choice[aria-pressed="true"] { border: 2px solid #365d42; background: #e5edda; padding: 13px 11px; box-shadow: 0 3px 0 #b5c8a8; }
@@ -57,7 +68,7 @@
   .launch-mode-options { grid-template-columns: 1fr; }
 }
 @media (forced-colors: active) {
-  .launch-choice[aria-pressed="true"], .launch-speeds button[aria-pressed="true"] { border-color: Highlight; }
+  .launch-choice[aria-pressed="true"], .launch-speeds button[aria-pressed="true"], .launch-range-options button[aria-pressed="true"] { border-color: Highlight; }
   .practice-launch button:focus-visible, .practice-launch input:focus-visible { outline-color: Highlight; }
 }
 @media (max-width: 760px) {

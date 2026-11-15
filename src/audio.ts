@@ -56,15 +56,19 @@ export class PianoAudio {
     });
   }
 
-  sound(p: number, d = 0.3, v = 0.3) {
+  sound(p: number, d = 0.3, v = 0.3, maximumDuration?: number) {
     const audio = this.context;
     if (!audio || !this.running) return;
+    // A temporary practice boundary can be shorter than the preview envelope.
+    // Clip scheduling only; never shorten the note stored in the piece.
+    const length = Math.min(Math.max(0.04, d), maximumDuration ?? Infinity);
+    if (!(length > 0)) return;
     const o = audio.createOscillator(), g = audio.createGain();
     o.type = "triangle";
     o.frequency.value = 440 * 2 ** ((p - 69) / 12);
     g.gain.setValueAtTime(0, audio.currentTime);
-    g.gain.linearRampToValueAtTime(v * 0.25, audio.currentTime + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + Math.max(0.03, d));
+    g.gain.linearRampToValueAtTime(v * 0.25, audio.currentTime + Math.min(0.008, length / 2));
+    g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + Math.min(Math.max(0.03, d), length));
     o.connect(g);
     g.connect(audio.destination);
     this.voices.add(o);
@@ -74,7 +78,7 @@ export class PianoAudio {
       g.disconnect();
     };
     o.start();
-    o.stop(audio.currentTime + Math.max(0.04, d));
+    o.stop(audio.currentTime + length);
   }
 
   dispose() {

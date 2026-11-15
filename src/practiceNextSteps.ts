@@ -1,5 +1,6 @@
 import type { Song } from "./music";
 import type { PracticePass } from "./practiceHistory";
+import { noteStartsInRange, type PracticeRange } from "./practiceRange";
 import type { PracticeHand, PracticeMode } from "./session";
 
 export type PracticeStep = {
@@ -16,13 +17,14 @@ export const practiceModeName = (mode: PracticeMode) =>
   mode === "listen" ? "Listen" : mode === "melody" ? "Wait for notes" : mode === "recital" ? "Recital" : "Rhythm";
 
 /** Choices, not an automatic lesson plan or a claim that a skill was mastered. */
-export function practiceNextSteps(pass: PracticePass, song: Song, speed: number): PracticeStep[] {
+export function practiceNextSteps(pass: PracticePass, song: Song, speed: number, range?: PracticeRange): PracticeStep[] {
   const steps: PracticeStep[] = [];
-  const hasHand = (hand: PracticeHand) => song.notes.some(note => hand === "both" || note.hand === hand);
+  const hasHand = (hand: PracticeHand) => song.notes.some(note =>
+    noteStartsInRange(note, range) && (hand === "both" || note.hand === hand));
   const add = (id: string, title: string, hand = pass.hand, mode = pass.mode, nextSpeed = speed) => {
     if (hasHand(hand)) steps.push({ id, title, hand, mode, speed: nextSpeed });
   };
-  add("repeat", "Repeat from beginning");
+  add("repeat", range ? "Repeat selected passage" : "Repeat from beginning");
   if (pass.mode === "listen") {
     const hand = pass.hand === "both" ? (hasHand("right") ? "right" : "left") : pass.hand;
     add("melody", "Try waiting for notes", hand, "melody", Math.min(speed, 50));

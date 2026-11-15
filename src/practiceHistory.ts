@@ -175,14 +175,14 @@ export class PracticePassRecorder {
         const pending = this.pending;
         this.pending = undefined;
         const noteCount = this.session.notes.filter((n) => n.start >= pending.startSeconds).length;
-        if (noteCount && pending.startSeconds < this.session.options.duration) {
+        if (noteCount && pending.startSeconds < this.session.rangeEnd) {
           try {
             completedPass = normalizePracticePass({
               id: this.makeId(), pieceId: this.song.id, pieceTitle: this.song.title,
               pieceRevision: this.revision, ...pending,
               completedAt: [this.now(), pending.startedAt].sort().at(-1),
               mode: this.session.options.mode, hand: this.session.options.hand,
-              tempo: this.song.tempo, endSeconds: this.session.options.duration, noteCount,
+              tempo: this.song.tempo, endSeconds: this.session.rangeEnd, noteCount,
               ...((this.session.options.mode === "rhythm" || this.session.options.mode === "recital")
                 ? {
                   rhythm: result.looped ? this.session.previousResult : this.session.summary,

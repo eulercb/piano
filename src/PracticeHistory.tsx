@@ -1,7 +1,7 @@
 import { useRef, useState, useSyncExternalStore } from "react";
 import { Download, History, Trash2, Upload } from "lucide-react";
-import { formatTime } from "./music";
 import type { NoteStartCounts, RhythmSummary } from "./session";
+import { formatPracticeInterval } from "./practiceRange";
 import {
   exportPracticeHistory, MAX_HISTORY_BYTES, MAX_HISTORY_PASSES,
   parsePracticeHistory, practiceSuggestion, PracticeHistoryStore, type PracticePass,
@@ -124,7 +124,7 @@ export function PracticeHistory({ store }: { store: PracticeHistoryStore }) {
           <button className="text-button" disabled={changing} aria-label={`Delete ${pass.pieceTitle} pass from ${new Date(pass.completedAt).toLocaleString()}`} onClick={() => { setIncoming(null); setMessage(""); setPending(pass); }}><Trash2 size={16} /> Delete</button>
         </div>
         <p className="history-pass-meta">{modeNames[pass.mode]} · {handNames[pass.hand]} · {pass.speedMin === pass.speedMax ? `${pass.speedMin}% speed` : `${pass.speedMin}–${pass.speedMax}% speed (changed during pass)`} · {pass.tempo} BPM source</p>
-        <p className="history-passage">{pass.startSeconds > 0 ? "From partway through the selected piece" : "Selected piece / prepared passage"} · {formatTime(pass.startSeconds)}–{formatTime(pass.endSeconds)}</p>
+        <p className="history-passage">Recorded interval · {formatPracticeInterval(pass.startSeconds, pass.endSeconds)} at original speed{pass.startSeconds > 0 && " · From partway through the selected piece"}</p>
         <PassSummary pass={pass} />
       </li>)}</ol>
       {passes.length > limit && <button className="button light" onClick={() => setLimit((value) => value + 10)}>Show older passes</button>}
