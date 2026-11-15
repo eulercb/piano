@@ -104,7 +104,9 @@ export class PracticeSession {
   }
 
   private get beatLength() {
-    return 60 / this.options.tempo;
+    // Freeze the four-beat lead-in at the actual (clamped) start, not elapsed
+    // count time. Restart/seek/repeat update startAt; pause/resume leave it alone.
+    return 60 / this.metronome.tempoAt(this.startAt);
   }
 
   get countingIn() {

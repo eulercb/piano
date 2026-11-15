@@ -28,8 +28,10 @@ Invalid fields and hands without eligible note attacks cannot start practice.
   source coordinates; at the endpoint the cursor can show the next written
   position, which is still excluded from playback/grading. No partial score
   document is generated.
-- Count-in retains four quarter-note beats at the piece's starting tempo and
-  selected speed. It does not infer a new tempo or meter for the range start.
+- Count-in gives four quarter-note beats at the actual range/seek start's verified
+  source tempo and selected speed. Restart/repeat return to the selected start's
+  tempo; pause/resume retains a partial count. Without a verified tempo map it
+  uses the piece's starting tempo. It does not infer meter or expressive timing.
 
 ## History and bookmarks
 

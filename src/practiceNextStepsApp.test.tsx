@@ -139,14 +139,42 @@ it("clears stale next steps after restart, speed change, hand change and navigat
   click("My library"); click("Practice room"); openPracticeRoom(); results();
   expect(screen.queryByRole("region", { name: "Next practice step" })).toBeNull();
 });
-it("keeps an unsaved Studio fingering intact through next steps and the shorter-passage link", () => {
+it("returns Results to the stopped plan without losing an unsaved Studio fingering", () => {
   openStudy(); setup(); click("Prepare a song");
   fireEvent.change(screen.getByRole("combobox", { name: "Finger" }), { target: { value: "5" } });
   click("Practice room"); openPracticeRoom(); complete("listen"); results(); click(/Try waiting for notes/);
-  complete("melody"); results(); click("Choose a shorter passage in Studio");
+  complete("melody"); const savedHistory = localStorage.getItem(HISTORY_KEY);
+  results(); click("Choose a shorter passage");
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.queryByRole("combobox", { name: "Finger" })).toBeNull();
+  expect(document.activeElement).toBe(screen.getByRole("heading", { name: "Let’s play a little." }));
+  expect(button("Whole piece").getAttribute("aria-pressed")).toBe("true");
+  expect(button(/Right hand One part/).getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByText(/Practising your unsaved draft/)).toBeTruthy();
+  advance(5); expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
+  expect(localStorage.getItem(HISTORY_KEY)).toBe(savedHistory);
+  // Editing remains a separate, explicit route from the plan.
+  click("Prepare a shorter passage");
   expect((screen.getByRole("combobox", { name: "Finger" }) as HTMLSelectElement).value).toBe("5");
   expect(JSON.parse(localStorage.getItem(SONGS_KEY)!)[0].notes[0].finger).toBe(2);
   const event = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(true);
+});
+it("keeps the left-hand plan and preferences when Results interrupts a new repeat", () => {
+  openStudy("listen", "Left"); setup();
+  fireEvent.click(screen.getByRole("checkbox", { name: "Repeat this passage" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Metronome" }));
+  click("75%"); close(); click("Play"); advance(1.6);
+  expect(history()).toHaveLength(1); expect(button("Pause")).toBeTruthy();
+  results(); const savedHistory = localStorage.getItem(HISTORY_KEY);
+  click("Choose a shorter passage");
+  expect(button(/Left hand One part/).getAttribute("aria-pressed")).toBe("true");
+  expect(button("75%").getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByText(/Repeat is on.*Metronome is on/)).toBeTruthy();
+  advance(5); expect(localStorage.getItem(HISTORY_KEY)).toBe(savedHistory);
+  expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
+  openPracticeRoom(); setup();
+  expect((screen.getByRole("checkbox", { name: "Repeat this passage" }) as HTMLInputElement).checked).toBe(true);
+  expect((screen.getByRole("checkbox", { name: "Metronome" }) as HTMLInputElement).checked).toBe(true);
 });
 it("keeps choices usable with temporary history when storage fails", () => {
   openStudy(); vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("Full", "QuotaExceededError"); });

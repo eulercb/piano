@@ -1022,7 +1022,7 @@ export function App() {
       </div>
       <div className="range-ends">
         <span>Take it slow</span>
-        <span>{Math.round((song.tempo * speed) / 100)} BPM</span>
+        <span>Piece start: {Math.round((song.tempo * speed) / 100)} BPM</span>
       </div>
       <label className="control-label">
         03 <span>Pick your approach</span>
@@ -1074,8 +1074,9 @@ export function App() {
         Count in 4 beats
       </label>
       <p className="coming">
-        Four quarter-note beats at the starting tempo and selected speed,
-        before each pass. This is a beat count, not a measure.
+        Four quarter-note beats at the source tempo where you start and your selected speed.
+        Without a verified tempo map, the piece’s starting tempo is used.
+        This is a beat count, not a measure.
       </p>
       <label className="repeat-control">
         <input
@@ -1334,7 +1335,7 @@ export function App() {
               results={close => <>
                 {lastCompletedPass ? <PracticeNextSteps pass={lastCompletedPass} song={song} speed={speed} range={practiceRange}
                   onChoose={step => { chooseNextStep(step); close(); }}
-                  onPrepare={() => { close(); navigate("prepare"); }} />
+                  onPlan={() => { close(); navigate("launch"); }} />
                   : mode !== "rhythm" && mode !== "recital" && <p>Complete a listening or wait-for-notes pass to see gentle next-step choices here. Pauses and unfinished attempts are not failures.</p>}
                 {mode === "rhythm" && rhythmPanel}
                 {mode === "recital" && recitalPanel}

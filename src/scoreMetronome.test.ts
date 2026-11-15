@@ -82,14 +82,14 @@ it("retains phase across pauses, a frame interruption and a speed change", () =>
   expect(s.position).toBeCloseTo(1.5);
 });
 
-it("starts a fresh beat at a seek's actual tempo, while count-in keeps the starting tempo", () => {
+it("starts count-in and a fresh metronome beat at a seek's actual source tempo", () => {
   const s = make({ countIn: true }, 2.6); s.start();
-  for (let i = 0; i < 4; i++) expect(s.advance(i ? .5 : 0, 100, false)).toMatchObject({ countBeats: [i + 1], metronomeBeat: false });
-  expect(s.advance(.5, 100, false).metronomeBeat).toBe(true);
+  for (let i = 0; i < 4; i++) expect(s.advance(i ? .25 : 0, 100, false)).toMatchObject({ countBeats: [i + 1], metronomeBeat: false });
+  expect(s.advance(.25, 100, false).metronomeBeat).toBe(true);
   expect(s.position).toBe(2.6);
   expect(s.advance(.24, 100, false).metronomeBeat).toBe(false);
   expect(s.advance(.01, 100, false).metronomeBeat).toBe(true);
-  s.restart(.6); s.start(); s.advance(2, 100, false);
+  s.restart(.6); s.start(); s.advance(4, 100, false);
   expect(s.advance(.99, 100, false).metronomeBeat).toBe(false);
   expect(s.advance(.01, 100, false).metronomeBeat).toBe(true);
 });
